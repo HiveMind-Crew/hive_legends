@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-07-16
+Updated: 2026-07-16 (evening: look & feel review complete)
 
 ## Milestones
 
@@ -46,6 +46,15 @@ gameplay playthrough (bot completes the mission, buys an upgrade, replays
 with retained power; screenshots in `test-results/`) all pass. One transient
 e2e failure was observed once during development and did not reproduce in 4
 consecutive runs — watch CI for recurrence.
+
+## Look & feel track (new)
+
+A presentation review against the genre's arcade benchmark identified the gap
+as almost entirely look/feel, not mechanics. Direction is recorded in
+`docs/design/visual-direction.md`; work is broken into GitHub issues #1–#9
+with roadmap/tracking in issue #10. Recommended order: depth + combat juice
+(#1, #3) → character/threat readability (#2, #6, #7 — #7 must land before M1
+adds new enemy types) → HUD, audio, environment, menus (#4, #8, #5, #9).
 
 ## Known limitations / risks
 
