@@ -122,6 +122,7 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   const deadline = Date.now() + 180_000;
   let lastPhase = 'combat';
   let screenshotTaken = false;
+  let juiceShotTaken = false;
 
   while (Date.now() < deadline) {
     const state = await getState(page);
@@ -170,6 +171,12 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
     if (!screenshotTaken && state.enemies.length >= 4) {
       await page.screenshot({ path: 'test-results/03-horde-combat.png' });
       screenshotTaken = true;
+    }
+    // Capture the combat feedback (damage numbers, particles) right after
+    // the first kill lands.
+    if (!juiceShotTaken && me.kills > 0) {
+      await page.screenshot({ path: 'test-results/03b-combat-juice.png' });
+      juiceShotTaken = true;
     }
     await page.waitForTimeout(90);
   }

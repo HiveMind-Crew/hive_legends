@@ -1,34 +1,82 @@
 import Phaser from 'phaser';
 
 /**
- * Generated programmer-art textures. Everything is drawn once at boot so the
- * game ships with zero binary assets; real art replaces these texture keys
- * later without touching game code.
+ * Generated programmer-art textures and sprite frames. Everything is drawn
+ * once at boot so the game ships with zero binary assets; real art replaces
+ * these texture keys later without touching game code.
+ *
+ * Characters are small frame sets rather than single images: the hero has
+ * 8 facing directions x (2 walk frames + attack pose), the skitterling has
+ * a two-frame crawl wiggle plus a windup telegraph pose. The scene picks
+ * frames from sim state; nothing here is animated by itself.
  */
 
 export const TEX = {
   wall: 'tile-wall',
+  wallFace: 'tile-wall-face',
   floor: 'tile-floor',
-  hero: 'hero-vanguard',
-  skitterling: 'enemy-skitterling',
+  hero: 'hero-vanguard', // portrait alias (south-facing idle frame)
   broodNode: 'generator-brood-node',
   gold: 'pickup-gold',
   health: 'pickup-health',
-  exit: 'exit-portal'
+  exit: 'exit-portal',
+  shadow: 'fx-shadow',
+  accentRing: 'fx-accent-ring',
+  chevron: 'fx-chevron',
+  ichor: 'fx-ichor',
+  shard: 'fx-shard',
+  spark: 'fx-spark',
+  dust: 'fx-dust',
+  heart: 'fx-heart'
 } as const;
+
+export type HeroPose = 'w0' | 'w1' | 'atk';
+export type SkitterFrameId = 'w0' | 'w1' | 'windup';
+
+export function heroFrame(dir: number, pose: HeroPose): string {
+  return `hero-vanguard-${dir}-${pose}`;
+}
+
+export function skitterFrame(frame: SkitterFrameId): string {
+  return `enemy-skitterling-${frame}`;
+}
+
+/** Maps a facing vector to one of 8 direction indices (0 = east, clockwise). */
+export function facingDirIndex(x: number, y: number): number {
+  const idx = Math.round(Math.atan2(y, x) / (Math.PI / 4));
+  return ((idx % 8) + 8) % 8;
+}
 
 export function generateTextures(scene: Phaser.Scene): void {
   const g = scene.add.graphics();
 
-  // Wall tile: dark chitin block with a lighter top edge.
+  // Wall top face: chitin roof slab, read from above.
   g.clear();
-  g.fillStyle(0x2b2036);
+  g.fillStyle(0x352943);
   g.fillRect(0, 0, 32, 32);
   g.fillStyle(0x453456);
-  g.fillRect(0, 0, 32, 5);
+  g.fillRect(0, 0, 32, 3);
+  g.fillStyle(0x2b2036);
+  g.fillRect(5, 9, 8, 6);
+  g.fillRect(19, 18, 9, 7);
   g.lineStyle(1, 0x120c1a);
   g.strokeRect(0, 0, 32, 32);
   g.generateTexture(TEX.wall, 32, 32);
+
+  // Wall front face: darker vertical slab under south-facing wall edges,
+  // giving walls visible height (32x16, overlaps the floor tile below).
+  g.clear();
+  g.fillStyle(0x201830);
+  g.fillRect(0, 0, 32, 16);
+  g.fillStyle(0x2b2036);
+  g.fillRect(4, 3, 3, 11);
+  g.fillRect(14, 2, 3, 12);
+  g.fillRect(24, 4, 3, 10);
+  g.fillStyle(0x453456);
+  g.fillRect(0, 0, 32, 2);
+  g.fillStyle(0x0d0912, 0.9);
+  g.fillRect(0, 14, 32, 2);
+  g.generateTexture(TEX.wallFace, 32, 16);
 
   // Floor tile: mottled warren dirt.
   g.clear();
@@ -40,28 +88,19 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.fillRect(8, 22, 5, 5);
   g.generateTexture(TEX.floor, 32, 32);
 
-  // Vanguard: steel-blue armored disc with a bright crest, distinct from gold.
-  g.clear();
-  g.fillStyle(0x5a8fd9);
-  g.fillCircle(14, 14, 12);
-  g.fillStyle(0x2f5a8c);
-  g.fillCircle(14, 14, 7);
-  g.fillStyle(0xd9e6f4);
-  g.fillCircle(14, 8, 3);
-  g.lineStyle(2, 0x14243d);
-  g.strokeCircle(14, 14, 12);
-  g.generateTexture(TEX.hero, 28, 28);
+  // Hero frame set: 8 directions x (walk0, walk1, attack).
+  for (let dir = 0; dir < 8; dir++) {
+    drawHeroFrame(g, dir, 'w0', heroFrame(dir, 'w0'));
+    drawHeroFrame(g, dir, 'w1', heroFrame(dir, 'w1'));
+    drawHeroFrame(g, dir, 'atk', heroFrame(dir, 'atk'));
+  }
+  // Portrait alias for menus: south-facing idle.
+  drawHeroFrame(g, 2, 'w0', TEX.hero);
 
-  // Skitterling: pale hive bug with dark eyes.
-  g.clear();
-  g.fillStyle(0x9fe06a);
-  g.fillCircle(10, 10, 9);
-  g.fillStyle(0x5b8f33);
-  g.fillCircle(10, 10, 5);
-  g.fillStyle(0x1c260f);
-  g.fillCircle(7, 7, 2);
-  g.fillCircle(13, 7, 2);
-  g.generateTexture(TEX.skitterling, 20, 20);
+  // Skitterling frame set (drawn facing +x; the scene rotates the sprite).
+  drawSkitterFrame(g, 'w0');
+  drawSkitterFrame(g, 'w1');
+  drawSkitterFrame(g, 'windup');
 
   // Brood Node: pulsing egg mound.
   g.clear();
@@ -99,5 +138,130 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.strokeCircle(24, 24, 11);
   g.generateTexture(TEX.exit, 48, 48);
 
+  // Elliptical drop shadow (alpha baked in; scaled per entity).
+  g.clear();
+  g.fillStyle(0x000000, 0.4);
+  g.fillEllipse(16, 7, 28, 10);
+  g.generateTexture(TEX.shadow, 32, 14);
+
+  // Player accent underglow ring (white; tinted per player, squashed to ground).
+  g.clear();
+  g.lineStyle(3, 0xffffff);
+  g.strokeCircle(20, 20, 15);
+  g.generateTexture(TEX.accentRing, 40, 40);
+
+  // Particle sprites for combat feedback (issue #3).
+  g.clear();
+  g.fillStyle(0x9fe06a);
+  g.fillCircle(3, 3, 3);
+  g.fillStyle(0x5b8f33);
+  g.fillCircle(4, 4, 1.5);
+  g.generateTexture(TEX.ichor, 6, 6);
+
+  g.clear();
+  g.fillStyle(0xa855c8);
+  g.fillTriangle(0, 8, 4, 0, 8, 8);
+  g.fillStyle(0x7a3b8f);
+  g.fillTriangle(2, 8, 4, 3, 6, 8);
+  g.generateTexture(TEX.shard, 8, 8);
+
+  g.clear();
+  g.fillStyle(0xffd75e);
+  g.fillTriangle(3, 0, 6, 3, 3, 6);
+  g.fillTriangle(3, 0, 0, 3, 3, 6);
+  g.generateTexture(TEX.spark, 6, 6);
+
+  g.clear();
+  g.fillStyle(0x8a7f96, 0.5);
+  g.fillCircle(4, 4, 4);
+  g.generateTexture(TEX.dust, 8, 8);
+
+  g.clear();
+  g.fillStyle(0xe0524d);
+  g.fillCircle(2, 2.5, 2);
+  g.fillCircle(4.5, 2.5, 2);
+  g.fillTriangle(0.5, 3.5, 6, 3.5, 3.2, 6.5);
+  g.generateTexture(TEX.heart, 7, 7);
+
+  // Facing chevron (white, points +x; tinted per player and rotated).
+  g.clear();
+  g.fillStyle(0xffffff);
+  g.fillTriangle(3, 2, 12, 7, 3, 12);
+  g.fillStyle(0x000000, 0.35);
+  g.fillTriangle(3, 4, 8, 7, 3, 10);
+  g.generateTexture(TEX.chevron, 14, 14);
+
   g.destroy();
+}
+
+/** Armored vanguard: body disc, pauldrons, helm crest toward facing, blade. */
+function drawHeroFrame(g: Phaser.GameObjects.Graphics, dir: number, pose: HeroPose, key: string): void {
+  const C = 18; // center of the 36x36 frame
+  const a = (dir * Math.PI) / 4;
+  const dx = Math.cos(a);
+  const dy = Math.sin(a);
+  const px = -dy; // perpendicular (left of facing)
+  const py = dx;
+  const stride = pose === 'w1' ? -2 : 2;
+
+  g.clear();
+
+  // Feet, behind the body, alternating along the facing axis when walking.
+  g.fillStyle(0x1c2c44);
+  g.fillCircle(C - dx * 7 + px * 5 + dx * stride, C - dy * 7 + py * 5 + dy * stride, 3);
+  g.fillCircle(C - dx * 7 - px * 5 - dx * stride, C - dy * 7 - py * 5 - dy * stride, 3);
+
+  // Body and armor.
+  g.fillStyle(0x5a8fd9);
+  g.fillCircle(C, C, 11);
+  g.fillStyle(0x2f5a8c);
+  g.fillCircle(C - dx * 2, C - dy * 2, 6);
+  g.lineStyle(2, 0x14243d);
+  g.strokeCircle(C, C, 11);
+
+  // Pauldrons on the perpendicular axis.
+  g.fillStyle(0x87b1e8);
+  g.fillCircle(C + px * 9, C + py * 9, 3.5);
+  g.fillCircle(C - px * 9, C - py * 9, 3.5);
+
+  // Helm crest marks the facing even when stationary.
+  g.fillStyle(0xd9e6f4);
+  g.fillCircle(C + dx * 5, C + dy * 5, 3);
+
+  // Blade: held beside the body at rest, swung out front on attack.
+  const reach = pose === 'atk' ? 15 : 13;
+  const side = pose === 'atk' ? 0 : 4;
+  g.lineStyle(pose === 'atk' ? 5 : 4, 0xd9e6f4);
+  g.lineBetween(C + dx * 9 + px * 4, C + dy * 9 + py * 4, C + dx * reach + px * side, C + dy * reach + py * side);
+
+  g.generateTexture(key, 36, 36);
+}
+
+/** Hive bug drawn facing +x: legs, oval body, dark abdomen, forward eyes. */
+function drawSkitterFrame(g: Phaser.GameObjects.Graphics, frame: SkitterFrameId): void {
+  const raised = frame === 'windup';
+  const splay = frame === 'w1' ? -1 : 1;
+
+  g.clear();
+
+  g.lineStyle(2, raised ? 0x74a844 : 0x5b8f33);
+  for (const s of [-1, 1]) {
+    for (let i = 0; i < 3; i++) {
+      const bx = 8 + i * 4;
+      const lean = (i - 1) * 2 * splay;
+      g.lineBetween(bx, 12 + s * 4, bx + lean, 12 + s * (raised ? 11 : 9));
+    }
+  }
+
+  g.fillStyle(raised ? 0xc8f09a : 0x9fe06a);
+  g.fillEllipse(12, 12, raised ? 18 : 17, raised ? 13 : 11);
+  g.fillStyle(raised ? 0x86b356 : 0x5b8f33);
+  g.fillEllipse(8, 12, 8, raised ? 9 : 7);
+
+  // Eyes flare red during the attack windup so the telegraph is unmissable.
+  g.fillStyle(raised ? 0xff5a4d : 0x1c260f);
+  g.fillCircle(17, 9.5, 2);
+  g.fillCircle(17, 14.5, 2);
+
+  g.generateTexture(skitterFrame(frame), 24, 24);
 }
