@@ -77,6 +77,15 @@ export interface EnemyDef {
   goldMax: number;
 }
 
+/** One-shot frenzy when a generator first drops to low HP. */
+export interface GeneratorEnrageDef {
+  /** HP fraction at or below which the enrage triggers (e.g. 0.5). */
+  hpFraction: number;
+  /** Spawn-interval multiplier while enraged (e.g. 0.5 = twice as fast). */
+  intervalMult: number;
+  durationTicks: number;
+}
+
 export interface GeneratorDef {
   id: string;
   name: string;
@@ -87,6 +96,8 @@ export interface GeneratorDef {
   /** Max simultaneously-alive enemies originating from one generator. */
   maxAlive: number;
   goldDrop: number;
+  /** Optional enrage behavior; omit for generators that never enrage. */
+  enrage?: GeneratorEnrageDef;
 }
 
 export interface LevelPickupDef {
@@ -161,6 +172,9 @@ export interface GeneratorState {
   hp: number;
   maxHp: number;
   spawnCooldown: number;
+  /** Enrage fires at most once per generator. */
+  enrageTriggered: boolean;
+  enrageTicksLeft: number;
 }
 
 export interface PickupState {
@@ -195,6 +209,7 @@ export type SimEvent =
   | { type: 'enemy-died'; enemyId: EntityId; typeId: string; pos: Vec2; byPlayer: EntityId; damage: number }
   | { type: 'enemy-spawned'; enemyId: EntityId; typeId: string; pos: Vec2 }
   | { type: 'generator-hit'; generatorId: EntityId; pos: Vec2; damage: number }
+  | { type: 'generator-enraged'; generatorId: EntityId; pos: Vec2 }
   | { type: 'generator-destroyed'; generatorId: EntityId; pos: Vec2 }
   | { type: 'pickup-collected'; playerId: EntityId; kind: PickupKind; amount: number; pos: Vec2 }
   | { type: 'player-hit'; playerId: EntityId; damage: number; pos: Vec2 }

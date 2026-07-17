@@ -162,6 +162,54 @@ describe('generators', () => {
     }
   });
 
+  it('enrages exactly once below half HP, spawns faster, then calms down', () => {
+    const sim = newSim();
+    const def = CONTENT.generators['brood-node']!;
+    const enrage = def.enrage!;
+    const g = sim.state.generators[0]!;
+    const p = sim.state.players[0]!;
+    p.pos = { x: g.pos.x - 40, y: g.pos.y };
+    p.facing = { x: 1, y: 0 };
+
+    // 3 swings x 25 dmg = 75 of 120 HP: crosses the 50% threshold (60) on
+    // the third swing while leaving the node alive.
+    const events: SimEvent[] = [];
+    for (let i = 0; i < 3; i++) {
+      p.attackCooldown = 0;
+      events.push(...simTick(sim, [input({ attack: true })]));
+    }
+    expect(events.filter((e) => e.type === 'generator-enraged')).toHaveLength(1);
+    expect(g.enrageTriggered).toBe(true);
+    expect(g.enrageTicksLeft).toBeGreaterThan(0);
+    // The pending spawn is pulled in to the enraged pace.
+    const fastInterval = Math.round(def.spawnIntervalTicks * enrage.intervalMult);
+    expect(g.spawnCooldown).toBeLessThanOrEqual(fastInterval);
+
+    // A spawn during enrage resets the cooldown to the halved interval.
+    let sawEnragedSpawn = false;
+    for (let i = 0; i < 200 && !sawEnragedSpawn; i++) {
+      const evs = simTick(sim, [EMPTY_INPUT]);
+      const fromThisGen = evs.some(
+        (e) =>
+          e.type === 'enemy-spawned' &&
+          sim.state.enemies.find((en) => en.id === e.enemyId)?.sourceGen === g.id
+      );
+      if (fromThisGen && g.enrageTicksLeft > 0) {
+        sawEnragedSpawn = true;
+        expect(g.spawnCooldown).toBe(fastInterval);
+      }
+    }
+    expect(sawEnragedSpawn).toBe(true);
+
+    // Enrage expires and never re-triggers on further damage.
+    p.hp = p.maxHp; // undo swarm chip damage so the mission can't fail mid-test
+    runTicks(sim, enrage.durationTicks + 1);
+    expect(g.enrageTicksLeft).toBe(0);
+    p.attackCooldown = 0;
+    const more = runTicks(sim, 1, input({ attack: true }));
+    expect(more.filter((e) => e.type === 'generator-enraged')).toHaveLength(0);
+  });
+
   it('destroyed generator stops spawning, drops gold, and opens the exit when all are down', () => {
     const sim = newSim();
     const events: SimEvent[] = [];

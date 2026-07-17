@@ -5,6 +5,7 @@ import {
   NO_MODIFIERS,
   TICK_DT,
   type EnemyState,
+  type GeneratorDef,
   type GeneratorState,
   type InputCommand,
   type PickupState,
@@ -62,7 +63,9 @@ export function createSim(config: SimConfig): Sim {
       pos: tileCenter(level, g.tx, g.ty),
       hp: def.maxHp,
       maxHp: def.maxHp,
-      spawnCooldown: 30 // brief grace period, then the horde starts
+      spawnCooldown: 30, // brief grace period, then the horde starts
+      enrageTriggered: false,
+      enrageTicksLeft: 0
     };
   });
 
@@ -254,11 +257,18 @@ function dropEnemyGold(sim: Sim, e: EnemyState): void {
 }
 
 function damageGenerator(sim: Sim, g: GeneratorState, damage: number, events: SimEvent[]): void {
+  const def = sim.config.content.generators[g.typeId];
   g.hp -= damage;
+  if (g.hp > 0 && def?.enrage && !g.enrageTriggered && g.hp <= g.maxHp * def.enrage.hpFraction) {
+    g.enrageTriggered = true;
+    g.enrageTicksLeft = def.enrage.durationTicks;
+    // React immediately: the pending spawn is pulled in to the enraged pace.
+    g.spawnCooldown = Math.min(g.spawnCooldown, enragedInterval(def));
+    events.push({ type: 'generator-enraged', generatorId: g.id, pos: { ...g.pos } });
+  }
   if (g.hp <= 0) {
     g.hp = 0;
     events.push({ type: 'generator-destroyed', generatorId: g.id, pos: { ...g.pos } });
-    const def = sim.config.content.generators[g.typeId];
     if (def && def.goldDrop > 0) {
       sim.state.pickups.push({
         id: sim.state.nextEntityId++,
@@ -352,6 +362,7 @@ function updateGenerators(sim: Sim, events: SimEvent[]): void {
   for (const g of s.generators) {
     const def = content.generators[g.typeId];
     if (!def) continue;
+    if (g.enrageTicksLeft > 0) g.enrageTicksLeft--;
     if (g.spawnCooldown > 0) {
       g.spawnCooldown--;
       continue;
@@ -385,8 +396,12 @@ function updateGenerators(sim: Sim, events: SimEvent[]): void {
       events.push({ type: 'enemy-spawned', enemyId: enemy.id, typeId: enemy.typeId, pos: { ...pos } });
       spawned = true;
     }
-    g.spawnCooldown = def.spawnIntervalTicks;
+    g.spawnCooldown = g.enrageTicksLeft > 0 ? enragedInterval(def) : def.spawnIntervalTicks;
   }
+}
+
+function enragedInterval(def: GeneratorDef): number {
+  return def.enrage ? Math.max(1, Math.round(def.spawnIntervalTicks * def.enrage.intervalMult)) : def.spawnIntervalTicks;
 }
 
 function collectPickups(sim: Sim, events: SimEvent[]): void {

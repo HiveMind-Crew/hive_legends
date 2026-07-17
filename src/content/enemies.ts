@@ -26,6 +26,12 @@ export const GENERATORS: Record<string, GeneratorDef> = {
     spawnsEnemyId: 'skitterling',
     spawnIntervalTicks: 90,
     maxAlive: 6,
-    goldDrop: 25
+    goldDrop: 25,
+    // Wounded nodes panic-spawn: half interval for 3 s, once, below half HP.
+    enrage: {
+      hpFraction: 0.5,
+      intervalMult: 0.5,
+      durationTicks: 180
+    }
   }
 };

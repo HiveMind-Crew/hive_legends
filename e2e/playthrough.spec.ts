@@ -123,6 +123,7 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   let lastPhase = 'combat';
   let screenshotTaken = false;
   let juiceShotTaken = false;
+  let damagedNodeShotTaken = false;
 
   while (Date.now() < deadline) {
     const state = await getState(page);
@@ -177,6 +178,12 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
     if (!juiceShotTaken && me.kills > 0) {
       await page.screenshot({ path: 'test-results/03b-combat-juice.png' });
       juiceShotTaken = true;
+    }
+    // Capture a heavily damaged (crumbling-tier) generator for the damage-state
+    // comparison against 02-mission-start's intact nodes.
+    if (!damagedNodeShotTaken && state.generators.some((g) => g.hp / g.maxHp < 0.34)) {
+      await page.screenshot({ path: 'test-results/03c-node-damaged.png' });
+      damagedNodeShotTaken = true;
     }
     await page.waitForTimeout(90);
   }

@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-07-17 (look & feel: issues #1, #2, and #3 landed)
+Updated: 2026-07-17 (look & feel: issues #1, #2, #3, and #6 landed)
 
 ## Milestones
 
@@ -78,6 +78,16 @@ Landed:
   carry the damage dealt — an event-payload addition only; state evolution
   and the determinism test are unchanged. The e2e run now also captures
   `test-results/03b-combat-juice.png` right after the first kill.
+- [x] #6 Generator presence — three damage-tier textures (intact →
+  cracked/leaking → crumbling) swapped from `hp/maxHp`, HP bar recolors by
+  tier; idle breathing, a pre-spawn bulge read from `spawnCooldown`, an
+  egg-burst + node squash-pop + hatch scale-in on `enemy-spawned`; two-stage
+  destruction with lingering scorch, heavier shake, and longer hit-stop.
+  Ships the sim-side enrage mechanic: a generator whose HP first drops below
+  half panic-spawns at half interval for 3 s (one-shot, data-driven via
+  `GeneratorDef.enrage` in `src/content/enemies.ts`, new `generator-enraged`
+  SimEvent, red pulsing warning ring + ENRAGED float text in the renderer;
+  unit-tested including expiry and no re-trigger).
 
 ## Known limitations / risks
 

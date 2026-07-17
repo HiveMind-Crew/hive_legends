@@ -16,7 +16,6 @@ export const TEX = {
   wallFace: 'tile-wall-face',
   floor: 'tile-floor',
   hero: 'hero-vanguard', // portrait alias (south-facing idle frame)
-  broodNode: 'generator-brood-node',
   gold: 'pickup-gold',
   health: 'pickup-health',
   exit: 'exit-portal',
@@ -39,6 +38,11 @@ export function heroFrame(dir: number, pose: HeroPose): string {
 
 export function skitterFrame(frame: SkitterFrameId): string {
   return `enemy-skitterling-${frame}`;
+}
+
+/** Damage tiers: 0 intact, 1 cracked/leaking, 2 crumbling. */
+export function broodNodeFrame(tier: number): string {
+  return `generator-brood-node-${tier}`;
 }
 
 /** Maps a facing vector to one of 8 direction indices (0 = east, clockwise). */
@@ -102,17 +106,10 @@ export function generateTextures(scene: Phaser.Scene): void {
   drawSkitterFrame(g, 'w1');
   drawSkitterFrame(g, 'windup');
 
-  // Brood Node: pulsing egg mound.
-  g.clear();
-  g.fillStyle(0x7a3b8f);
-  g.fillCircle(22, 22, 20);
-  g.fillStyle(0xa855c8);
-  g.fillCircle(22, 18, 13);
-  g.fillStyle(0xe1a6f0);
-  g.fillCircle(22, 15, 6);
-  g.lineStyle(2, 0x3d1d49);
-  g.strokeCircle(22, 22, 20);
-  g.generateTexture(TEX.broodNode, 44, 44);
+  // Brood Node damage tiers: intact → cracked/leaking → crumbling.
+  drawBroodNode(g, 0);
+  drawBroodNode(g, 1);
+  drawBroodNode(g, 2);
 
   // Gold coin.
   g.clear();
@@ -235,6 +232,52 @@ function drawHeroFrame(g: Phaser.GameObjects.Graphics, dir: number, pose: HeroPo
   g.lineBetween(C + dx * 9 + px * 4, C + dy * 9 + py * 4, C + dx * reach + px * side, C + dy * reach + py * side);
 
   g.generateTexture(key, 36, 36);
+}
+
+/** Egg mound in three damage states so hurt nodes read at a glance. */
+function drawBroodNode(g: Phaser.GameObjects.Graphics, tier: number): void {
+  g.clear();
+  if (tier < 2) {
+    g.fillStyle(0x7a3b8f);
+    g.fillCircle(22, 22, 20);
+    g.fillStyle(0xa855c8);
+    g.fillCircle(22, 18, 13);
+    g.fillStyle(0xe1a6f0);
+    g.fillCircle(22, 15, 6);
+    g.lineStyle(2, 0x3d1d49);
+    g.strokeCircle(22, 22, 20);
+    if (tier === 1) {
+      // Cracks across the dome plus an ichor leak pooling at the base.
+      g.lineStyle(2, 0x3d1d49);
+      g.lineBetween(12, 12, 19, 22);
+      g.lineBetween(19, 22, 15, 33);
+      g.lineBetween(30, 9, 27, 20);
+      g.lineBetween(27, 20, 33, 28);
+      g.fillStyle(0xcf8fe0);
+      g.fillCircle(15, 38, 3);
+      g.fillCircle(12, 41, 2);
+    }
+  } else {
+    // Crumbling: deflated husk, heavy fractures, exposed glowing core, rubble.
+    g.fillStyle(0x5f2e70);
+    g.fillEllipse(22, 26, 40, 32);
+    g.fillStyle(0x7a3b8f);
+    g.fillEllipse(22, 24, 28, 22);
+    g.lineStyle(3, 0x2a1433);
+    g.lineBetween(8, 20, 20, 27);
+    g.lineBetween(20, 27, 14, 38);
+    g.lineBetween(34, 15, 27, 26);
+    g.lineBetween(27, 26, 36, 33);
+    g.fillStyle(0xe1a6f0);
+    g.fillCircle(22, 23, 7);
+    g.fillStyle(0xfbe3ff);
+    g.fillCircle(22, 23, 3);
+    g.fillStyle(0x3d1d49);
+    g.fillCircle(6, 38, 3);
+    g.fillCircle(39, 36, 2.5);
+    g.fillCircle(33, 40, 2);
+  }
+  g.generateTexture(broodNodeFrame(tier), 44, 44);
 }
 
 /** Hive bug drawn facing +x: legs, oval body, dark abdomen, forward eyes. */
