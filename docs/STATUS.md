@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-07-16 (evening: look & feel review complete)
+Updated: 2026-07-17 (look & feel phase A/B: issues #1 and #2 landed)
 
 ## Milestones
 
@@ -55,6 +55,20 @@ as almost entirely look/feel, not mechanics. Direction is recorded in
 with roadmap/tracking in issue #10. Recommended order: depth + combat juice
 (#1, #3) → character/threat readability (#2, #6, #7 — #7 must land before M1
 adds new enemy types) → HUD, audio, environment, menus (#4, #8, #5, #9).
+
+Landed:
+
+- [x] #1 Visual depth pass — raised wall front faces, elliptical drop shadows
+  under all mobiles, y-sorted sprites (`depth = y`, walls sort by their bottom
+  edge), pickup hover bob, pulsing exit portal. Rendering-only.
+- [x] #2 Character animation & readability — hero has 8-way directional frames
+  with a 2-frame walk cycle and attack-swing pose plus an always-visible
+  facing chevron; skitterlings crawl-wiggle, rotate to their heading, and
+  flare red in a windup pose before striking; per-player accent colors
+  (underglow ring + chevron + HUD P1 chip) via `src/game/colors.ts`.
+  Caveat: an enemy's *first* contact hit lands without a telegraph because
+  the sim has no windup state (cooldown starts at 0) — fold a real windup
+  into the enemy-readability work in #7.
 
 ## Known limitations / risks
 
