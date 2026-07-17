@@ -229,13 +229,13 @@ function damageEnemy(
   e.knockback.x += dir.x * knockback;
   e.knockback.y += dir.y * knockback;
   if (e.hp <= 0) {
-    events.push({ type: 'enemy-died', enemyId: e.id, typeId: e.typeId, pos: { ...e.pos }, byPlayer });
+    events.push({ type: 'enemy-died', enemyId: e.id, typeId: e.typeId, pos: { ...e.pos }, byPlayer, damage });
     const killer = sim.state.players.find((p) => p.id === byPlayer);
     if (killer) killer.kills++;
     dropEnemyGold(sim, e);
     sim.state.enemies = sim.state.enemies.filter((x) => x !== e);
   } else {
-    events.push({ type: 'enemy-hit', enemyId: e.id, pos: { ...e.pos } });
+    events.push({ type: 'enemy-hit', enemyId: e.id, pos: { ...e.pos }, damage });
   }
 }
 
@@ -269,7 +269,7 @@ function damageGenerator(sim: Sim, g: GeneratorState, damage: number, events: Si
     }
     sim.state.generators = sim.state.generators.filter((x) => x !== g);
   } else {
-    events.push({ type: 'generator-hit', generatorId: g.id, pos: { ...g.pos } });
+    events.push({ type: 'generator-hit', generatorId: g.id, pos: { ...g.pos }, damage });
   }
 }
 

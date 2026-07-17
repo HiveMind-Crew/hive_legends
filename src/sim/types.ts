@@ -191,10 +191,10 @@ export interface SimState {
 export type SimEvent =
   | { type: 'attack'; playerId: EntityId; pos: Vec2; facing: Vec2 }
   | { type: 'ability'; playerId: EntityId; pos: Vec2; radius: number }
-  | { type: 'enemy-hit'; enemyId: EntityId; pos: Vec2 }
-  | { type: 'enemy-died'; enemyId: EntityId; typeId: string; pos: Vec2; byPlayer: EntityId }
+  | { type: 'enemy-hit'; enemyId: EntityId; pos: Vec2; damage: number }
+  | { type: 'enemy-died'; enemyId: EntityId; typeId: string; pos: Vec2; byPlayer: EntityId; damage: number }
   | { type: 'enemy-spawned'; enemyId: EntityId; typeId: string; pos: Vec2 }
-  | { type: 'generator-hit'; generatorId: EntityId; pos: Vec2 }
+  | { type: 'generator-hit'; generatorId: EntityId; pos: Vec2; damage: number }
   | { type: 'generator-destroyed'; generatorId: EntityId; pos: Vec2 }
   | { type: 'pickup-collected'; playerId: EntityId; kind: PickupKind; amount: number; pos: Vec2 }
   | { type: 'player-hit'; playerId: EntityId; damage: number; pos: Vec2 }

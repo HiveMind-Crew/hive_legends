@@ -22,7 +22,12 @@ export const TEX = {
   exit: 'exit-portal',
   shadow: 'fx-shadow',
   accentRing: 'fx-accent-ring',
-  chevron: 'fx-chevron'
+  chevron: 'fx-chevron',
+  ichor: 'fx-ichor',
+  shard: 'fx-shard',
+  spark: 'fx-spark',
+  dust: 'fx-dust',
+  heart: 'fx-heart'
 } as const;
 
 export type HeroPose = 'w0' | 'w1' | 'atk';
@@ -144,6 +149,39 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.lineStyle(3, 0xffffff);
   g.strokeCircle(20, 20, 15);
   g.generateTexture(TEX.accentRing, 40, 40);
+
+  // Particle sprites for combat feedback (issue #3).
+  g.clear();
+  g.fillStyle(0x9fe06a);
+  g.fillCircle(3, 3, 3);
+  g.fillStyle(0x5b8f33);
+  g.fillCircle(4, 4, 1.5);
+  g.generateTexture(TEX.ichor, 6, 6);
+
+  g.clear();
+  g.fillStyle(0xa855c8);
+  g.fillTriangle(0, 8, 4, 0, 8, 8);
+  g.fillStyle(0x7a3b8f);
+  g.fillTriangle(2, 8, 4, 3, 6, 8);
+  g.generateTexture(TEX.shard, 8, 8);
+
+  g.clear();
+  g.fillStyle(0xffd75e);
+  g.fillTriangle(3, 0, 6, 3, 3, 6);
+  g.fillTriangle(3, 0, 0, 3, 3, 6);
+  g.generateTexture(TEX.spark, 6, 6);
+
+  g.clear();
+  g.fillStyle(0x8a7f96, 0.5);
+  g.fillCircle(4, 4, 4);
+  g.generateTexture(TEX.dust, 8, 8);
+
+  g.clear();
+  g.fillStyle(0xe0524d);
+  g.fillCircle(2, 2.5, 2);
+  g.fillCircle(4.5, 2.5, 2);
+  g.fillTriangle(0.5, 3.5, 6, 3.5, 3.2, 6.5);
+  g.generateTexture(TEX.heart, 7, 7);
 
   // Facing chevron (white, points +x; tinted per player and rotated).
   g.clear();

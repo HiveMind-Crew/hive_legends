@@ -24,6 +24,16 @@ const WALK_FRAME_TICKS = 8;
 const CRAWL_FRAME_TICKS = 6;
 const WINDUP_TICKS = 12; // enemy cooldown remainder shown as a windup telegraph
 
+// Combat-juice caps and camera feel (issue #3). Hit-stop pauses render
+// stepping only — the sim accumulator holds, no ticks are ever skipped.
+const HIT_STOP_MAX_MS = 90;
+const MAX_ALIVE_PARTICLES = 300;
+const MAX_FLOAT_TEXTS = 24;
+const MAX_TRAIL_GHOSTS = 40;
+const CAM_LOOKAHEAD = 36;
+const CAM_LERP = 0.08;
+const CAM_KICK_DECAY = 0.8;
+
 /** Runs the deterministic sim at a fixed tick rate and renders its state. */
 export class MissionScene extends Phaser.Scene {
   private sim!: Sim;
@@ -38,6 +48,16 @@ export class MissionScene extends Phaser.Scene {
   private movedAtTick = new Map<EntityId, number>();
   private exitSprite!: Phaser.GameObjects.Image;
   private ended = false;
+  private hitStopMs = 0;
+  private camFollow = { x: 0, y: 0 };
+  private camKick = { x: 0, y: 0 };
+  private trailCount = 0;
+  private floatCount = 0;
+  private ichorFx!: Phaser.GameObjects.Particles.ParticleEmitter;
+  private shardFx!: Phaser.GameObjects.Particles.ParticleEmitter;
+  private sparkFx!: Phaser.GameObjects.Particles.ParticleEmitter;
+  private dustFx!: Phaser.GameObjects.Particles.ParticleEmitter;
+  private heartFx!: Phaser.GameObjects.Particles.ParticleEmitter;
 
   constructor() {
     super('mission');
@@ -60,9 +80,16 @@ export class MissionScene extends Phaser.Scene {
     this.genHpBars.clear();
     this.lastPos.clear();
     this.movedAtTick.clear();
+    this.hitStopMs = 0;
+    this.camKick = { x: 0, y: 0 };
+    this.trailCount = 0;
+    this.floatCount = 0;
+    const spawn = this.sim.state.players[0]?.pos ?? { x: 0, y: 0 };
+    this.camFollow = { x: spawn.x, y: spawn.y };
     this.commander = new KeyboardCommander(this);
 
     this.drawLevel();
+    this.createEmitters();
 
     this.exitSprite = this.add
       .image(this.sim.state.exitPos.x, this.sim.state.exitPos.y, TEX.exit)
@@ -103,6 +130,56 @@ export class MissionScene extends Phaser.Scene {
     });
   }
 
+  /** Long-lived pooled emitters; effects fire via explode() with alive caps. */
+  private createEmitters(): void {
+    this.ichorFx = this.add
+      .particles(0, 0, TEX.ichor, {
+        speed: { min: 40, max: 140 },
+        lifespan: { min: 200, max: 420 },
+        scale: { start: 1, end: 0 },
+        gravityY: 60,
+        emitting: false
+      })
+      .setDepth(DEPTH_FX);
+    this.shardFx = this.add
+      .particles(0, 0, TEX.shard, {
+        speed: { min: 80, max: 240 },
+        lifespan: { min: 300, max: 600 },
+        scale: { start: 1, end: 0.2 },
+        rotate: { min: 0, max: 360 },
+        gravityY: 120,
+        emitting: false
+      })
+      .setDepth(DEPTH_FX);
+    this.sparkFx = this.add
+      .particles(0, 0, TEX.spark, {
+        speed: { min: 30, max: 110 },
+        lifespan: 350,
+        scale: { start: 1, end: 0 },
+        gravityY: -40,
+        emitting: false
+      })
+      .setDepth(DEPTH_FX);
+    this.dustFx = this.add
+      .particles(0, 0, TEX.dust, {
+        speed: { min: 20, max: 70 },
+        lifespan: { min: 400, max: 800 },
+        scale: { start: 1, end: 1.8 },
+        alpha: { start: 0.5, end: 0 },
+        emitting: false
+      })
+      .setDepth(DEPTH_FX - 1);
+    this.heartFx = this.add
+      .particles(0, 0, TEX.heart, {
+        speed: { min: 15, max: 50 },
+        lifespan: 500,
+        scale: { start: 1, end: 0 },
+        gravityY: -80,
+        emitting: false
+      })
+      .setDepth(DEPTH_FX);
+  }
+
   /** Snapshot consumed by the parallel HUD scene each frame. */
   hudInfo(): {
     hp: number;
@@ -134,6 +211,14 @@ export class MissionScene extends Phaser.Scene {
   override update(_time: number, delta: number): void {
     if (this.ended) return;
 
+    // Hit-stop: freeze the world for a few frames on big hits. The sim is
+    // simply not stepped (and delta not accumulated), so no ticks are lost.
+    if (this.hitStopMs > 0) {
+      this.hitStopMs -= delta;
+      this.updateCamera();
+      return;
+    }
+
     this.accumulator += delta / 1000;
     let steps = 0;
     while (this.accumulator >= TICK_DT && steps < MAX_STEPS_PER_FRAME) {
@@ -151,6 +236,21 @@ export class MissionScene extends Phaser.Scene {
       this.exitSprite.setScale(1 + 0.08 * Math.sin(t / 250));
       this.exitSprite.setRotation(t / 2000);
     }
+
+    this.updateCamera();
+  }
+
+  /** Smoothed follow with facing lookahead plus a decaying melee-impact kick. */
+  private updateCamera(): void {
+    const p = this.sim.state.players[0];
+    if (!p) return;
+    const tx = p.pos.x + p.facing.x * CAM_LOOKAHEAD;
+    const ty = p.pos.y + p.facing.y * CAM_LOOKAHEAD;
+    this.camFollow.x += (tx - this.camFollow.x) * CAM_LERP;
+    this.camFollow.y += (ty - this.camFollow.y) * CAM_LERP;
+    this.camKick.x *= CAM_KICK_DECAY;
+    this.camKick.y *= CAM_KICK_DECAY;
+    this.cameras.main.centerOn(this.camFollow.x + this.camKick.x, this.camFollow.y + this.camKick.y);
   }
 
   // -------------------------------------------------------------------------
@@ -162,21 +262,36 @@ export class MissionScene extends Phaser.Scene {
           this.flashArc(ev.pos, ev.facing);
           break;
         case 'ability':
-          this.flashRing(ev.pos, ev.radius, 0xd9a441);
+          this.shockwave(ev.pos, ev.radius);
           break;
         case 'enemy-hit':
+          this.tintFlash(this.spriteFor(ev), 0xffffff);
+          this.damageNumber(ev.pos, ev.damage, '#f4e3b2');
+          this.burst(this.ichorFx, 2, ev.pos);
+          this.meleeKick();
+          break;
         case 'generator-hit':
           this.tintFlash(this.spriteFor(ev), 0xffffff);
+          this.damageNumber(ev.pos, ev.damage, '#e1a6f0');
+          this.burst(this.shardFx, 2, ev.pos);
+          this.meleeKick();
           break;
         case 'enemy-died':
           this.deathPuff(ev.pos, 0x9fe06a);
+          this.damageNumber(ev.pos, ev.damage, '#ffd75e');
+          this.burst(this.ichorFx, 10, ev.pos);
+          this.hitStop(35);
           break;
         case 'generator-destroyed':
           this.deathPuff(ev.pos, 0xa855c8, 1.8);
-          this.cameras.main.shake(120, 0.008);
+          this.burst(this.shardFx, 14, ev.pos);
+          this.burst(this.dustFx, 10, ev.pos);
+          this.cameras.main.shake(200, 0.012);
+          this.hitStop(60);
           break;
         case 'pickup-collected':
           this.floatText(ev.pos, ev.kind === 'gold' ? `+${ev.amount}` : `+${ev.amount} HP`, ev.kind === 'gold' ? '#ffd75e' : '#e0524d');
+          this.burst(ev.kind === 'gold' ? this.sparkFx : this.heartFx, ev.kind === 'gold' ? 6 : 5, ev.pos);
           break;
         case 'player-hit':
           this.cameras.main.shake(80, 0.004);
@@ -252,8 +367,6 @@ export class MissionScene extends Phaser.Scene {
         .setRotation(Math.atan2(p.facing.y, p.facing.x))
         .setDepth(p.pos.y + 1)
         .setVisible(p.alive);
-
-      this.cameras.main.centerOn(p.pos.x, p.pos.y);
     });
 
     for (const e of s.enemies) {
@@ -287,6 +400,27 @@ export class MissionScene extends Phaser.Scene {
       spr.setScale(windup ? 1.18 : 1);
       spr.setPosition(e.pos.x, e.pos.y).setDepth(e.pos.y);
       this.ensureShadow(e.id, 0.7).setPosition(e.pos.x, e.pos.y + 8);
+
+      // Motion streak while the knockback vector is meaningful.
+      const kbMag = Math.hypot(e.knockback.x, e.knockback.y);
+      if (kbMag > 60 && this.trailCount < MAX_TRAIL_GHOSTS && s.tick % 2 === 0) {
+        this.trailCount++;
+        const ghost = this.add
+          .image(e.pos.x, e.pos.y, spr.texture.key)
+          .setRotation(spr.rotation)
+          .setAlpha(0.28)
+          .setTint(0xbfe89a)
+          .setDepth(e.pos.y - 1);
+        this.tweens.add({
+          targets: ghost,
+          alpha: 0,
+          duration: 140,
+          onComplete: () => {
+            ghost.destroy();
+            this.trailCount--;
+          }
+        });
+      }
     }
 
     for (const g of s.generators) {
@@ -381,6 +515,60 @@ export class MissionScene extends Phaser.Scene {
 
   // -------------------------------------------------------------------------
   // Feedback effects
+
+  private burst(fx: Phaser.GameObjects.Particles.ParticleEmitter, count: number, pos: Vec2): void {
+    if (fx.getAliveParticleCount() > MAX_ALIVE_PARTICLES) return;
+    fx.explode(count, pos.x, pos.y);
+  }
+
+  private hitStop(ms: number): void {
+    this.hitStopMs = Math.min(HIT_STOP_MAX_MS, Math.max(this.hitStopMs, ms));
+  }
+
+  /** 2–3 px camera nudge in the player's facing when their melee connects. */
+  private meleeKick(): void {
+    const p = this.sim.state.players[0];
+    if (!p) return;
+    this.camKick.x = p.facing.x * 3;
+    this.camKick.y = p.facing.y * 3;
+  }
+
+  private damageNumber(pos: Vec2, amount: number, color: string): void {
+    if (this.floatCount >= MAX_FLOAT_TEXTS) return;
+    this.floatCount++;
+    const t = this.add
+      .text(pos.x + (Math.random() - 0.5) * 12, pos.y - 10, String(Math.round(amount)), {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        color,
+        stroke: '#000000',
+        strokeThickness: 3
+      })
+      .setOrigin(0.5)
+      .setDepth(DEPTH_TEXT);
+    this.tweens.add({
+      targets: t,
+      y: t.y - 26,
+      alpha: 0,
+      duration: 500,
+      onComplete: () => {
+        t.destroy();
+        this.floatCount--;
+      }
+    });
+  }
+
+  /** Sunder Slam presentation: screen flash, double shockwave, scorch, heavy shake. */
+  private shockwave(pos: Vec2, radius: number): void {
+    this.cameras.main.flash(60, 244, 227, 178);
+    this.cameras.main.shake(160, 0.012);
+    this.flashRing(pos, radius, 0xd9a441);
+    const ring = this.add.circle(pos.x, pos.y, 14).setStrokeStyle(3, 0xf4e3b2, 0.9).setDepth(DEPTH_FX);
+    this.tweens.add({ targets: ring, radius: radius * 1.15, alpha: 0, duration: 380, onComplete: () => ring.destroy() });
+    const scorch = this.add.circle(pos.x, pos.y, radius * 0.55, 0x000000, 0.18).setDepth(DEPTH_DECAL + 1);
+    this.tweens.add({ targets: scorch, alpha: 0, duration: 1200, onComplete: () => scorch.destroy() });
+    this.burst(this.dustFx, 12, pos);
+  }
 
   private flashArc(pos: { x: number; y: number }, facing: { x: number; y: number }): void {
     const angle = Math.atan2(facing.y, facing.x);

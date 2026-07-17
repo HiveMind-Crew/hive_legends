@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-07-17 (look & feel phase A/B: issues #1 and #2 landed)
+Updated: 2026-07-17 (look & feel: issues #1, #2, and #3 landed)
 
 ## Milestones
 
@@ -69,6 +69,15 @@ Landed:
   Caveat: an enemy's *first* contact hit lands without a telegraph because
   the sim has no windup state (cooldown starts at 0) — fold a real windup
   into the enemy-readability work in #7.
+- [x] #3 Combat juice — hit-stop on kills (render stepping pauses, sim ticks
+  never skipped), pooled particle bursts (ichor, chitin shards, dust, coin
+  sparks, heart wisps), floating damage numbers, knockback motion trails,
+  camera lookahead + melee-impact kick, and full Sunder Slam presentation
+  (screen flash, double shockwave, scorch decal, heavy shake). All effects
+  count-capped. The `enemy-hit`/`enemy-died`/`generator-hit` SimEvents now
+  carry the damage dealt — an event-payload addition only; state evolution
+  and the determinism test are unchanged. The e2e run now also captures
+  `test-results/03b-combat-juice.png` right after the first kill.
 
 ## Known limitations / risks
 
