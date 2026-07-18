@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { ENEMY_FAMILIES, ENEMY_TIERS, type EnemyFamily, type EnemyTier } from '../sim/types';
 
 /**
  * Generated programmer-art textures and sprite frames. Everything is drawn
@@ -30,15 +31,58 @@ export const TEX = {
 } as const;
 
 export type HeroPose = 'w0' | 'w1' | 'atk';
-export type SkitterFrameId = 'w0' | 'w1' | 'windup';
+export type EnemyAnimFrame = 'w0' | 'w1' | 'windup';
 
 export function heroFrame(dir: number, pose: HeroPose): string {
   return `hero-vanguard-${dir}-${pose}`;
 }
 
-export function skitterFrame(frame: SkitterFrameId): string {
-  return `enemy-skitterling-${frame}`;
+/** Composed enemy frames: silhouette family x palette tier x animation frame. */
+export function enemyFrame(family: EnemyFamily, tier: EnemyTier, frame: EnemyAnimFrame): string {
+  return `enemy-${family}-${tier}-${frame}`;
 }
+
+/**
+ * Tier palettes: common pale spore-green, veteran amber, elite crimson with
+ * a glow outline (elites also get a renderer-side size bump + ground ring).
+ */
+interface TierPalette {
+  body: number;
+  dark: number;
+  bright: number; // windup body flush
+  brightDark: number;
+  eye: number;
+  windupEye: number;
+  glow?: number;
+}
+
+const TIER_PALETTES: Record<EnemyTier, TierPalette> = {
+  common: {
+    body: 0x9fe06a,
+    dark: 0x5b8f33,
+    bright: 0xc8f09a,
+    brightDark: 0x86b356,
+    eye: 0x1c260f,
+    windupEye: 0xff5a4d
+  },
+  veteran: {
+    body: 0xf0c25e,
+    dark: 0xa8813a,
+    bright: 0xf7db9a,
+    brightDark: 0xc4a05e,
+    eye: 0x2a1f0a,
+    windupEye: 0xff5a4d
+  },
+  elite: {
+    body: 0xe0524d,
+    dark: 0x8f2f30,
+    bright: 0xf08a86,
+    brightDark: 0xb35450,
+    eye: 0x260b0b,
+    windupEye: 0xffe36e,
+    glow: 0xff8a7a
+  }
+};
 
 /** Damage tiers: 0 intact, 1 cracked/leaking, 2 crumbling. */
 export function broodNodeFrame(tier: number): string {
@@ -101,10 +145,15 @@ export function generateTextures(scene: Phaser.Scene): void {
   // Portrait alias for menus: south-facing idle.
   drawHeroFrame(g, 2, 'w0', TEX.hero);
 
-  // Skitterling frame set (drawn facing +x; the scene rotates the sprite).
-  drawSkitterFrame(g, 'w0');
-  drawSkitterFrame(g, 'w1');
-  drawSkitterFrame(g, 'windup');
+  // Enemy frame sets: every silhouette family x palette tier x anim frame
+  // (drawn facing +x; the scene rotates the sprite).
+  for (const family of ENEMY_FAMILIES) {
+    for (const tier of ENEMY_TIERS) {
+      for (const frame of ['w0', 'w1', 'windup'] as const) {
+        drawEnemyFrame(g, family, tier, frame);
+      }
+    }
+  }
 
   // Brood Node damage tiers: intact → cracked/leaking → crumbling.
   drawBroodNode(g, 0);
@@ -280,14 +329,22 @@ function drawBroodNode(g: Phaser.GameObjects.Graphics, tier: number): void {
   g.generateTexture(broodNodeFrame(tier), 44, 44);
 }
 
-/** Hive bug drawn facing +x: legs, oval body, dark abdomen, forward eyes. */
-function drawSkitterFrame(g: Phaser.GameObjects.Graphics, frame: SkitterFrameId): void {
+/** Dispatch: one draw routine per silhouette family, palette from the tier. */
+function drawEnemyFrame(g: Phaser.GameObjects.Graphics, family: EnemyFamily, tier: EnemyTier, frame: EnemyAnimFrame): void {
+  const pal = TIER_PALETTES[tier];
+  const key = enemyFrame(family, tier, frame);
+  g.clear();
+  if (family === 'skitter') drawSkitter(g, pal, frame, key);
+  else if (family === 'husk') drawHusk(g, pal, frame, key);
+  else drawSpitter(g, pal, frame, key);
+}
+
+/** Skitter: small round swarmer facing +x — legs, oval body, forward eyes. */
+function drawSkitter(g: Phaser.GameObjects.Graphics, pal: TierPalette, frame: EnemyAnimFrame, key: string): void {
   const raised = frame === 'windup';
   const splay = frame === 'w1' ? -1 : 1;
 
-  g.clear();
-
-  g.lineStyle(2, raised ? 0x74a844 : 0x5b8f33);
+  g.lineStyle(2, raised ? pal.brightDark : pal.dark);
   for (const s of [-1, 1]) {
     for (let i = 0; i < 3; i++) {
       const bx = 8 + i * 4;
@@ -296,15 +353,97 @@ function drawSkitterFrame(g: Phaser.GameObjects.Graphics, frame: SkitterFrameId)
     }
   }
 
-  g.fillStyle(raised ? 0xc8f09a : 0x9fe06a);
+  if (pal.glow !== undefined) {
+    g.lineStyle(2, pal.glow, 0.85);
+    g.strokeEllipse(12, 12, 20, 14);
+  }
+  g.fillStyle(raised ? pal.bright : pal.body);
   g.fillEllipse(12, 12, raised ? 18 : 17, raised ? 13 : 11);
-  g.fillStyle(raised ? 0x86b356 : 0x5b8f33);
+  g.fillStyle(raised ? pal.brightDark : pal.dark);
   g.fillEllipse(8, 12, 8, raised ? 9 : 7);
 
-  // Eyes flare red during the attack windup so the telegraph is unmissable.
-  g.fillStyle(raised ? 0xff5a4d : 0x1c260f);
+  // Eyes flare during the attack windup so the telegraph is unmissable.
+  g.fillStyle(raised ? pal.windupEye : pal.eye);
   g.fillCircle(17, 9.5, 2);
   g.fillCircle(17, 14.5, 2);
 
-  g.generateTexture(skitterFrame(frame), 24, 24);
+  g.generateTexture(key, 24, 24);
+}
+
+/** Husk: tall lumbering bruiser — broad plated torso, heavy arms, small head. */
+function drawHusk(g: Phaser.GameObjects.Graphics, pal: TierPalette, frame: EnemyAnimFrame, key: string): void {
+  const raised = frame === 'windup';
+  const sway = frame === 'w1' ? -1.5 : 1.5;
+
+  // Stumpy legs behind the torso.
+  g.fillStyle(pal.dark);
+  g.fillCircle(10, 10 + sway, 3.5);
+  g.fillCircle(10, 22 - sway, 3.5);
+
+  // Heavy arms: forward at rest, hauled up overhead during the windup.
+  g.lineStyle(5, raised ? pal.brightDark : pal.dark);
+  if (raised) {
+    g.lineBetween(17, 9, 23, 3);
+    g.lineBetween(17, 23, 23, 29);
+  } else {
+    g.lineBetween(17, 9, 25, 7 + sway);
+    g.lineBetween(17, 23, 25, 25 - sway);
+  }
+
+  if (pal.glow !== undefined) {
+    g.lineStyle(2, pal.glow, 0.85);
+    g.strokeEllipse(15, 16, 25, 21);
+  }
+  g.fillStyle(raised ? pal.bright : pal.body);
+  g.fillEllipse(15, 16, 22, 18);
+  // Back armor plates.
+  g.fillStyle(raised ? pal.brightDark : pal.dark);
+  g.fillEllipse(10, 16, 10, 14);
+  g.fillEllipse(14, 16, 6, 16);
+
+  // Small head tucked at the front.
+  g.fillStyle(pal.dark);
+  g.fillCircle(25, 16, 4.5);
+  g.fillStyle(raised ? pal.windupEye : pal.eye);
+  g.fillCircle(27, 14, 1.7);
+  g.fillCircle(27, 18, 1.7);
+
+  g.generateTexture(key, 32, 32);
+}
+
+/** Spitter: ranged shape — bulbous rear sac, thin body, unmistakable funnel head. */
+function drawSpitter(g: Phaser.GameObjects.Graphics, pal: TierPalette, frame: EnemyAnimFrame, key: string): void {
+  const raised = frame === 'windup';
+  const splay = frame === 'w1' ? -1 : 1;
+
+  // Two pairs of thin legs.
+  g.lineStyle(1.5, pal.dark);
+  for (const s of [-1, 1]) {
+    g.lineBetween(11, 12 + s * 3, 9 + splay, 12 + s * 9);
+    g.lineBetween(15, 12 + s * 3, 17 - splay, 12 + s * 9);
+  }
+
+  if (pal.glow !== undefined) {
+    g.lineStyle(2, pal.glow, 0.85);
+    g.strokeEllipse(13, 12, 16, 11);
+  }
+  // Rear sac inflates during the windup (about to spit).
+  g.fillStyle(raised ? pal.bright : pal.dark);
+  g.fillCircle(7, 12, raised ? 6.5 : 5);
+  // Thin body.
+  g.fillStyle(raised ? pal.bright : pal.body);
+  g.fillEllipse(13, 12, 12, 8);
+  // Funnel mouth: the family's identifying silhouette. Splits open on windup.
+  g.fillStyle(raised ? pal.brightDark : pal.body);
+  if (raised) {
+    g.fillTriangle(17, 9, 26, 6, 20, 11);
+    g.fillTriangle(17, 15, 26, 18, 20, 13);
+  } else {
+    g.fillTriangle(17, 9, 26, 12, 17, 15);
+  }
+  g.fillStyle(raised ? pal.windupEye : pal.eye);
+  g.fillCircle(16, 8, 1.6);
+  g.fillCircle(16, 16, 1.6);
+
+  g.generateTexture(key, 28, 24);
 }

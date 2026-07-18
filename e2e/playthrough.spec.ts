@@ -133,8 +133,15 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
 
     const me = state.players[0]!;
 
-    // Target: nearest generator while any remain, then the exit.
-    const targets = state.generators.length > 0 ? state.generators.map((g) => g.pos) : [state.exitPos];
+    // Survival first: enraged nodes double spawn pressure, so break off and
+    // grab a health pickup when hurt. Otherwise: nearest generator, then exit.
+    const healthPickups = state.pickups.filter((pk) => pk.kind === 'health');
+    const needHeal = me.hp <= 60 && healthPickups.length > 0;
+    const targets = needHeal
+      ? healthPickups.map((pk) => pk.pos)
+      : state.generators.length > 0
+        ? state.generators.map((g) => g.pos)
+        : [state.exitPos];
     targets.sort(
       (a, b) => Math.hypot(a.x - me.pos.x, a.y - me.pos.y) - Math.hypot(b.x - me.pos.x, b.y - me.pos.y)
     );
@@ -142,7 +149,7 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
     const distToTarget = Math.hypot(target.x - me.pos.x, target.y - me.pos.y);
 
     const keys: string[] = [];
-    const inAttackRange = state.generators.length > 0 && distToTarget < 55;
+    const inAttackRange = !needHeal && state.generators.length > 0 && distToTarget < 55;
 
     if (!inAttackRange) {
       const wp = nextWaypoint(me.pos, target) ?? target;
@@ -165,7 +172,7 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
     const nearbyEnemies = state.enemies.filter(
       (e) => Math.hypot(e.pos.x - me.pos.x, e.pos.y - me.pos.y) < 100
     ).length;
-    if (nearbyEnemies >= 3 && me.abilityCooldown === 0) keys.push('Shift');
+    if (nearbyEnemies >= 2 && me.abilityCooldown === 0) keys.push('Shift');
 
     await driver.set(keys);
 
@@ -190,10 +197,14 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   await driver.releaseAll();
 
   expect(lastPhase).toBe('complete');
-  await page.waitForTimeout(1200); // results transition
+  // The end-of-mission banner shows first; poll until the results scene has
+  // banked the run to the persistent profile rather than sleeping a fixed time.
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('hive-legends-profile-v1')), { timeout: 10_000 })
+    .not.toBeNull();
+  await page.waitForTimeout(300);
   await page.screenshot({ path: 'test-results/04-results.png' });
 
-  // Progression must be banked to the persistent profile.
   const profile = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('hive-legends-profile-v1') ?? 'null')
   );

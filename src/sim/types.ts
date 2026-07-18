@@ -64,9 +64,24 @@ export interface HeroDef {
   ability: AbilityDef;
 }
 
+/**
+ * Enemy visual grammar (issue #7): every enemy belongs to a silhouette
+ * family and a palette tier. The texture generator composes family x tier,
+ * so new enemies are pure content-data entries with zero drawing code.
+ */
+export const ENEMY_FAMILIES = ['skitter', 'husk', 'spitter'] as const;
+export type EnemyFamily = (typeof ENEMY_FAMILIES)[number];
+
+export const ENEMY_TIERS = ['common', 'veteran', 'elite'] as const;
+export type EnemyTier = (typeof ENEMY_TIERS)[number];
+
 export interface EnemyDef {
   id: string;
   name: string;
+  /** Silhouette family: owns the body shape and animation frames. */
+  family: EnemyFamily;
+  /** Palette/size tier within the family. */
+  tier: EnemyTier;
   maxHp: number;
   moveSpeed: number;
   radius: number;

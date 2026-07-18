@@ -6,9 +6,27 @@ import { createSim, simTick, type Sim } from '../../sim/sim';
 import { TICK_DT, type EntityId, type PlayerState, type SimEvent, type Vec2 } from '../../sim/types';
 import { playerAccent } from '../colors';
 import { KeyboardCommander } from '../input';
-import { TEX, broodNodeFrame, facingDirIndex, heroFrame, skitterFrame, type HeroPose, type SkitterFrameId } from '../textures';
+import type { HudScene } from './HudScene';
+import { TEX, broodNodeFrame, enemyFrame, facingDirIndex, heroFrame, type EnemyAnimFrame, type HeroPose } from '../textures';
 
 const MAX_STEPS_PER_FRAME = 5;
+
+export interface HudPlayerInfo {
+  heroName: string;
+  hp: number;
+  maxHp: number;
+  gold: number;
+  kills: number;
+  abilityCooldown: number;
+  abilityMax: number;
+  alive: boolean;
+}
+
+export interface HudInfo {
+  players: HudPlayerInfo[];
+  generatorsLeft: number;
+  phase: string;
+}
 
 // Depth layers: floor 0, ground decals 1-3, dynamic entities y-sorted by
 // world y (walls use their bottom edge so they occlude entities behind them),
@@ -189,30 +207,25 @@ export class MissionScene extends Phaser.Scene {
   }
 
   /** Snapshot consumed by the parallel HUD scene each frame. */
-  hudInfo(): {
-    hp: number;
-    maxHp: number;
-    gold: number;
-    kills: number;
-    generatorsLeft: number;
-    phase: string;
-    abilityCooldown: number;
-    abilityName: string;
-  } | null {
+  hudInfo(): HudInfo | null {
     if (!this.sim) return null;
     const s = this.sim.state;
-    const p = s.players[0];
-    if (!p) return null;
-    const hero = CONTENT.heroes[p.heroId];
     return {
-      hp: p.hp,
-      maxHp: p.maxHp,
-      gold: p.gold,
-      kills: p.kills,
+      players: s.players.map((p) => {
+        const hero = CONTENT.heroes[p.heroId];
+        return {
+          heroName: hero?.name ?? p.heroId,
+          hp: p.hp,
+          maxHp: p.maxHp,
+          gold: p.gold,
+          kills: p.kills,
+          abilityCooldown: p.abilityCooldown,
+          abilityMax: hero?.ability.cooldownTicks ?? 1,
+          alive: p.alive
+        };
+      }),
       generatorsLeft: s.generators.length,
-      phase: s.phase,
-      abilityCooldown: p.abilityCooldown,
-      abilityName: hero?.ability.name ?? ''
+      phase: s.phase
     };
   }
 
@@ -351,8 +364,12 @@ export class MissionScene extends Phaser.Scene {
 
   private endMission(victory: boolean): void {
     this.ended = true;
+    (this.scene.get('hud') as HudScene).banner(
+      victory ? 'WARRENS CLEARED' : 'THE HIVE PREVAILS',
+      victory ? '#ffd75e' : '#ff5a4d'
+    );
     const p = this.sim.state.players[0]!;
-    this.time.delayedCall(600, () => {
+    this.time.delayedCall(1400, () => {
       this.scene.stop('hud');
       this.scene.start('results', {
         victory,
@@ -403,7 +420,11 @@ export class MissionScene extends Phaser.Scene {
 
     for (const e of s.enemies) {
       seen.add(e.id);
-      const spr = this.ensureSprite(e.id, skitterFrame('w0'));
+      const def = CONTENT.enemies[e.typeId];
+      const family = def?.family ?? 'skitter';
+      const tier = def?.tier ?? 'common';
+      const elite = tier === 'elite';
+      const spr = this.ensureSprite(e.id, enemyFrame(family, tier, 'w0'));
       const prev = this.lastPos.get(e.id);
       if (prev) {
         const dx = e.pos.x - prev.x;
@@ -412,7 +433,6 @@ export class MissionScene extends Phaser.Scene {
       }
       this.trackMovement(e.id, e.pos, s.tick);
 
-      const def = CONTENT.enemies[e.typeId];
       const target = this.nearestLivingPlayer(e.pos);
       const windup =
         def !== undefined &&
@@ -421,20 +441,28 @@ export class MissionScene extends Phaser.Scene {
         e.attackCooldown <= WINDUP_TICKS &&
         Math.hypot(target.pos.x - e.pos.x, target.pos.y - e.pos.y) <= def.attackRange * 1.5;
 
-      let frame: SkitterFrameId;
+      let frame: EnemyAnimFrame;
       if (windup && target) {
         frame = 'windup';
         spr.setRotation(Math.atan2(target.pos.y - e.pos.y, target.pos.x - e.pos.x));
       } else {
         frame = (Math.floor(s.tick / CRAWL_FRAME_TICKS) + e.id) % 2 === 0 ? 'w0' : 'w1';
       }
-      spr.setTexture(skitterFrame(frame));
-      // Freshly-hatched skitterlings scale in from the egg-burst.
+      spr.setTexture(enemyFrame(family, tier, frame));
+      // Freshly-hatched enemies scale in from the egg-burst; elites run big.
       const hatchAge = s.tick - (this.hatchAtTick.get(e.id) ?? -Infinity);
       const hatchMul = hatchAge < HATCH_TICKS ? 0.25 + 0.75 * (hatchAge / HATCH_TICKS) : 1;
-      spr.setScale((windup ? 1.18 : 1) * hatchMul);
+      spr.setScale((windup ? 1.18 : 1) * (elite ? 1.3 : 1) * hatchMul);
       spr.setPosition(e.pos.x, e.pos.y).setDepth(e.pos.y);
-      this.ensureShadow(e.id, 0.7).setPosition(e.pos.x, e.pos.y + 8);
+      this.ensureShadow(e.id, elite ? 0.95 : 0.7).setPosition(e.pos.x, e.pos.y + 8);
+
+      // Elites carry a persistent ground ring so they stay trackable in a horde.
+      let eliteRing = this.rings.get(e.id);
+      if (!eliteRing && elite) {
+        eliteRing = this.add.image(0, 0, TEX.accentRing).setDepth(DEPTH_DECAL).setScale(1.1, 0.6).setTint(0xff5a4d).setAlpha(0.6);
+        this.rings.set(e.id, eliteRing);
+      }
+      if (eliteRing) eliteRing.setPosition(e.pos.x, e.pos.y + 7);
 
       // Motion streak while the knockback vector is meaningful.
       const kbMag = Math.hypot(e.knockback.x, e.knockback.y);

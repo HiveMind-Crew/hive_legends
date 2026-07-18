@@ -5,6 +5,8 @@ export const ENEMIES: Record<string, EnemyDef> = {
   skitterling: {
     id: 'skitterling',
     name: 'Skitterling',
+    family: 'skitter',
+    tier: 'common',
     maxHp: 40,
     moveSpeed: 120,
     radius: 10,
