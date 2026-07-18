@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-07-17 (look & feel: issues #1, #2, #3, and #6 landed)
+Updated: 2026-07-18 (look & feel: issues #1–#4, #6, #7 landed)
 
 ## Milestones
 
@@ -88,6 +88,25 @@ Landed:
   `GeneratorDef.enrage` in `src/content/enemies.ts`, new `generator-enraged`
   SimEvent, red pulsing warning ring + ENRAGED float text in the renderer;
   unit-tested including expiry and no re-trigger).
+- [x] #7 Enemy visual grammar — `EnemyDef` gains `family` (skitter/husk/
+  spitter silhouettes) and `tier` (common/veteran/elite palettes); the
+  texture generator composes family x tier x frame, so a new enemy is pure
+  content data. Elites: crimson palette, glow outline, renderer size bump,
+  persistent ground ring. Content-validity unit test added. Husk/spitter
+  silhouettes exist but no enemy uses them yet — M1's new enemy types are
+  now data-only work.
+- [x] #4 Arcade HUD — four fixed per-player panels (accent frame, portrait,
+  large health number with low-health pulse, rolling gold counter, kills,
+  ability meter with READY! flash), dimmed JOIN placeholders for empty
+  slots, centered objective ribbon with pop animation, and full-screen
+  victory/defeat banners before the results scene. Panel data flows from
+  `SimState.players`, not a hardcoded single player.
+
+The e2e bot now retreats to health pickups when hurt and slams earlier —
+the enrage mechanic legitimately killed the old face-tank strategy (a good
+sign for the mechanic). The results-transition assertion polls for the
+banked profile instead of sleeping a fixed time (the end banner lengthened
+the transition).
 
 ## Known limitations / risks
 
