@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-07-18 (look & feel: issues #1–#8 landed; balance pass)
+Updated: 2026-07-18 (look & feel: issues #1–#9 ALL landed; balance pass)
 
 ## Milestones
 
@@ -55,7 +55,9 @@ as almost entirely look/feel, not mechanics. Direction is recorded in
 with roadmap/tracking in issue #10. Recommended order: depth + combat juice
 (#1, #3) → character/threat readability (#2, #6, #7 — #7 must land before M1
 adds new enemy types) → HUD, audio, environment, menus (#4, #8, #5, #9).
-Only #9 (menus/juice pass on the non-mission screens) remains open.
+**All nine issues are now landed** — the look & feel track is complete;
+remaining presentation work rides with M1 content (new heroes/enemies/boss
+reuse the systems built here).
 
 Landed:
 
@@ -127,6 +129,14 @@ the transition).
   persist to the profile (`Profile.volume`/`muted`, `saveAudioPrefs`); M
   toggles mute. Context is created only on the first user gesture and no-ops
   cleanly headless, so the e2e stays silent and error-free.
+
+- [x] #9 Title & hero-select attract mode — layered pulsing logo with glow,
+  two ambient drift layers (rising spores + sinking haze) plus a marching
+  skitterling silhouette parade, animated hero card (idle cycle, stat bars
+  for Power/Speed/Toughness/Control, looping Sunder Slam ring demo),
+  silhouette + COMING SOON locked slots, pulsing PRESS ENTER with a bordered
+  key-hint footer. Results screen gains banner band/glow with a pop-in title
+  and a rolling gold count-up with rising coin ticks.
 
 ## Balance record (2026-07-18)
 
