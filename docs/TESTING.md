@@ -17,8 +17,8 @@ npm run dev        # hot-reload dev server → http://localhost:5173
 ```
 
 Controls: **WASD/Arrows** move · **Space/J** attack · **Shift/K** ability ·
-**Enter** confirm · in the results shop, **1/2** buy upgrades, **R** replay,
-**H** hero select.
+**Enter** confirm · **M** mute audio · in the results shop, **1/2** buy
+upgrades, **R** replay, **H** hero select.
 
 To play the exact build that ships:
 

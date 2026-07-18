@@ -51,11 +51,21 @@ What the benchmark does that we must match *in spirit*:
 - Player accents: `#5a8fd9` / `#e0524d` / `#58c98a` / `#b07fe6`
 - Alert/objective: cyan `#64e6ff`
 
-## Audio direction (issue #8)
+## Audio direction (issue #8 — implemented)
 
-Synthesized, original, chunky. One ambient-combat loop; SFX per SimEvent with
-throttling; "the Herald" — an original announcer system, text-ribbon first,
-voice later — for low health, exit opened, elite arrivals, mission end.
+Synthesized, original, chunky. Delivered in `src/game/audio.ts`: every sound
+is generated with WebAudio (no sampled or copied assets), driven from
+`SimEvent`s with per-sound throttling so hordes never clip. A procedural
+ambient-combat loop (E-minor bassline + pad + off-beat hat, lookahead
+scheduler) runs underneath and ducks on mission end. "The Herald" is an
+original announcer system — a queued on-screen ribbon in the HUD scene — for
+low-health, exit-opened, elite-arrival, and mission-end states; voice
+synthesis can replace the text later without changing the trigger/queue.
+
+The engine never creates an `AudioContext` before a user gesture (autoplay
+policy) and no-ops cleanly when WebAudio is unavailable, so headless e2e runs
+stay silent and error-free. Master volume + mute persist to the profile; M
+toggles mute in-game.
 
 ## Roadmap
 

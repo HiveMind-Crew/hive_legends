@@ -8,6 +8,8 @@ import {
   UPGRADES,
   type Profile
 } from '../../meta/save';
+import { audio } from '../audio';
+import { TEX } from '../textures';
 
 interface ResultsData {
   victory: boolean;
@@ -21,6 +23,8 @@ export class ResultsScene extends Phaser.Scene {
   private profile!: Profile;
   private shopText!: Phaser.GameObjects.Text;
   private bankText!: Phaser.GameObjects.Text;
+  private shownBank = 0;
+  private bankTween: Phaser.Tweens.Tween | null = null;
 
   constructor() {
     super('results');
@@ -40,16 +44,31 @@ export class ResultsScene extends Phaser.Scene {
     }
     saveProfile(this.profile);
 
-    const seconds = (data.ticks / 60).toFixed(1);
+    // Banner treatment: colored band + glow behind the verdict, title pops in.
+    const bannerColor = data.victory ? 0x9fe06a : 0xe0524d;
+    this.add.rectangle(width / 2, 90, width, 74, bannerColor, 0.1);
+    this.add.rectangle(width / 2, 55, width, 2, bannerColor, 0.45);
+    this.add.rectangle(width / 2, 125, width, 2, bannerColor, 0.45);
     this.add
+      .image(width / 2, 90, TEX.glow)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setTint(bannerColor)
+      .setScale(10, 2)
+      .setAlpha(0.2);
+    const seconds = (data.ticks / 60).toFixed(1);
+    const banner = this.add
       .text(width / 2, 90, data.victory ? 'WARRENS CLEANSED' : 'THE HIVE PREVAILS', {
         fontFamily: 'monospace',
         fontSize: '42px',
         color: data.victory ? '#9fe06a' : '#e0524d',
         stroke: '#120c1a',
-        strokeThickness: 5
+        strokeThickness: 5,
+        fontStyle: 'bold'
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScale(0.6)
+      .setAlpha(0);
+    this.tweens.add({ targets: banner, scale: 1, alpha: 1, duration: 350, ease: 'Back.Out' });
 
     this.add
       .text(
@@ -90,24 +109,59 @@ export class ResultsScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    // Gold count-up: roll the bank from its pre-mission value to the new
+    // total, with a few rising coin ticks along the way.
+    this.shownBank = this.profile.bank - data.gold;
     this.refreshTexts();
+    if (data.gold > 0) {
+      const counter = { v: this.shownBank };
+      this.bankTween = this.tweens.add({
+        targets: counter,
+        v: this.profile.bank,
+        duration: 900,
+        delay: 350,
+        ease: 'Quad.Out',
+        onUpdate: () => {
+          this.shownBank = counter.v;
+          this.refreshTexts();
+        }
+      });
+      for (let i = 0; i < 5; i++) {
+        this.time.delayedCall(350 + i * 160, () => audio.uiTick(760 + i * 60));
+      }
+    }
+
+    audio.unlock();
 
     const kb = this.input.keyboard!;
     kb.on('keydown-ONE', () => this.tryBuy('vitality'));
     kb.on('keydown-TWO', () => this.tryBuy('might'));
-    kb.once('keydown-R', () => this.scene.start('mission'));
-    kb.once('keydown-H', () => this.scene.start('hero-select'));
+    kb.on('keydown-M', () => audio.toggleMute());
+    kb.once('keydown-R', () => {
+      audio.uiConfirm();
+      this.scene.start('mission');
+    });
+    kb.once('keydown-H', () => {
+      audio.uiConfirm();
+      this.scene.start('hero-select');
+    });
   }
 
   private tryBuy(upgradeId: string): void {
     if (buyUpgrade(this.profile, upgradeId)) {
       this.cameras.main.flash(150, 255, 215, 94);
+      audio.uiConfirm();
+    } else {
+      audio.uiTick(220); // low buzz on a failed purchase
     }
+    this.bankTween?.stop();
+    this.bankTween = null;
+    this.shownBank = this.profile.bank; // purchases update instantly
     this.refreshTexts();
   }
 
   private refreshTexts(): void {
-    this.bankText.setText(`Bank: ${this.profile.bank} gold`);
+    this.bankText.setText(`Bank: ${Math.round(this.shownBank)} gold`);
     const lines = Object.values(UPGRADES).map((def, i) => {
       const level = upgradeLevel(this.profile, def.id);
       const cost = upgradeCost(this.profile, def.id);

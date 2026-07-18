@@ -38,12 +38,15 @@ export interface Profile {
   upgrades: Record<string, number>;
   missionsCompleted: number;
   bestClearTicks: number | null;
+  /** Master audio volume 0..1. */
+  volume: number;
+  muted: boolean;
 }
 
 const STORAGE_KEY = 'hive-legends-profile-v1';
 
 export function defaultProfile(): Profile {
-  return { bank: 0, upgrades: {}, missionsCompleted: 0, bestClearTicks: null };
+  return { bank: 0, upgrades: {}, missionsCompleted: 0, bestClearTicks: null, volume: 0.7, muted: false };
 }
 
 export function loadProfile(): Profile {
@@ -86,6 +89,14 @@ export function buyUpgrade(profile: Profile, upgradeId: string): boolean {
   profile.upgrades[upgradeId] = upgradeLevel(profile, upgradeId) + 1;
   saveProfile(profile);
   return true;
+}
+
+/** Persists audio preferences without disturbing progression fields. */
+export function saveAudioPrefs(volume: number, muted: boolean): void {
+  const profile = loadProfile();
+  profile.volume = volume;
+  profile.muted = muted;
+  saveProfile(profile);
 }
 
 /** Translates purchased upgrades into sim hero modifiers. */
