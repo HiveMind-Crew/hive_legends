@@ -115,6 +115,33 @@ export interface GeneratorDef {
   enrage?: GeneratorEnrageDef;
 }
 
+/** Small breakable prop: any damage destroys it; drops loot via seeded RNG. */
+export interface PropDef {
+  id: string;
+  name: string;
+  maxHp: number;
+  radius: number;
+  dropKind: PickupKind;
+  dropMin: number;
+  dropMax: number;
+}
+
+/** Non-colliding set dressing, rendered only (never enters the sim state). */
+export const DECOR_KINDS = ['egg-cluster', 'resin-web', 'spore-patch'] as const;
+export type DecorKind = (typeof DECOR_KINDS)[number];
+
+export interface LevelDecorDef {
+  kind: DecorKind;
+  tx: number;
+  ty: number;
+}
+
+export interface LevelPropDef {
+  typeId: string;
+  tx: number;
+  ty: number;
+}
+
 export interface LevelPickupDef {
   kind: PickupKind;
   amount: number;
@@ -138,6 +165,10 @@ export interface LevelDef {
   playerSpawns: readonly { tx: number; ty: number }[];
   generators: readonly LevelGeneratorDef[];
   pickups: readonly LevelPickupDef[];
+  /** Breakable props (sim entities). */
+  props?: readonly LevelPropDef[];
+  /** Visual set dressing (render-only). */
+  decor?: readonly LevelDecorDef[];
   exit: { tx: number; ty: number };
 }
 
@@ -145,6 +176,7 @@ export interface ContentDb {
   heroes: Record<string, HeroDef>;
   enemies: Record<string, EnemyDef>;
   generators: Record<string, GeneratorDef>;
+  props: Record<string, PropDef>;
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +231,13 @@ export interface PickupState {
   pos: Vec2;
 }
 
+export interface PropState {
+  id: EntityId;
+  typeId: string;
+  pos: Vec2;
+  hp: number;
+}
+
 export type MissionPhase = 'combat' | 'exit-open' | 'complete' | 'failed';
 
 export interface SimState {
@@ -210,6 +249,7 @@ export interface SimState {
   enemies: EnemyState[];
   generators: GeneratorState[];
   pickups: PickupState[];
+  props: PropState[];
   exitPos: Vec2;
 }
 
@@ -226,6 +266,7 @@ export type SimEvent =
   | { type: 'generator-hit'; generatorId: EntityId; pos: Vec2; damage: number }
   | { type: 'generator-enraged'; generatorId: EntityId; pos: Vec2 }
   | { type: 'generator-destroyed'; generatorId: EntityId; pos: Vec2 }
+  | { type: 'prop-destroyed'; propId: EntityId; pos: Vec2 }
   | { type: 'pickup-collected'; playerId: EntityId; kind: PickupKind; amount: number; pos: Vec2 }
   | { type: 'player-hit'; playerId: EntityId; damage: number; pos: Vec2 }
   | { type: 'player-died'; playerId: EntityId; pos: Vec2 }

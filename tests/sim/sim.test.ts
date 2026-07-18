@@ -231,6 +231,35 @@ describe('generators', () => {
   });
 });
 
+describe('props', () => {
+  it('a melee swing shatters a prop and drops loot from the seeded RNG', () => {
+    const sim = newSim();
+    expect(sim.state.props.length).toBeGreaterThan(0);
+    const pr = sim.state.props[0]!;
+    const def = CONTENT.props[pr.typeId]!;
+    const p = sim.state.players[0]!;
+    p.pos = { x: pr.pos.x - 30, y: pr.pos.y };
+    p.facing = { x: 1, y: 0 };
+    p.attackCooldown = 0;
+    const before = sim.state.pickups.length;
+    const events = runTicks(sim, 1, input({ attack: true }));
+    expect(events.some((e) => e.type === 'prop-destroyed')).toBe(true);
+    expect(sim.state.props).not.toContain(pr);
+    expect(sim.state.pickups.length).toBe(before + 1);
+    const drop = sim.state.pickups[sim.state.pickups.length - 1]!;
+    expect(drop.kind).toBe(def.dropKind);
+    expect(drop.amount).toBeGreaterThanOrEqual(def.dropMin);
+    expect(drop.amount).toBeLessThanOrEqual(def.dropMax);
+  });
+
+  it('props out of reach are untouched by a swing', () => {
+    const sim = newSim();
+    const count = sim.state.props.length;
+    runTicks(sim, 1, input({ attack: true })); // spawn hall: nothing in range
+    expect(sim.state.props.length).toBe(count);
+  });
+});
+
 describe('pickups', () => {
   it('collects gold on contact', () => {
     const sim = newSim();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CONTENT } from '../src/content';
-import { ENEMY_FAMILIES, ENEMY_TIERS } from '../src/sim/types';
+import { BROOD_WARRENS, CONTENT } from '../src/content';
+import { DECOR_KINDS, ENEMY_FAMILIES, ENEMY_TIERS } from '../src/sim/types';
 
 /**
  * Content-data validity: the enemy visual grammar (issue #7) requires every
@@ -21,5 +21,16 @@ describe('content validity', () => {
     for (const def of Object.values(CONTENT.generators)) {
       expect(CONTENT.enemies[def.spawnsEnemyId], `${def.id} spawns`).toBeDefined();
     }
+  });
+
+  it('level props and decor reference defined content', () => {
+    for (const pr of BROOD_WARRENS.props ?? []) {
+      expect(CONTENT.props[pr.typeId], `prop ${pr.typeId}`).toBeDefined();
+    }
+    for (const d of BROOD_WARRENS.decor ?? []) {
+      expect(DECOR_KINDS, `decor ${d.kind}`).toContain(d.kind);
+    }
+    expect(BROOD_WARRENS.props?.length ?? 0).toBeGreaterThan(0);
+    expect(BROOD_WARRENS.decor?.length ?? 0).toBeGreaterThan(0);
   });
 });

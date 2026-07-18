@@ -51,12 +51,29 @@ export class HudScene extends Phaser.Scene {
     this.goldShown = [0, 0, 0, 0];
     this.prevAbilityCd = [0, 0, 0, 0];
     this.prevObjective = '';
+    this.drawVignette();
     for (let i = 0; i < SLOTS; i++) this.panels.push(this.buildPanel(i));
 
     this.objectiveBg = this.add.rectangle(480, 78, 340, 24, 0x000000, 0.55);
     this.objectiveText = this.add
       .text(480, 78, '', { fontFamily: 'monospace', fontSize: '15px', color: '#64e6ff', fontStyle: 'bold' })
       .setOrigin(0.5);
+  }
+
+  /**
+   * Soft screen-edge darkening drawn in screen space (this scene sits above
+   * the mission camera, so zoom/scroll never move it). Overlapping strokes
+   * build the gradient without shaders.
+   */
+  private drawVignette(): void {
+    const g = this.add.graphics().setDepth(-10);
+    const w = this.scale.width;
+    const h = this.scale.height;
+    for (let i = 0; i < 9; i++) {
+      const inset = 2 + i * 7;
+      g.lineStyle(14, 0x0a0710, 0.11 * (1 - i / 9));
+      g.strokeRect(inset, inset, w - inset * 2, h - inset * 2);
+    }
   }
 
   private buildPanel(i: number): Panel {

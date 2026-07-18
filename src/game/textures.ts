@@ -14,8 +14,14 @@ import { ENEMY_FAMILIES, ENEMY_TIERS, type EnemyFamily, type EnemyTier } from '.
 
 export const TEX = {
   wall: 'tile-wall',
+  wallInner: 'tile-wall-inner',
   wallFace: 'tile-wall-face',
-  floor: 'tile-floor',
+  floor: 'tile-floor-0',
+  decorEgg: 'decor-egg-cluster',
+  decorWeb: 'decor-resin-web',
+  decorSpore: 'decor-spore-patch',
+  glow: 'fx-glow',
+  mote: 'fx-mote',
   hero: 'hero-vanguard', // portrait alias (south-facing idle frame)
   gold: 'pickup-gold',
   health: 'pickup-health',
@@ -89,6 +95,15 @@ export function broodNodeFrame(tier: number): string {
   return `generator-brood-node-${tier}`;
 }
 
+export const FLOOR_VARIANTS = 4;
+export function floorVariant(i: number): string {
+  return `tile-floor-${i}`;
+}
+
+export function propTexture(typeId: string): string {
+  return `prop-${typeId}`;
+}
+
 /** Maps a facing vector to one of 8 direction indices (0 = east, clockwise). */
 export function facingDirIndex(x: number, y: number): number {
   const idx = Math.round(Math.atan2(y, x) / (Math.PI / 4));
@@ -126,15 +141,45 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.fillRect(0, 14, 32, 2);
   g.generateTexture(TEX.wallFace, 32, 16);
 
-  // Floor tile: mottled warren dirt.
+  // Inner wall (surrounded by walls on all sides): flat, dark, undetailed.
   g.clear();
-  g.fillStyle(0x17131f);
+  g.fillStyle(0x2b2036);
   g.fillRect(0, 0, 32, 32);
-  g.fillStyle(0x1d1827);
-  g.fillRect(2, 2, 6, 6);
-  g.fillRect(20, 12, 7, 7);
-  g.fillRect(8, 22, 5, 5);
-  g.generateTexture(TEX.floor, 32, 32);
+  g.fillStyle(0x241b2e);
+  g.fillRect(6, 8, 9, 7);
+  g.fillRect(19, 20, 8, 6);
+  g.generateTexture(TEX.wallInner, 32, 32);
+
+  // Floor variants: base mottle, cracks, hive-membrane patch, bone scatter.
+  // A tile-coordinate hash picks the variant, so dressing is deterministic.
+  for (let v = 0; v < FLOOR_VARIANTS; v++) {
+    g.clear();
+    g.fillStyle(0x17131f);
+    g.fillRect(0, 0, 32, 32);
+    g.fillStyle(0x1d1827);
+    g.fillRect(2, 2, 6, 6);
+    g.fillRect(20, 12, 7, 7);
+    g.fillRect(8, 22, 5, 5);
+    if (v === 1) {
+      g.lineStyle(1, 0x100c16);
+      g.lineBetween(6, 6, 15, 14);
+      g.lineBetween(15, 14, 11, 24);
+      g.lineBetween(22, 4, 26, 12);
+    } else if (v === 2) {
+      g.fillStyle(0x241a30, 0.9);
+      g.fillEllipse(20, 20, 16, 12);
+      g.fillStyle(0x2e2140, 0.8);
+      g.fillEllipse(18, 19, 8, 6);
+    } else if (v === 3) {
+      g.fillStyle(0x4a4452);
+      g.fillRect(7, 9, 5, 2);
+      g.fillRect(21, 22, 4, 2);
+      g.fillRect(14, 17, 2, 4);
+      g.fillStyle(0x5d5766);
+      g.fillCircle(24, 7, 1.5);
+    }
+    g.generateTexture(floorVariant(v), 32, 32);
+  }
 
   // Hero frame set: 8 directions x (walk0, walk1, attack).
   for (let dir = 0; dir < 8; dir++) {
@@ -195,6 +240,83 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.lineStyle(3, 0xffffff);
   g.strokeCircle(20, 20, 15);
   g.generateTexture(TEX.accentRing, 40, 40);
+
+  // Set dressing (issue #5): egg clusters, resin webbing, glowing spore patches.
+  g.clear();
+  g.fillStyle(0x000000, 0.3);
+  g.fillEllipse(12, 16, 20, 7);
+  g.fillStyle(0x7a3b8f);
+  g.fillCircle(8, 12, 5);
+  g.fillCircle(16, 13, 4.5);
+  g.fillCircle(12, 8, 4);
+  g.fillStyle(0xa855c8);
+  g.fillCircle(7, 10.5, 2);
+  g.fillCircle(15, 11.5, 1.8);
+  g.fillCircle(11, 6.5, 1.6);
+  g.generateTexture(TEX.decorEgg, 24, 20);
+
+  g.clear();
+  g.lineStyle(1, 0xcfc4de, 0.4);
+  for (let i = 0; i < 5; i++) {
+    g.lineBetween(2, 3 + i * 5, 26, 1 + i * 6);
+    g.lineBetween(3 + i * 5, 2, 1 + i * 6, 26);
+  }
+  g.lineStyle(1, 0xffffff, 0.25);
+  g.strokeCircle(14, 14, 8);
+  g.strokeCircle(14, 14, 4);
+  g.generateTexture(TEX.decorWeb, 28, 28);
+
+  g.clear();
+  g.fillStyle(0x2c4020, 0.9);
+  g.fillEllipse(12, 9, 20, 12);
+  g.fillStyle(0x9fe06a, 0.9);
+  g.fillCircle(8, 8, 2.5);
+  g.fillCircle(15, 11, 2);
+  g.fillCircle(13, 6, 1.6);
+  g.fillStyle(0xd6f7b0);
+  g.fillCircle(8, 8, 1);
+  g.fillCircle(15, 11, 0.8);
+  g.generateTexture(TEX.decorSpore, 24, 18);
+
+  // Radial glow (white, tinted per light source, additive blend).
+  g.clear();
+  for (let r = 24; r >= 4; r -= 4) {
+    g.fillStyle(0xffffff, 0.05 + (0.16 * (24 - r)) / 20);
+    g.fillCircle(24, 24, r);
+  }
+  g.generateTexture(TEX.glow, 48, 48);
+
+  // Drifting portal mote.
+  g.clear();
+  g.fillStyle(0xffffff);
+  g.fillCircle(2, 2, 2);
+  g.generateTexture(TEX.mote, 4, 4);
+
+  // Breakable props: resin husk (gold) and amber clutch (health).
+  g.clear();
+  g.fillStyle(0x000000, 0.3);
+  g.fillEllipse(10, 16, 16, 6);
+  g.fillStyle(0x8f7a4a);
+  g.fillCircle(10, 10, 7);
+  g.fillStyle(0xbfa15e);
+  g.fillCircle(10, 8, 4.5);
+  g.lineStyle(1, 0x4a3d22);
+  g.strokeCircle(10, 10, 7);
+  g.lineBetween(6, 7, 12, 13);
+  g.generateTexture(propTexture('resin-husk'), 20, 20);
+
+  g.clear();
+  g.fillStyle(0x000000, 0.3);
+  g.fillEllipse(10, 16, 16, 6);
+  g.fillStyle(0xb3543f);
+  g.fillCircle(7, 11, 4.5);
+  g.fillCircle(13, 11, 4.5);
+  g.fillCircle(10, 7, 4.5);
+  g.fillStyle(0xe0524d);
+  g.fillCircle(10, 7, 2.2);
+  g.fillCircle(7, 11, 2);
+  g.fillCircle(13, 11, 2);
+  g.generateTexture(propTexture('amber-clutch'), 20, 20);
 
   // Particle sprites for combat feedback (issue #3).
   g.clear();

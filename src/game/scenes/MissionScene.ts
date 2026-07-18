@@ -7,7 +7,18 @@ import { TICK_DT, type EntityId, type PlayerState, type SimEvent, type Vec2 } fr
 import { playerAccent } from '../colors';
 import { KeyboardCommander } from '../input';
 import type { HudScene } from './HudScene';
-import { TEX, broodNodeFrame, enemyFrame, facingDirIndex, heroFrame, type EnemyAnimFrame, type HeroPose } from '../textures';
+import {
+  FLOOR_VARIANTS,
+  TEX,
+  broodNodeFrame,
+  enemyFrame,
+  facingDirIndex,
+  floorVariant,
+  heroFrame,
+  propTexture,
+  type EnemyAnimFrame,
+  type HeroPose
+} from '../textures';
 
 const MAX_STEPS_PER_FRAME = 5;
 
@@ -70,6 +81,9 @@ export class MissionScene extends Phaser.Scene {
   private movedAtTick = new Map<EntityId, number>();
   private genPopAt = new Map<EntityId, number>(); // wall-clock ms of last spawn squash
   private hatchAtTick = new Map<EntityId, number>();
+  private glows: { img: Phaser.GameObjects.Image; phase: number }[] = [];
+  private exitGlow!: Phaser.GameObjects.Image;
+  private moteFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private exitSprite!: Phaser.GameObjects.Image;
   private ended = false;
   private hitStopMs = 0;
@@ -112,13 +126,21 @@ export class MissionScene extends Phaser.Scene {
     this.floatCount = 0;
     const spawn = this.sim.state.players[0]?.pos ?? { x: 0, y: 0 };
     this.camFollow = { x: spawn.x, y: spawn.y };
+    this.glows = [];
     this.commander = new KeyboardCommander(this);
 
     this.drawLevel();
+    this.drawDecor();
     this.createEmitters();
 
-    this.exitSprite = this.add
-      .image(this.sim.state.exitPos.x, this.sim.state.exitPos.y, TEX.exit)
+    const exitPos = this.sim.state.exitPos;
+    this.exitSprite = this.add.image(exitPos.x, exitPos.y, TEX.exit).setDepth(DEPTH_DECAL).setVisible(false);
+    this.exitGlow = this.add
+      .image(exitPos.x, exitPos.y, TEX.glow)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setTint(0x64e6ff)
+      .setAlpha(0.4)
+      .setScale(1.8)
       .setDepth(DEPTH_DECAL)
       .setVisible(false);
 
@@ -137,23 +159,57 @@ export class MissionScene extends Phaser.Scene {
   private drawLevel(): void {
     const level = this.sim.config.level;
     const ts = level.tileSize;
+    const isWall = (tx: number, ty: number): boolean => {
+      const row = level.walls[ty];
+      return row === undefined || row[tx] !== '.';
+    };
     level.walls.forEach((row, ty) => {
       for (let tx = 0; tx < row.length; tx++) {
         if (row[tx] === '#') {
           // Walls y-sort by their bottom edge so they draw over entities
-          // standing behind (north of) them.
+          // standing behind (north of) them. Fully surrounded walls use the
+          // flat inner variant so edges pop.
           const bottomY = (ty + 1) * ts;
-          this.add.image(tx * ts + ts / 2, ty * ts + ts / 2, TEX.wall).setDepth(bottomY);
+          const inner = isWall(tx - 1, ty) && isWall(tx + 1, ty) && isWall(tx, ty - 1) && isWall(tx, ty + 1);
+          this.add.image(tx * ts + ts / 2, ty * ts + ts / 2, inner ? TEX.wallInner : TEX.wall).setDepth(bottomY);
           // South-facing wall edges get a front face, faking wall height.
           const below = level.walls[ty + 1];
           if (below && below[tx] === '.') {
             this.add.image(tx * ts + ts / 2, bottomY + 8, TEX.wallFace).setDepth(bottomY);
           }
         } else {
-          this.add.image(tx * ts + ts / 2, ty * ts + ts / 2, TEX.floor).setDepth(0);
+          // Deterministic variation: hash of the tile coordinate (not RNG),
+          // so the same level always dresses identically.
+          const hash = (((tx * 73856093) ^ (ty * 19349663)) >>> 0) % FLOOR_VARIANTS;
+          this.add.image(tx * ts + ts / 2, ty * ts + ts / 2, floorVariant(hash)).setDepth(0);
         }
       }
     });
+  }
+
+  /** Non-colliding set dressing authored in the level data. */
+  private drawDecor(): void {
+    const level = this.sim.config.level;
+    const ts = level.tileSize;
+    for (const d of level.decor ?? []) {
+      const x = d.tx * ts + ts / 2;
+      const y = d.ty * ts + ts / 2;
+      if (d.kind === 'egg-cluster') {
+        this.add.image(x, y, TEX.decorEgg).setDepth(y); // has height: y-sorted
+      } else if (d.kind === 'resin-web') {
+        this.add.image(x, y, TEX.decorWeb).setDepth(DEPTH_DECAL);
+      } else {
+        this.add.image(x, y, TEX.decorSpore).setDepth(DEPTH_DECAL);
+        const glow = this.add
+          .image(x, y, TEX.glow)
+          .setBlendMode(Phaser.BlendModes.ADD)
+          .setTint(0x9fe06a)
+          .setAlpha(0.3)
+          .setScale(1.4)
+          .setDepth(DEPTH_DECAL + 1);
+        this.glows.push({ img: glow, phase: d.tx * 7 + d.ty * 13 });
+      }
+    }
   }
 
   /** Long-lived pooled emitters; effects fire via explode() with alive caps. */
@@ -201,6 +257,20 @@ export class MissionScene extends Phaser.Scene {
         lifespan: 500,
         scale: { start: 1, end: 0 },
         gravityY: -80,
+        emitting: false
+      })
+      .setDepth(DEPTH_FX);
+    // Continuous cyan drift around the opened exit portal.
+    this.moteFx = this.add
+      .particles(0, 0, TEX.mote, {
+        speed: { min: 5, max: 22 },
+        lifespan: { min: 900, max: 1700 },
+        alpha: { start: 0.9, end: 0 },
+        scale: { start: 1, end: 0.2 },
+        gravityY: -14,
+        frequency: 90,
+        tint: 0x64e6ff,
+        emitZone: { type: 'random', source: new Phaser.Geom.Circle(0, 0, 16), quantity: 1 },
         emitting: false
       })
       .setDepth(DEPTH_FX);
@@ -256,6 +326,10 @@ export class MissionScene extends Phaser.Scene {
       const t = this.time.now;
       this.exitSprite.setScale(1 + 0.08 * Math.sin(t / 250));
       this.exitSprite.setRotation(t / 2000);
+      this.exitGlow.setAlpha(0.32 + 0.12 * Math.sin(t / 300));
+    }
+    for (const glow of this.glows) {
+      glow.img.setAlpha(0.24 + 0.1 * Math.sin(this.time.now / 500 + glow.phase));
     }
 
     this.updateCamera();
@@ -341,8 +415,15 @@ export class MissionScene extends Phaser.Scene {
         case 'player-hit':
           this.cameras.main.shake(80, 0.004);
           break;
+        case 'prop-destroyed':
+          this.deathPuff(ev.pos, 0xd9b26a, 0.8);
+          this.burst(this.sparkFx, 4, ev.pos);
+          break;
         case 'exit-opened':
           this.exitSprite.setVisible(true);
+          this.exitGlow.setVisible(true);
+          this.moteFx.setPosition(ev.pos.x, ev.pos.y);
+          this.moteFx.start();
           this.floatText(ev.pos, 'THE WAY OPENS', '#64e6ff');
           break;
         case 'mission-complete':
@@ -537,6 +618,11 @@ export class MissionScene extends Phaser.Scene {
       const bob = Math.sin(this.time.now / 280 + pk.id) * 2.5;
       spr.setPosition(pk.pos.x, pk.pos.y - 3 + bob).setDepth(pk.pos.y);
       this.ensureShadow(pk.id, 0.5).setPosition(pk.pos.x, pk.pos.y + 7);
+    }
+
+    for (const pr of s.props) {
+      seen.add(pr.id);
+      this.ensureSprite(pr.id, propTexture(pr.typeId)).setPosition(pr.pos.x, pr.pos.y).setDepth(pr.pos.y);
     }
 
     for (const [id, spr] of this.sprites) {

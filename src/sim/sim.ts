@@ -10,6 +10,7 @@ import {
   type InputCommand,
   type PickupState,
   type PlayerState,
+  type PropState,
   type SimConfig,
   type SimEvent,
   type SimState,
@@ -76,6 +77,17 @@ export function createSim(config: SimConfig): Sim {
     pos: tileCenter(level, p.tx, p.ty)
   }));
 
+  const props: PropState[] = (level.props ?? []).map((pr) => {
+    const def = content.props[pr.typeId];
+    if (!def) throw new Error(`unknown prop: ${pr.typeId}`);
+    return {
+      id: nextEntityId++,
+      typeId: def.id,
+      pos: tileCenter(level, pr.tx, pr.ty),
+      hp: def.maxHp
+    };
+  });
+
   return {
     config,
     state: {
@@ -87,6 +99,7 @@ export function createSim(config: SimConfig): Sim {
       enemies: [],
       generators,
       pickups,
+      props,
       exitPos: tileCenter(level, level.exit.tx, level.exit.ty)
     }
   };
@@ -183,6 +196,16 @@ function performMeleeAttack(sim: Sim, p: PlayerState, events: SimEvent[]): void 
     if (dir.x * p.facing.x + dir.y * p.facing.y < cosHalfArc) continue;
     damageGenerator(sim, g, damage, events);
   }
+  for (const pr of sim.state.props) {
+    const pdef = content.props[pr.typeId];
+    if (!pdef) continue;
+    const d = sub(pr.pos, p.pos);
+    const dist = Math.hypot(d.x, d.y);
+    if (dist > atk.range + pdef.radius) continue;
+    const dir = dist > 1e-6 ? { x: d.x / dist, y: d.y / dist } : { ...p.facing };
+    if (dir.x * p.facing.x + dir.y * p.facing.y < cosHalfArc) continue;
+    damageProp(sim, pr, damage, events);
+  }
 }
 
 function performAbility(sim: Sim, p: PlayerState, events: SimEvent[]): void {
@@ -210,6 +233,13 @@ function performAbility(sim: Sim, p: PlayerState, events: SimEvent[]): void {
     const dist = Math.hypot(g.pos.x - p.pos.x, g.pos.y - p.pos.y);
     if (dist > ab.radius + gdef.radius) continue;
     damageGenerator(sim, g, damage, events);
+  }
+  for (const pr of sim.state.props) {
+    const pdef = content.props[pr.typeId];
+    if (!pdef) continue;
+    const dist = Math.hypot(pr.pos.x - p.pos.x, pr.pos.y - p.pos.y);
+    if (dist > ab.radius + pdef.radius) continue;
+    damageProp(sim, pr, damage, events);
   }
 }
 
@@ -281,6 +311,27 @@ function damageGenerator(sim: Sim, g: GeneratorState, damage: number, events: Si
   } else {
     events.push({ type: 'generator-hit', generatorId: g.id, pos: { ...g.pos }, damage });
   }
+}
+
+/** Props shatter on any damage and drop loot rolled from the seeded RNG. */
+function damageProp(sim: Sim, pr: PropState, damage: number, events: SimEvent[]): void {
+  pr.hp -= damage;
+  if (pr.hp > 0) return;
+  events.push({ type: 'prop-destroyed', propId: pr.id, pos: { ...pr.pos } });
+  const def = sim.config.content.props[pr.typeId];
+  if (def) {
+    const [amount, next] = rngIntRange(sim.state.rngState, def.dropMin, def.dropMax);
+    sim.state.rngState = next;
+    if (amount > 0) {
+      sim.state.pickups.push({
+        id: sim.state.nextEntityId++,
+        kind: def.dropKind,
+        amount,
+        pos: { ...pr.pos }
+      });
+    }
+  }
+  sim.state.props = sim.state.props.filter((x) => x !== pr);
 }
 
 // ---------------------------------------------------------------------------
