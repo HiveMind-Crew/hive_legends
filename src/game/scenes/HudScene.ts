@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { audio } from '../audio';
 import { playerAccent } from '../colors';
 import { TEX } from '../textures';
 import type { HudInfo, MissionScene } from './MissionScene';
@@ -41,6 +42,11 @@ export class HudScene extends Phaser.Scene {
   private objectiveBg!: Phaser.GameObjects.Rectangle;
   private objectiveText!: Phaser.GameObjects.Text;
   private prevObjective = '';
+  private heraldBg!: Phaser.GameObjects.Rectangle;
+  private heraldText!: Phaser.GameObjects.Text;
+  private heraldQueue: { text: string; color: string }[] = [];
+  private heraldBusy = false;
+  private muteIcon!: Phaser.GameObjects.Text;
 
   constructor() {
     super('hud');
@@ -51,6 +57,8 @@ export class HudScene extends Phaser.Scene {
     this.goldShown = [0, 0, 0, 0];
     this.prevAbilityCd = [0, 0, 0, 0];
     this.prevObjective = '';
+    this.heraldQueue = [];
+    this.heraldBusy = false;
     this.drawVignette();
     for (let i = 0; i < SLOTS; i++) this.panels.push(this.buildPanel(i));
 
@@ -58,6 +66,54 @@ export class HudScene extends Phaser.Scene {
     this.objectiveText = this.add
       .text(480, 78, '', { fontFamily: 'monospace', fontSize: '15px', color: '#64e6ff', fontStyle: 'bold' })
       .setOrigin(0.5);
+
+    // The Herald: a single announcement ribbon lower-centre. Messages queue so
+    // they never overlap illegibly (issue #8).
+    this.heraldBg = this.add.rectangle(480, 150, 520, 34, 0x120c1a, 0.72).setOrigin(0.5).setVisible(false);
+    this.heraldBg.setStrokeStyle(2, 0x64e6ff, 0.5);
+    this.heraldText = this.add
+      .text(480, 150, '', { fontFamily: 'monospace', fontSize: '20px', color: '#ffffff', fontStyle: 'bold' })
+      .setOrigin(0.5)
+      .setVisible(false);
+
+    // Mute indicator, bottom-right; reflects the shared audio engine state.
+    this.muteIcon = this.add
+      .text(this.scale.width - 12, this.scale.height - 12, '', {
+        fontFamily: 'monospace',
+        fontSize: '13px',
+        color: '#544868'
+      })
+      .setOrigin(1, 1);
+  }
+
+  /** Enqueue a Herald announcement; shown one at a time in arrival order. */
+  herald(text: string, color = '#ffffff'): void {
+    this.heraldQueue.push({ text, color });
+    if (!this.heraldBusy) this.showNextHerald();
+  }
+
+  private showNextHerald(): void {
+    const next = this.heraldQueue.shift();
+    if (!next) {
+      this.heraldBusy = false;
+      this.heraldBg.setVisible(false);
+      this.heraldText.setVisible(false);
+      return;
+    }
+    this.heraldBusy = true;
+    this.heraldText.setText(next.text).setColor(next.color).setVisible(true).setAlpha(0).setScale(0.85);
+    this.heraldBg.setStrokeStyle(2, Phaser.Display.Color.HexStringToColor(next.color).color, 0.6);
+    this.heraldBg.setVisible(true).setAlpha(0);
+    this.tweens.add({ targets: [this.heraldText, this.heraldBg], alpha: 1, duration: 160, ease: 'Quad.Out' });
+    this.tweens.add({ targets: this.heraldText, scale: 1, duration: 220, ease: 'Back.Out' });
+    this.time.delayedCall(1600, () => {
+      this.tweens.add({
+        targets: [this.heraldText, this.heraldBg],
+        alpha: 0,
+        duration: 220,
+        onComplete: () => this.showNextHerald()
+      });
+    });
   }
 
   /**
@@ -117,6 +173,7 @@ export class HudScene extends Phaser.Scene {
       this.updatePanel(i, info);
     }
     this.updateObjective(info);
+    this.muteIcon.setText(audio.isMuted ? '♪ muted (M)' : '♪ (M)');
   }
 
   private updatePanel(i: number, info: HudInfo): void {

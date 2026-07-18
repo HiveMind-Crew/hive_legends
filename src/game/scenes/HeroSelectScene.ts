@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CONTENT } from '../../content';
 import { loadProfile, profileModifiers, upgradeLevel, UPGRADES } from '../../meta/save';
+import { audio } from '../audio';
 import { TEX } from '../textures';
 
 const LOCKED_ROLES = ['Arcanist', 'Ranger', 'Sentinel'];
@@ -101,6 +102,12 @@ export class HeroSelectScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    this.input.keyboard?.once('keydown-ENTER', () => this.scene.start('mission'));
+    this.input.keyboard?.once('keydown-ENTER', () => {
+      // First user gesture: unlock the audio context here so the mission's
+      // music can start without tripping the browser autoplay policy.
+      audio.unlock();
+      audio.uiConfirm();
+      this.scene.start('mission');
+    });
   }
 }

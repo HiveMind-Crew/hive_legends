@@ -16,7 +16,7 @@ npm run dev        # http://localhost:5173
 ```
 
 Controls: **WASD/Arrows** move · **Space/J** attack · **Shift/K** hero ability ·
-**Enter** confirm.
+**Enter** confirm · **M** mute audio.
 
 ## Development
 

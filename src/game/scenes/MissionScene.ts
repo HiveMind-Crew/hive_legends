@@ -4,6 +4,7 @@ import { loadProfile, profileModifiers } from '../../meta/save';
 import { levelHeightPx, levelWidthPx } from '../../sim/level';
 import { createSim, simTick, type Sim } from '../../sim/sim';
 import { TICK_DT, type EntityId, type PlayerState, type SimEvent, type Vec2 } from '../../sim/types';
+import { audio } from '../audio';
 import { playerAccent } from '../colors';
 import { KeyboardCommander } from '../input';
 import type { HudScene } from './HudScene';
@@ -91,6 +92,7 @@ export class MissionScene extends Phaser.Scene {
   private camKick = { x: 0, y: 0 };
   private trailCount = 0;
   private floatCount = 0;
+  private lowHpHeralded = false;
   private ichorFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private shardFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private sparkFx!: Phaser.GameObjects.Particles.ParticleEmitter;
@@ -124,6 +126,7 @@ export class MissionScene extends Phaser.Scene {
     this.camKick = { x: 0, y: 0 };
     this.trailCount = 0;
     this.floatCount = 0;
+    this.lowHpHeralded = false;
     const spawn = this.sim.state.players[0]?.pos ?? { x: 0, y: 0 };
     this.camFollow = { x: spawn.x, y: spawn.y };
     this.glows = [];
@@ -149,6 +152,15 @@ export class MissionScene extends Phaser.Scene {
     this.cameras.main.setZoom(1.25);
 
     this.scene.launch('hud');
+
+    // Audio: the Enter press that started this scene is a valid gesture, so
+    // resume the context and kick off the combat loop. M toggles mute.
+    audio.unlock();
+    audio.startMusic();
+    this.input.keyboard?.on('keydown-M', () => {
+      const muted = audio.toggleMute();
+      (this.scene.get('hud') as HudScene).herald(muted ? 'SOUND OFF' : 'SOUND ON', '#a89bb8');
+    });
 
     // Read-only debug handle for automated end-to-end tests.
     (globalThis as Record<string, unknown>).__hive = {
@@ -322,6 +334,18 @@ export class MissionScene extends Phaser.Scene {
 
     this.syncSprites();
 
+    // The Herald warns once when the lead hero drops into the danger zone.
+    const p0 = this.sim.state.players[0];
+    if (p0 && p0.alive) {
+      const frac = p0.hp / p0.maxHp;
+      if (!this.lowHpHeralded && frac <= 0.3) {
+        this.lowHpHeralded = true;
+        (this.scene.get('hud') as HudScene).herald('HEALTH CRITICAL', '#ff5a4d');
+      } else if (this.lowHpHeralded && frac > 0.45) {
+        this.lowHpHeralded = false; // re-arm once recovered
+      }
+    }
+
     if (this.exitSprite.visible) {
       const t = this.time.now;
       this.exitSprite.setScale(1 + 0.08 * Math.sin(t / 250));
@@ -351,7 +375,9 @@ export class MissionScene extends Phaser.Scene {
   // -------------------------------------------------------------------------
 
   private handleEvents(events: SimEvent[]): void {
+    const hud = this.scene.get('hud') as HudScene;
     for (const ev of events) {
+      audio.playEvent(ev); // one call, throttled per-sound inside the engine
       switch (ev.type) {
         case 'attack':
           this.flashArc(ev.pos, ev.facing);
@@ -376,8 +402,12 @@ export class MissionScene extends Phaser.Scene {
           this.burst(this.ichorFx, 5, ev.pos);
           this.flashRing(ev.pos, 24, 0x9fe06a);
           this.hatchAtTick.set(ev.enemyId, this.sim.state.tick);
-          const srcGen = this.sim.state.enemies.find((e) => e.id === ev.enemyId)?.sourceGen;
-          if (srcGen != null) this.genPopAt.set(srcGen, this.time.now);
+          const spawned = this.sim.state.enemies.find((e) => e.id === ev.enemyId);
+          if (spawned?.sourceGen != null) this.genPopAt.set(spawned.sourceGen, this.time.now);
+          // The Herald calls out elite arrivals so the party can react.
+          if (spawned && CONTENT.enemies[spawned.typeId]?.tier === 'elite') {
+            hud.herald('AN ELITE STIRS', '#ff5a4d');
+          }
           break;
         }
         case 'enemy-died':
@@ -425,6 +455,7 @@ export class MissionScene extends Phaser.Scene {
           this.moteFx.setPosition(ev.pos.x, ev.pos.y);
           this.moteFx.start();
           this.floatText(ev.pos, 'THE WAY OPENS', '#64e6ff');
+          hud.herald('THE WAY IS OPEN — FLEE THE WARRENS', '#64e6ff');
           break;
         case 'mission-complete':
           this.endMission(true);
@@ -445,12 +476,12 @@ export class MissionScene extends Phaser.Scene {
 
   private endMission(victory: boolean): void {
     this.ended = true;
-    (this.scene.get('hud') as HudScene).banner(
-      victory ? 'WARRENS CLEARED' : 'THE HIVE PREVAILS',
-      victory ? '#ffd75e' : '#ff5a4d'
-    );
+    const hud = this.scene.get('hud') as HudScene;
+    hud.herald(victory ? 'THE WARRENS ARE CLEANSED' : 'THE PARTY HAS FALLEN', victory ? '#9fe06a' : '#ff5a4d');
+    hud.banner(victory ? 'WARRENS CLEARED' : 'THE HIVE PREVAILS', victory ? '#ffd75e' : '#ff5a4d');
     const p = this.sim.state.players[0]!;
     this.time.delayedCall(1400, () => {
+      audio.stopMusic();
       this.scene.stop('hud');
       this.scene.start('results', {
         victory,

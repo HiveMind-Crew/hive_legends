@@ -8,6 +8,7 @@ import {
   UPGRADES,
   type Profile
 } from '../../meta/save';
+import { audio } from '../audio';
 
 interface ResultsData {
   victory: boolean;
@@ -92,16 +93,28 @@ export class ResultsScene extends Phaser.Scene {
 
     this.refreshTexts();
 
+    audio.unlock();
+
     const kb = this.input.keyboard!;
     kb.on('keydown-ONE', () => this.tryBuy('vitality'));
     kb.on('keydown-TWO', () => this.tryBuy('might'));
-    kb.once('keydown-R', () => this.scene.start('mission'));
-    kb.once('keydown-H', () => this.scene.start('hero-select'));
+    kb.on('keydown-M', () => audio.toggleMute());
+    kb.once('keydown-R', () => {
+      audio.uiConfirm();
+      this.scene.start('mission');
+    });
+    kb.once('keydown-H', () => {
+      audio.uiConfirm();
+      this.scene.start('hero-select');
+    });
   }
 
   private tryBuy(upgradeId: string): void {
     if (buyUpgrade(this.profile, upgradeId)) {
       this.cameras.main.flash(150, 255, 215, 94);
+      audio.uiConfirm();
+    } else {
+      audio.uiTick(220); // low buzz on a failed purchase
     }
     this.refreshTexts();
   }
