@@ -64,9 +64,24 @@ export interface HeroDef {
   ability: AbilityDef;
 }
 
+/**
+ * Enemy visual grammar (issue #7): every enemy belongs to a silhouette
+ * family and a palette tier. The texture generator composes family x tier,
+ * so new enemies are pure content-data entries with zero drawing code.
+ */
+export const ENEMY_FAMILIES = ['skitter', 'husk', 'spitter'] as const;
+export type EnemyFamily = (typeof ENEMY_FAMILIES)[number];
+
+export const ENEMY_TIERS = ['common', 'veteran', 'elite'] as const;
+export type EnemyTier = (typeof ENEMY_TIERS)[number];
+
 export interface EnemyDef {
   id: string;
   name: string;
+  /** Silhouette family: owns the body shape and animation frames. */
+  family: EnemyFamily;
+  /** Palette/size tier within the family. */
+  tier: EnemyTier;
   maxHp: number;
   moveSpeed: number;
   radius: number;
@@ -75,6 +90,15 @@ export interface EnemyDef {
   attackCooldownTicks: number;
   goldMin: number;
   goldMax: number;
+}
+
+/** One-shot frenzy when a generator first drops to low HP. */
+export interface GeneratorEnrageDef {
+  /** HP fraction at or below which the enrage triggers (e.g. 0.5). */
+  hpFraction: number;
+  /** Spawn-interval multiplier while enraged (e.g. 0.5 = twice as fast). */
+  intervalMult: number;
+  durationTicks: number;
 }
 
 export interface GeneratorDef {
@@ -87,6 +111,35 @@ export interface GeneratorDef {
   /** Max simultaneously-alive enemies originating from one generator. */
   maxAlive: number;
   goldDrop: number;
+  /** Optional enrage behavior; omit for generators that never enrage. */
+  enrage?: GeneratorEnrageDef;
+}
+
+/** Small breakable prop: any damage destroys it; drops loot via seeded RNG. */
+export interface PropDef {
+  id: string;
+  name: string;
+  maxHp: number;
+  radius: number;
+  dropKind: PickupKind;
+  dropMin: number;
+  dropMax: number;
+}
+
+/** Non-colliding set dressing, rendered only (never enters the sim state). */
+export const DECOR_KINDS = ['egg-cluster', 'resin-web', 'spore-patch'] as const;
+export type DecorKind = (typeof DECOR_KINDS)[number];
+
+export interface LevelDecorDef {
+  kind: DecorKind;
+  tx: number;
+  ty: number;
+}
+
+export interface LevelPropDef {
+  typeId: string;
+  tx: number;
+  ty: number;
 }
 
 export interface LevelPickupDef {
@@ -112,6 +165,10 @@ export interface LevelDef {
   playerSpawns: readonly { tx: number; ty: number }[];
   generators: readonly LevelGeneratorDef[];
   pickups: readonly LevelPickupDef[];
+  /** Breakable props (sim entities). */
+  props?: readonly LevelPropDef[];
+  /** Visual set dressing (render-only). */
+  decor?: readonly LevelDecorDef[];
   exit: { tx: number; ty: number };
 }
 
@@ -119,6 +176,7 @@ export interface ContentDb {
   heroes: Record<string, HeroDef>;
   enemies: Record<string, EnemyDef>;
   generators: Record<string, GeneratorDef>;
+  props: Record<string, PropDef>;
 }
 
 // ---------------------------------------------------------------------------
@@ -161,6 +219,9 @@ export interface GeneratorState {
   hp: number;
   maxHp: number;
   spawnCooldown: number;
+  /** Enrage fires at most once per generator. */
+  enrageTriggered: boolean;
+  enrageTicksLeft: number;
 }
 
 export interface PickupState {
@@ -168,6 +229,13 @@ export interface PickupState {
   kind: PickupKind;
   amount: number;
   pos: Vec2;
+}
+
+export interface PropState {
+  id: EntityId;
+  typeId: string;
+  pos: Vec2;
+  hp: number;
 }
 
 export type MissionPhase = 'combat' | 'exit-open' | 'complete' | 'failed';
@@ -181,6 +249,7 @@ export interface SimState {
   enemies: EnemyState[];
   generators: GeneratorState[];
   pickups: PickupState[];
+  props: PropState[];
   exitPos: Vec2;
 }
 
@@ -195,7 +264,9 @@ export type SimEvent =
   | { type: 'enemy-died'; enemyId: EntityId; typeId: string; pos: Vec2; byPlayer: EntityId; damage: number }
   | { type: 'enemy-spawned'; enemyId: EntityId; typeId: string; pos: Vec2 }
   | { type: 'generator-hit'; generatorId: EntityId; pos: Vec2; damage: number }
+  | { type: 'generator-enraged'; generatorId: EntityId; pos: Vec2 }
   | { type: 'generator-destroyed'; generatorId: EntityId; pos: Vec2 }
+  | { type: 'prop-destroyed'; propId: EntityId; pos: Vec2 }
   | { type: 'pickup-collected'; playerId: EntityId; kind: PickupKind; amount: number; pos: Vec2 }
   | { type: 'player-hit'; playerId: EntityId; damage: number; pos: Vec2 }
   | { type: 'player-died'; playerId: EntityId; pos: Vec2 }

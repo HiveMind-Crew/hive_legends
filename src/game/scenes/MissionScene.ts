@@ -6,9 +6,38 @@ import { createSim, simTick, type Sim } from '../../sim/sim';
 import { TICK_DT, type EntityId, type PlayerState, type SimEvent, type Vec2 } from '../../sim/types';
 import { playerAccent } from '../colors';
 import { KeyboardCommander } from '../input';
-import { TEX, facingDirIndex, heroFrame, skitterFrame, type HeroPose, type SkitterFrameId } from '../textures';
+import type { HudScene } from './HudScene';
+import {
+  FLOOR_VARIANTS,
+  TEX,
+  broodNodeFrame,
+  enemyFrame,
+  facingDirIndex,
+  floorVariant,
+  heroFrame,
+  propTexture,
+  type EnemyAnimFrame,
+  type HeroPose
+} from '../textures';
 
 const MAX_STEPS_PER_FRAME = 5;
+
+export interface HudPlayerInfo {
+  heroName: string;
+  hp: number;
+  maxHp: number;
+  gold: number;
+  kills: number;
+  abilityCooldown: number;
+  abilityMax: number;
+  alive: boolean;
+}
+
+export interface HudInfo {
+  players: HudPlayerInfo[];
+  generatorsLeft: number;
+  phase: string;
+}
 
 // Depth layers: floor 0, ground decals 1-3, dynamic entities y-sorted by
 // world y (walls use their bottom edge so they occlude entities behind them),
@@ -34,6 +63,10 @@ const CAM_LOOKAHEAD = 36;
 const CAM_LERP = 0.08;
 const CAM_KICK_DECAY = 0.8;
 
+// Generator presence (issue #6): pre-spawn bulge window and hatch-in time.
+const PRESPAWN_BULGE_TICKS = 18;
+const HATCH_TICKS = 10;
+
 /** Runs the deterministic sim at a fixed tick rate and renders its state. */
 export class MissionScene extends Phaser.Scene {
   private sim!: Sim;
@@ -46,6 +79,11 @@ export class MissionScene extends Phaser.Scene {
   private genHpBars = new Map<EntityId, Phaser.GameObjects.Rectangle>();
   private lastPos = new Map<EntityId, Vec2>();
   private movedAtTick = new Map<EntityId, number>();
+  private genPopAt = new Map<EntityId, number>(); // wall-clock ms of last spawn squash
+  private hatchAtTick = new Map<EntityId, number>();
+  private glows: { img: Phaser.GameObjects.Image; phase: number }[] = [];
+  private exitGlow!: Phaser.GameObjects.Image;
+  private moteFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private exitSprite!: Phaser.GameObjects.Image;
   private ended = false;
   private hitStopMs = 0;
@@ -80,19 +118,29 @@ export class MissionScene extends Phaser.Scene {
     this.genHpBars.clear();
     this.lastPos.clear();
     this.movedAtTick.clear();
+    this.genPopAt.clear();
+    this.hatchAtTick.clear();
     this.hitStopMs = 0;
     this.camKick = { x: 0, y: 0 };
     this.trailCount = 0;
     this.floatCount = 0;
     const spawn = this.sim.state.players[0]?.pos ?? { x: 0, y: 0 };
     this.camFollow = { x: spawn.x, y: spawn.y };
+    this.glows = [];
     this.commander = new KeyboardCommander(this);
 
     this.drawLevel();
+    this.drawDecor();
     this.createEmitters();
 
-    this.exitSprite = this.add
-      .image(this.sim.state.exitPos.x, this.sim.state.exitPos.y, TEX.exit)
+    const exitPos = this.sim.state.exitPos;
+    this.exitSprite = this.add.image(exitPos.x, exitPos.y, TEX.exit).setDepth(DEPTH_DECAL).setVisible(false);
+    this.exitGlow = this.add
+      .image(exitPos.x, exitPos.y, TEX.glow)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setTint(0x64e6ff)
+      .setAlpha(0.4)
+      .setScale(1.8)
       .setDepth(DEPTH_DECAL)
       .setVisible(false);
 
@@ -111,23 +159,57 @@ export class MissionScene extends Phaser.Scene {
   private drawLevel(): void {
     const level = this.sim.config.level;
     const ts = level.tileSize;
+    const isWall = (tx: number, ty: number): boolean => {
+      const row = level.walls[ty];
+      return row === undefined || row[tx] !== '.';
+    };
     level.walls.forEach((row, ty) => {
       for (let tx = 0; tx < row.length; tx++) {
         if (row[tx] === '#') {
           // Walls y-sort by their bottom edge so they draw over entities
-          // standing behind (north of) them.
+          // standing behind (north of) them. Fully surrounded walls use the
+          // flat inner variant so edges pop.
           const bottomY = (ty + 1) * ts;
-          this.add.image(tx * ts + ts / 2, ty * ts + ts / 2, TEX.wall).setDepth(bottomY);
+          const inner = isWall(tx - 1, ty) && isWall(tx + 1, ty) && isWall(tx, ty - 1) && isWall(tx, ty + 1);
+          this.add.image(tx * ts + ts / 2, ty * ts + ts / 2, inner ? TEX.wallInner : TEX.wall).setDepth(bottomY);
           // South-facing wall edges get a front face, faking wall height.
           const below = level.walls[ty + 1];
           if (below && below[tx] === '.') {
             this.add.image(tx * ts + ts / 2, bottomY + 8, TEX.wallFace).setDepth(bottomY);
           }
         } else {
-          this.add.image(tx * ts + ts / 2, ty * ts + ts / 2, TEX.floor).setDepth(0);
+          // Deterministic variation: hash of the tile coordinate (not RNG),
+          // so the same level always dresses identically.
+          const hash = (((tx * 73856093) ^ (ty * 19349663)) >>> 0) % FLOOR_VARIANTS;
+          this.add.image(tx * ts + ts / 2, ty * ts + ts / 2, floorVariant(hash)).setDepth(0);
         }
       }
     });
+  }
+
+  /** Non-colliding set dressing authored in the level data. */
+  private drawDecor(): void {
+    const level = this.sim.config.level;
+    const ts = level.tileSize;
+    for (const d of level.decor ?? []) {
+      const x = d.tx * ts + ts / 2;
+      const y = d.ty * ts + ts / 2;
+      if (d.kind === 'egg-cluster') {
+        this.add.image(x, y, TEX.decorEgg).setDepth(y); // has height: y-sorted
+      } else if (d.kind === 'resin-web') {
+        this.add.image(x, y, TEX.decorWeb).setDepth(DEPTH_DECAL);
+      } else {
+        this.add.image(x, y, TEX.decorSpore).setDepth(DEPTH_DECAL);
+        const glow = this.add
+          .image(x, y, TEX.glow)
+          .setBlendMode(Phaser.BlendModes.ADD)
+          .setTint(0x9fe06a)
+          .setAlpha(0.3)
+          .setScale(1.4)
+          .setDepth(DEPTH_DECAL + 1);
+        this.glows.push({ img: glow, phase: d.tx * 7 + d.ty * 13 });
+      }
+    }
   }
 
   /** Long-lived pooled emitters; effects fire via explode() with alive caps. */
@@ -178,33 +260,42 @@ export class MissionScene extends Phaser.Scene {
         emitting: false
       })
       .setDepth(DEPTH_FX);
+    // Continuous cyan drift around the opened exit portal.
+    this.moteFx = this.add
+      .particles(0, 0, TEX.mote, {
+        speed: { min: 5, max: 22 },
+        lifespan: { min: 900, max: 1700 },
+        alpha: { start: 0.9, end: 0 },
+        scale: { start: 1, end: 0.2 },
+        gravityY: -14,
+        frequency: 90,
+        tint: 0x64e6ff,
+        emitZone: { type: 'random', source: new Phaser.Geom.Circle(0, 0, 16), quantity: 1 },
+        emitting: false
+      })
+      .setDepth(DEPTH_FX);
   }
 
   /** Snapshot consumed by the parallel HUD scene each frame. */
-  hudInfo(): {
-    hp: number;
-    maxHp: number;
-    gold: number;
-    kills: number;
-    generatorsLeft: number;
-    phase: string;
-    abilityCooldown: number;
-    abilityName: string;
-  } | null {
+  hudInfo(): HudInfo | null {
     if (!this.sim) return null;
     const s = this.sim.state;
-    const p = s.players[0];
-    if (!p) return null;
-    const hero = CONTENT.heroes[p.heroId];
     return {
-      hp: p.hp,
-      maxHp: p.maxHp,
-      gold: p.gold,
-      kills: p.kills,
+      players: s.players.map((p) => {
+        const hero = CONTENT.heroes[p.heroId];
+        return {
+          heroName: hero?.name ?? p.heroId,
+          hp: p.hp,
+          maxHp: p.maxHp,
+          gold: p.gold,
+          kills: p.kills,
+          abilityCooldown: p.abilityCooldown,
+          abilityMax: hero?.ability.cooldownTicks ?? 1,
+          alive: p.alive
+        };
+      }),
       generatorsLeft: s.generators.length,
-      phase: s.phase,
-      abilityCooldown: p.abilityCooldown,
-      abilityName: hero?.ability.name ?? ''
+      phase: s.phase
     };
   }
 
@@ -235,6 +326,10 @@ export class MissionScene extends Phaser.Scene {
       const t = this.time.now;
       this.exitSprite.setScale(1 + 0.08 * Math.sin(t / 250));
       this.exitSprite.setRotation(t / 2000);
+      this.exitGlow.setAlpha(0.32 + 0.12 * Math.sin(t / 300));
+    }
+    for (const glow of this.glows) {
+      glow.img.setAlpha(0.24 + 0.1 * Math.sin(this.time.now / 500 + glow.phase));
     }
 
     this.updateCamera();
@@ -276,19 +371,43 @@ export class MissionScene extends Phaser.Scene {
           this.burst(this.shardFx, 2, ev.pos);
           this.meleeKick();
           break;
+        case 'enemy-spawned': {
+          // Egg-burst at the hatch point plus a squash-pop on the source node.
+          this.burst(this.ichorFx, 5, ev.pos);
+          this.flashRing(ev.pos, 24, 0x9fe06a);
+          this.hatchAtTick.set(ev.enemyId, this.sim.state.tick);
+          const srcGen = this.sim.state.enemies.find((e) => e.id === ev.enemyId)?.sourceGen;
+          if (srcGen != null) this.genPopAt.set(srcGen, this.time.now);
+          break;
+        }
         case 'enemy-died':
           this.deathPuff(ev.pos, 0x9fe06a);
           this.damageNumber(ev.pos, ev.damage, '#ffd75e');
           this.burst(this.ichorFx, 10, ev.pos);
           this.hitStop(35);
           break;
-        case 'generator-destroyed':
+        case 'generator-enraged':
+          this.floatText(ev.pos, 'ENRAGED', '#ff5a4d');
+          this.burst(this.shardFx, 6, ev.pos);
+          this.cameras.main.shake(100, 0.006);
+          break;
+        case 'generator-destroyed': {
           this.deathPuff(ev.pos, 0xa855c8, 1.8);
           this.burst(this.shardFx, 14, ev.pos);
           this.burst(this.dustFx, 10, ev.pos);
-          this.cameras.main.shake(200, 0.012);
-          this.hitStop(60);
+          this.cameras.main.shake(250, 0.014);
+          this.hitStop(70);
+          // Second detonation stage + a scorch that lingers on the floor.
+          const pos = { ...ev.pos };
+          this.time.delayedCall(120, () => {
+            this.burst(this.shardFx, 10, pos);
+            this.burst(this.ichorFx, 8, pos);
+            this.flashRing(pos, 70, 0xa855c8);
+          });
+          const scorch = this.add.circle(pos.x, pos.y, 26, 0x000000, 0.22).setDepth(DEPTH_DECAL + 1);
+          this.tweens.add({ targets: scorch, alpha: 0, duration: 2500, onComplete: () => scorch.destroy() });
           break;
+        }
         case 'pickup-collected':
           this.floatText(ev.pos, ev.kind === 'gold' ? `+${ev.amount}` : `+${ev.amount} HP`, ev.kind === 'gold' ? '#ffd75e' : '#e0524d');
           this.burst(ev.kind === 'gold' ? this.sparkFx : this.heartFx, ev.kind === 'gold' ? 6 : 5, ev.pos);
@@ -296,8 +415,15 @@ export class MissionScene extends Phaser.Scene {
         case 'player-hit':
           this.cameras.main.shake(80, 0.004);
           break;
+        case 'prop-destroyed':
+          this.deathPuff(ev.pos, 0xd9b26a, 0.8);
+          this.burst(this.sparkFx, 4, ev.pos);
+          break;
         case 'exit-opened':
           this.exitSprite.setVisible(true);
+          this.exitGlow.setVisible(true);
+          this.moteFx.setPosition(ev.pos.x, ev.pos.y);
+          this.moteFx.start();
           this.floatText(ev.pos, 'THE WAY OPENS', '#64e6ff');
           break;
         case 'mission-complete':
@@ -319,8 +445,12 @@ export class MissionScene extends Phaser.Scene {
 
   private endMission(victory: boolean): void {
     this.ended = true;
+    (this.scene.get('hud') as HudScene).banner(
+      victory ? 'WARRENS CLEARED' : 'THE HIVE PREVAILS',
+      victory ? '#ffd75e' : '#ff5a4d'
+    );
     const p = this.sim.state.players[0]!;
-    this.time.delayedCall(600, () => {
+    this.time.delayedCall(1400, () => {
       this.scene.stop('hud');
       this.scene.start('results', {
         victory,
@@ -371,7 +501,11 @@ export class MissionScene extends Phaser.Scene {
 
     for (const e of s.enemies) {
       seen.add(e.id);
-      const spr = this.ensureSprite(e.id, skitterFrame('w0'));
+      const def = CONTENT.enemies[e.typeId];
+      const family = def?.family ?? 'skitter';
+      const tier = def?.tier ?? 'common';
+      const elite = tier === 'elite';
+      const spr = this.ensureSprite(e.id, enemyFrame(family, tier, 'w0'));
       const prev = this.lastPos.get(e.id);
       if (prev) {
         const dx = e.pos.x - prev.x;
@@ -380,7 +514,6 @@ export class MissionScene extends Phaser.Scene {
       }
       this.trackMovement(e.id, e.pos, s.tick);
 
-      const def = CONTENT.enemies[e.typeId];
       const target = this.nearestLivingPlayer(e.pos);
       const windup =
         def !== undefined &&
@@ -389,17 +522,28 @@ export class MissionScene extends Phaser.Scene {
         e.attackCooldown <= WINDUP_TICKS &&
         Math.hypot(target.pos.x - e.pos.x, target.pos.y - e.pos.y) <= def.attackRange * 1.5;
 
-      let frame: SkitterFrameId;
+      let frame: EnemyAnimFrame;
       if (windup && target) {
         frame = 'windup';
         spr.setRotation(Math.atan2(target.pos.y - e.pos.y, target.pos.x - e.pos.x));
       } else {
         frame = (Math.floor(s.tick / CRAWL_FRAME_TICKS) + e.id) % 2 === 0 ? 'w0' : 'w1';
       }
-      spr.setTexture(skitterFrame(frame));
-      spr.setScale(windup ? 1.18 : 1);
+      spr.setTexture(enemyFrame(family, tier, frame));
+      // Freshly-hatched enemies scale in from the egg-burst; elites run big.
+      const hatchAge = s.tick - (this.hatchAtTick.get(e.id) ?? -Infinity);
+      const hatchMul = hatchAge < HATCH_TICKS ? 0.25 + 0.75 * (hatchAge / HATCH_TICKS) : 1;
+      spr.setScale((windup ? 1.18 : 1) * (elite ? 1.3 : 1) * hatchMul);
       spr.setPosition(e.pos.x, e.pos.y).setDepth(e.pos.y);
-      this.ensureShadow(e.id, 0.7).setPosition(e.pos.x, e.pos.y + 8);
+      this.ensureShadow(e.id, elite ? 0.95 : 0.7).setPosition(e.pos.x, e.pos.y + 8);
+
+      // Elites carry a persistent ground ring so they stay trackable in a horde.
+      let eliteRing = this.rings.get(e.id);
+      if (!eliteRing && elite) {
+        eliteRing = this.add.image(0, 0, TEX.accentRing).setDepth(DEPTH_DECAL).setScale(1.1, 0.6).setTint(0xff5a4d).setAlpha(0.6);
+        this.rings.set(e.id, eliteRing);
+      }
+      if (eliteRing) eliteRing.setPosition(e.pos.x, e.pos.y + 7);
 
       // Motion streak while the knockback vector is meaningful.
       const kbMag = Math.hypot(e.knockback.x, e.knockback.y);
@@ -425,16 +569,47 @@ export class MissionScene extends Phaser.Scene {
 
     for (const g of s.generators) {
       seen.add(g.id);
-      const spr = this.ensureSprite(g.id, TEX.broodNode);
+      const frac = g.hp / g.maxHp;
+      const tier = frac > 2 / 3 ? 0 : frac > 1 / 3 ? 1 : 2;
+      const spr = this.ensureSprite(g.id, broodNodeFrame(0));
+      spr.setTexture(broodNodeFrame(tier));
       spr.setPosition(g.pos.x, g.pos.y).setDepth(g.pos.y);
-      spr.setScale(1 + 0.03 * Math.sin(this.time.now / 400 + g.id));
+
+      // Breathing (faster when enraged), pre-spawn bulge, and spawn squash-pop.
+      const enraged = g.enrageTicksLeft > 0;
+      const breath = (enraged ? 0.06 : 0.03) * Math.sin(this.time.now / (enraged ? 180 : 400) + g.id);
+      const def = CONTENT.generators[g.typeId];
+      const aliveFromThis = s.enemies.reduce((n, e) => n + (e.sourceGen === g.id ? 1 : 0), 0);
+      const canSpawn = def !== undefined && aliveFromThis < def.maxAlive;
+      const bulge =
+        canSpawn && g.spawnCooldown <= PRESPAWN_BULGE_TICKS
+          ? ((PRESPAWN_BULGE_TICKS - g.spawnCooldown) / PRESPAWN_BULGE_TICKS) * 0.12
+          : 0;
+      const pop = Math.max(0, 1 - (this.time.now - (this.genPopAt.get(g.id) ?? -Infinity)) / 140);
+      spr.setScale(1 + breath + bulge + 0.16 * pop, 1 + breath + bulge - 0.1 * pop);
+
       this.ensureShadow(g.id, 1.4).setPosition(g.pos.x, g.pos.y + 16);
+
+      // Enraged nodes get a pulsing red warning ring.
+      let ring = this.rings.get(g.id);
+      if (!ring && enraged) {
+        ring = this.add.image(0, 0, TEX.accentRing).setDepth(DEPTH_DECAL).setScale(1.6, 0.9).setTint(0xff5a4d);
+        this.rings.set(g.id, ring);
+      }
+      if (ring) {
+        ring
+          .setPosition(g.pos.x, g.pos.y + 8)
+          .setVisible(enraged)
+          .setAlpha(0.35 + 0.25 * Math.sin(this.time.now / 90));
+      }
+
       let bar = this.genHpBars.get(g.id);
       if (!bar) {
         bar = this.add.rectangle(g.pos.x, g.pos.y - 30, 40, 5, 0xa855c8).setDepth(DEPTH_FX);
         this.genHpBars.set(g.id, bar);
       }
-      bar.width = 40 * (g.hp / g.maxHp);
+      bar.width = 40 * frac;
+      bar.setFillStyle(tier === 0 ? 0xa855c8 : tier === 1 ? 0xf0a35e : 0xff5a4d);
     }
 
     for (const pk of s.pickups) {
@@ -445,12 +620,19 @@ export class MissionScene extends Phaser.Scene {
       this.ensureShadow(pk.id, 0.5).setPosition(pk.pos.x, pk.pos.y + 7);
     }
 
+    for (const pr of s.props) {
+      seen.add(pr.id);
+      this.ensureSprite(pr.id, propTexture(pr.typeId)).setPosition(pr.pos.x, pr.pos.y).setDepth(pr.pos.y);
+    }
+
     for (const [id, spr] of this.sprites) {
       if (!seen.has(id)) {
         spr.destroy();
         this.sprites.delete(id);
         this.lastPos.delete(id);
         this.movedAtTick.delete(id);
+        this.genPopAt.delete(id);
+        this.hatchAtTick.delete(id);
         for (const map of [this.shadows, this.rings, this.chevrons]) {
           map.get(id)?.destroy();
           map.delete(id);

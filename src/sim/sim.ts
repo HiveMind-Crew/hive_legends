@@ -5,10 +5,12 @@ import {
   NO_MODIFIERS,
   TICK_DT,
   type EnemyState,
+  type GeneratorDef,
   type GeneratorState,
   type InputCommand,
   type PickupState,
   type PlayerState,
+  type PropState,
   type SimConfig,
   type SimEvent,
   type SimState,
@@ -62,7 +64,9 @@ export function createSim(config: SimConfig): Sim {
       pos: tileCenter(level, g.tx, g.ty),
       hp: def.maxHp,
       maxHp: def.maxHp,
-      spawnCooldown: 30 // brief grace period, then the horde starts
+      spawnCooldown: 30, // brief grace period, then the horde starts
+      enrageTriggered: false,
+      enrageTicksLeft: 0
     };
   });
 
@@ -72,6 +76,17 @@ export function createSim(config: SimConfig): Sim {
     amount: p.amount,
     pos: tileCenter(level, p.tx, p.ty)
   }));
+
+  const props: PropState[] = (level.props ?? []).map((pr) => {
+    const def = content.props[pr.typeId];
+    if (!def) throw new Error(`unknown prop: ${pr.typeId}`);
+    return {
+      id: nextEntityId++,
+      typeId: def.id,
+      pos: tileCenter(level, pr.tx, pr.ty),
+      hp: def.maxHp
+    };
+  });
 
   return {
     config,
@@ -84,6 +99,7 @@ export function createSim(config: SimConfig): Sim {
       enemies: [],
       generators,
       pickups,
+      props,
       exitPos: tileCenter(level, level.exit.tx, level.exit.ty)
     }
   };
@@ -180,6 +196,16 @@ function performMeleeAttack(sim: Sim, p: PlayerState, events: SimEvent[]): void 
     if (dir.x * p.facing.x + dir.y * p.facing.y < cosHalfArc) continue;
     damageGenerator(sim, g, damage, events);
   }
+  for (const pr of sim.state.props) {
+    const pdef = content.props[pr.typeId];
+    if (!pdef) continue;
+    const d = sub(pr.pos, p.pos);
+    const dist = Math.hypot(d.x, d.y);
+    if (dist > atk.range + pdef.radius) continue;
+    const dir = dist > 1e-6 ? { x: d.x / dist, y: d.y / dist } : { ...p.facing };
+    if (dir.x * p.facing.x + dir.y * p.facing.y < cosHalfArc) continue;
+    damageProp(sim, pr, damage, events);
+  }
 }
 
 function performAbility(sim: Sim, p: PlayerState, events: SimEvent[]): void {
@@ -207,6 +233,13 @@ function performAbility(sim: Sim, p: PlayerState, events: SimEvent[]): void {
     const dist = Math.hypot(g.pos.x - p.pos.x, g.pos.y - p.pos.y);
     if (dist > ab.radius + gdef.radius) continue;
     damageGenerator(sim, g, damage, events);
+  }
+  for (const pr of sim.state.props) {
+    const pdef = content.props[pr.typeId];
+    if (!pdef) continue;
+    const dist = Math.hypot(pr.pos.x - p.pos.x, pr.pos.y - p.pos.y);
+    if (dist > ab.radius + pdef.radius) continue;
+    damageProp(sim, pr, damage, events);
   }
 }
 
@@ -254,11 +287,18 @@ function dropEnemyGold(sim: Sim, e: EnemyState): void {
 }
 
 function damageGenerator(sim: Sim, g: GeneratorState, damage: number, events: SimEvent[]): void {
+  const def = sim.config.content.generators[g.typeId];
   g.hp -= damage;
+  if (g.hp > 0 && def?.enrage && !g.enrageTriggered && g.hp <= g.maxHp * def.enrage.hpFraction) {
+    g.enrageTriggered = true;
+    g.enrageTicksLeft = def.enrage.durationTicks;
+    // React immediately: the pending spawn is pulled in to the enraged pace.
+    g.spawnCooldown = Math.min(g.spawnCooldown, enragedInterval(def));
+    events.push({ type: 'generator-enraged', generatorId: g.id, pos: { ...g.pos } });
+  }
   if (g.hp <= 0) {
     g.hp = 0;
     events.push({ type: 'generator-destroyed', generatorId: g.id, pos: { ...g.pos } });
-    const def = sim.config.content.generators[g.typeId];
     if (def && def.goldDrop > 0) {
       sim.state.pickups.push({
         id: sim.state.nextEntityId++,
@@ -271,6 +311,27 @@ function damageGenerator(sim: Sim, g: GeneratorState, damage: number, events: Si
   } else {
     events.push({ type: 'generator-hit', generatorId: g.id, pos: { ...g.pos }, damage });
   }
+}
+
+/** Props shatter on any damage and drop loot rolled from the seeded RNG. */
+function damageProp(sim: Sim, pr: PropState, damage: number, events: SimEvent[]): void {
+  pr.hp -= damage;
+  if (pr.hp > 0) return;
+  events.push({ type: 'prop-destroyed', propId: pr.id, pos: { ...pr.pos } });
+  const def = sim.config.content.props[pr.typeId];
+  if (def) {
+    const [amount, next] = rngIntRange(sim.state.rngState, def.dropMin, def.dropMax);
+    sim.state.rngState = next;
+    if (amount > 0) {
+      sim.state.pickups.push({
+        id: sim.state.nextEntityId++,
+        kind: def.dropKind,
+        amount,
+        pos: { ...pr.pos }
+      });
+    }
+  }
+  sim.state.props = sim.state.props.filter((x) => x !== pr);
 }
 
 // ---------------------------------------------------------------------------
@@ -352,6 +413,7 @@ function updateGenerators(sim: Sim, events: SimEvent[]): void {
   for (const g of s.generators) {
     const def = content.generators[g.typeId];
     if (!def) continue;
+    if (g.enrageTicksLeft > 0) g.enrageTicksLeft--;
     if (g.spawnCooldown > 0) {
       g.spawnCooldown--;
       continue;
@@ -385,8 +447,12 @@ function updateGenerators(sim: Sim, events: SimEvent[]): void {
       events.push({ type: 'enemy-spawned', enemyId: enemy.id, typeId: enemy.typeId, pos: { ...pos } });
       spawned = true;
     }
-    g.spawnCooldown = def.spawnIntervalTicks;
+    g.spawnCooldown = g.enrageTicksLeft > 0 ? enragedInterval(def) : def.spawnIntervalTicks;
   }
+}
+
+function enragedInterval(def: GeneratorDef): number {
+  return def.enrage ? Math.max(1, Math.round(def.spawnIntervalTicks * def.enrage.intervalMult)) : def.spawnIntervalTicks;
 }
 
 function collectPickups(sim: Sim, events: SimEvent[]): void {

@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-07-17 (look & feel: issues #1, #2, and #3 landed)
+Updated: 2026-07-18 (look & feel: issues #1–#7 all landed; balance pass)
 
 ## Milestones
 
@@ -78,6 +78,74 @@ Landed:
   carry the damage dealt — an event-payload addition only; state evolution
   and the determinism test are unchanged. The e2e run now also captures
   `test-results/03b-combat-juice.png` right after the first kill.
+- [x] #6 Generator presence — three damage-tier textures (intact →
+  cracked/leaking → crumbling) swapped from `hp/maxHp`, HP bar recolors by
+  tier; idle breathing, a pre-spawn bulge read from `spawnCooldown`, an
+  egg-burst + node squash-pop + hatch scale-in on `enemy-spawned`; two-stage
+  destruction with lingering scorch, heavier shake, and longer hit-stop.
+  Ships the sim-side enrage mechanic: a generator whose HP first drops below
+  half panic-spawns at half interval for 3 s (one-shot, data-driven via
+  `GeneratorDef.enrage` in `src/content/enemies.ts`, new `generator-enraged`
+  SimEvent, red pulsing warning ring + ENRAGED float text in the renderer;
+  unit-tested including expiry and no re-trigger).
+- [x] #7 Enemy visual grammar — `EnemyDef` gains `family` (skitter/husk/
+  spitter silhouettes) and `tier` (common/veteran/elite palettes); the
+  texture generator composes family x tier x frame, so a new enemy is pure
+  content data. Elites: crimson palette, glow outline, renderer size bump,
+  persistent ground ring. Content-validity unit test added. Husk/spitter
+  silhouettes exist but no enemy uses them yet — M1's new enemy types are
+  now data-only work.
+- [x] #4 Arcade HUD — four fixed per-player panels (accent frame, portrait,
+  large health number with low-health pulse, rolling gold counter, kills,
+  ability meter with READY! flash), dimmed JOIN placeholders for empty
+  slots, centered objective ribbon with pop animation, and full-screen
+  victory/defeat banners before the results scene. Panel data flows from
+  `SimState.players`, not a hardcoded single player.
+
+The e2e bot now retreats to health pickups when hurt and slams earlier —
+the enrage mechanic legitimately killed the old face-tank strategy (a good
+sign for the mechanic). The results-transition assertion polls for the
+banked profile instead of sleeping a fixed time (the end banner lengthened
+the transition).
+
+- [x] #5 Environment art & lighting — 4 deterministic floor variants chosen
+  by tile-coordinate hash (no RNG; same level ⇒ same dressing), flat inner
+  wall variant so edges pop, data-authored decor layer (egg clusters, resin
+  webbing, glowing spore patches with pulsing additive glows), screen-edge
+  vignette in the HUD scene, animated exit portal (spin + pulse + cyan glow
+  + drifting motes). Ships destructible props as a real sim entity:
+  `PropDef`/`PropState`, one-hit resin husks (gold 4–9) and amber clutches
+  (health 10–20) dropping loot through the seeded RNG, `prop-destroyed`
+  SimEvent, level validation for prop/decor placement, and sim + content
+  unit tests.
+
+## Balance record (2026-07-18)
+
+Solo-clear attrition after enrage shipped was over-tuned: the e2e bot (now
+playing competently — heal-seeking incl. smashing amber clutches, early
+Sunder Slams) still died in ~half its runs, always to sustained contact
+pressure near the second node. Data-side tune: skitterling touchDamage
+8 → 7, enrage intervalMult 0.5 → 0.6, enrage duration 180 → 150 ticks
+(2.5 s), and a third health pickup on the mid-map route (16,6). Enrage
+urgency is preserved; attrition ceiling drops ~20%.
+
+Preserved failure artifacts then showed deaths clustering at the 2-tile
+doorway between the NE and SE chambers. Widened it to 3 tiles and softened
+solo pressure further (maxAlive 6 → 5 per node — 12 concurrent chasers is
+co-op pressure; scale generator output per player count when co-op lands
+in M3). The e2e bot also gained a defensive Sunder Slam when cornered and
+full-heal hysteresis (oscillating between distant heal spots at a fixed
+threshold was feeding it to the swarm).
+
+The decisive find came from adding a per-poll bot trace to the spec: the
+remaining "deaths" were actually a **bot pathing deadlock** — the ±6 px
+waypoint tolerance could leave the hero's circle clipping a wall corner by
+~1 px, and with axis-separated collision it held one arrow key forever
+without the perpendicular correction, farming the spawn treadmill in place
+until it died or timed out. Fix: tolerance tightened to ±3 px (radius 12 +
+3 < half-tile 16, so corners can never catch) plus a stuck-detector
+jiggle. Result: **8/8 consecutive e2e passes**; the trace now auto-dumps
+on any future failure.
 
 ## Known limitations / risks
 

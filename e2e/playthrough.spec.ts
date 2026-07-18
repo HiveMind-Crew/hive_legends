@@ -123,6 +123,11 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   let lastPhase = 'combat';
   let screenshotTaken = false;
   let juiceShotTaken = false;
+  let damagedNodeShotTaken = false;
+  let healMode = false;
+  let prevPos = { x: -1, y: -1 };
+  let stuckPolls = 0;
+  const trace: string[] = [];
 
   while (Date.now() < deadline) {
     const state = await getState(page);
@@ -132,8 +137,26 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
 
     const me = state.players[0]!;
 
-    // Target: nearest generator while any remain, then the exit.
-    const targets = state.generators.length > 0 ? state.generators.map((g) => g.pos) : [state.exitPos];
+    // Survival first: break off and heal when hurt — from a health pickup or
+    // by smashing an amber clutch (the bot swings constantly, so walking onto
+    // the prop breaks it and the drop is collected on contact). Hysteresis
+    // matters: without it the +30 heal lands right at the threshold and the
+    // bot oscillates between distant heal spots until the swarm grinds it
+    // down. Enter heal mode at <=55, stay in it until >=75 or spots run out.
+    const healSpots = [
+      ...state.pickups.filter((pk) => pk.kind === 'health').map((pk) => pk.pos),
+      ...state.props.filter((pr) => pr.typeId === 'amber-clutch').map((pr) => pr.pos)
+    ];
+    // Exit only near full: a committed push to a node through the chasing
+    // swarm costs 30-50 HP, so leaving heal mode at 75 just oscillates.
+    if (healMode && (me.hp >= Math.min(100, me.maxHp) || healSpots.length === 0)) healMode = false;
+    else if (!healMode && me.hp <= 55 && healSpots.length > 0) healMode = true;
+    const needHeal = healMode;
+    const targets = needHeal
+      ? healSpots
+      : state.generators.length > 0
+        ? state.generators.map((g) => g.pos)
+        : [state.exitPos];
     targets.sort(
       (a, b) => Math.hypot(a.x - me.pos.x, a.y - me.pos.y) - Math.hypot(b.x - me.pos.x, b.y - me.pos.y)
     );
@@ -141,16 +164,19 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
     const distToTarget = Math.hypot(target.x - me.pos.x, target.y - me.pos.y);
 
     const keys: string[] = [];
-    const inAttackRange = state.generators.length > 0 && distToTarget < 55;
+    const inAttackRange = !needHeal && state.generators.length > 0 && distToTarget < 55;
 
     if (!inAttackRange) {
       const wp = nextWaypoint(me.pos, target) ?? target;
       const dx = wp.x - me.pos.x;
       const dy = wp.y - me.pos.y;
-      if (dx > 6) keys.push('ArrowRight');
-      if (dx < -6) keys.push('ArrowLeft');
-      if (dy > 6) keys.push('ArrowDown');
-      if (dy < -6) keys.push('ArrowUp');
+      // Tolerance must stay under (tileSize/2 - heroRadius) = 4, or the bot
+      // can clip a wall corner by a pixel and deadlock on axis-separated
+      // collision (it never presses the perpendicular key to slide free).
+      if (dx > 3) keys.push('ArrowRight');
+      if (dx < -3) keys.push('ArrowLeft');
+      if (dy > 3) keys.push('ArrowDown');
+      if (dy < -3) keys.push('ArrowUp');
     } else {
       // Face the generator so the melee arc connects.
       const dx = target.x - me.pos.x;
@@ -164,7 +190,37 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
     const nearbyEnemies = state.enemies.filter(
       (e) => Math.hypot(e.pos.x - me.pos.x, e.pos.y - me.pos.y) < 100
     ).length;
-    if (nearbyEnemies >= 3 && me.abilityCooldown === 0) keys.push('Shift');
+    // Slam offensively when swarmed, or defensively when cornered at low HP.
+    const touchingEnemies = state.enemies.filter(
+      (e) => Math.hypot(e.pos.x - me.pos.x, e.pos.y - me.pos.y) < 50
+    ).length;
+    if ((nearbyEnemies >= 2 || (me.hp <= 45 && touchingEnemies >= 1)) && me.abilityCooldown === 0) {
+      keys.push('Shift');
+    }
+
+    // Stuck insurance: if we're holding movement keys but not moving, jiggle
+    // perpendicular to slide off whatever geometry has us pinned.
+    const moving = keys.some((k) => k.startsWith('Arrow'));
+    if (moving && Math.abs(me.pos.x - prevPos.x) < 1 && Math.abs(me.pos.y - prevPos.y) < 1) stuckPolls++;
+    else stuckPolls = 0;
+    prevPos = { x: me.pos.x, y: me.pos.y };
+    if (stuckPolls >= 6) {
+      const horizontal = keys.includes('ArrowLeft') || keys.includes('ArrowRight');
+      const jiggle = horizontal
+        ? stuckPolls % 8 < 4
+          ? 'ArrowUp'
+          : 'ArrowDown'
+        : stuckPolls % 8 < 4
+          ? 'ArrowLeft'
+          : 'ArrowRight';
+      if (!keys.includes(jiggle)) keys.push(jiggle);
+    }
+
+    trace.push(
+      `t=${state.tick} hp=${Math.round(me.hp)} pos=${Math.round(me.pos.x)},${Math.round(me.pos.y)} ` +
+        `gens=${state.generators.map((g) => Math.round(g.hp)).join('/') || '-'} enemies=${state.enemies.length} ` +
+        `kills=${me.kills} heal=${healMode} keys=${keys.join('+')}`
+    );
 
     await driver.set(keys);
 
@@ -178,15 +234,30 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
       await page.screenshot({ path: 'test-results/03b-combat-juice.png' });
       juiceShotTaken = true;
     }
+    // Capture a heavily damaged (crumbling-tier) generator for the damage-state
+    // comparison against 02-mission-start's intact nodes.
+    if (!damagedNodeShotTaken && state.generators.some((g) => g.hp / g.maxHp < 0.34)) {
+      await page.screenshot({ path: 'test-results/03c-node-damaged.png' });
+      damagedNodeShotTaken = true;
+    }
     await page.waitForTimeout(90);
   }
   await driver.releaseAll();
 
+  // On failure, dump the bot's recent decisions so flakes diagnose themselves.
+  if (lastPhase !== 'complete') {
+    console.log(`--- bot trace (last 80 of ${trace.length} polls) ---`);
+    for (const line of trace.slice(-80)) console.log(line);
+  }
   expect(lastPhase).toBe('complete');
-  await page.waitForTimeout(1200); // results transition
+  // The end-of-mission banner shows first; poll until the results scene has
+  // banked the run to the persistent profile rather than sleeping a fixed time.
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('hive-legends-profile-v1')), { timeout: 10_000 })
+    .not.toBeNull();
+  await page.waitForTimeout(300);
   await page.screenshot({ path: 'test-results/04-results.png' });
 
-  // Progression must be banked to the persistent profile.
   const profile = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('hive-legends-profile-v1') ?? 'null')
   );

@@ -70,6 +70,8 @@ export function validateLevel(level: LevelDef): string[] {
     ...level.playerSpawns.map((s, i) => ({ what: `playerSpawn[${i}]`, tx: s.tx, ty: s.ty })),
     ...level.generators.map((g, i) => ({ what: `generator[${i}]`, tx: g.tx, ty: g.ty })),
     ...level.pickups.map((p, i) => ({ what: `pickup[${i}]`, tx: p.tx, ty: p.ty })),
+    ...(level.props ?? []).map((p, i) => ({ what: `prop[${i}]`, tx: p.tx, ty: p.ty })),
+    ...(level.decor ?? []).map((d, i) => ({ what: `decor[${i}]`, tx: d.tx, ty: d.ty })),
     { what: 'exit', tx: level.exit.tx, ty: level.exit.ty }
   ];
   for (const { what, tx, ty } of mustBeFloor) {

@@ -32,6 +32,9 @@ Controls: **WASD/Arrows** move · **Space/J** attack · **Shift/K** hero ability
 `npm run test:e2e` requires `npm run build` first — it plays the real built
 game with a pathfinding input bot and screenshots each stage to `test-results/`.
 
+**Full guide to running and testing locally: [`docs/TESTING.md`](docs/TESTING.md)**
+(test layers, the e2e bot, the `__hive` debug handle, CI parity).
+
 ## Architecture in one paragraph
 
 The game logic lives in `src/sim` as a deterministic fixed-timestep simulation
