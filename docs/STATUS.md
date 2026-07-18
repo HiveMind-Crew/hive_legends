@@ -175,8 +175,25 @@ on any future failure.
 - Phaser bundle is ~1.5 MB (348 kB gzip); fine for now, consider code-splitting
   at content growth.
 
+## Content expansion roadmap (issues #15–#29)
+
+The look & feel track (#1–#9, tracking #10) is complete. The next board is
+the content expansion, orchestrated for parallel contributors and tracked in
+issue #29:
+
+- **Phase 1 — sim foundations**: projectiles/typed kits (#15), temporary
+  power-ups (#16), keys/gates/secret walls (#17).
+- **Phase 2 — classes & combat**: Arcanist (#18), Ranger (#19), Sentinel
+  (#20), multi-hero roster (#21), weapon tiers (#22), Husk/Spitter/elite
+  enemies (#23).
+- **Phase 3 — levels & finale**: Realm 2 "The Resin Galleries" (#24), the
+  Broodmother boss (#25).
+- **Art track (parallel)**: drop-in asset pipeline + docs/ART.md (#26),
+  character art pack (#27), environment/props/UI art pack (#28).
+
+Start order: #15 unblocks the most; #26 unblocks artists immediately.
+
 ## Next recommended task
 
-Add the Arcanist as the second hero (validates that hero kits are truly
-data-driven), then the elite enemy + boss encounter to complete the combat
-variety of the slice.
+Implement #15 (projectile attacks), then the Arcanist (#18) to validate
+that hero kits are truly data-driven.
