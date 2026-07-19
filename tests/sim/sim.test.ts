@@ -93,6 +93,8 @@ describe('combat', () => {
       attackCooldown: 0,
       hitstunTicks: 0,
       knockback: { x: 0, y: 0 },
+      slowTicks: 0,
+      slowMult: 1,
       sourceGen: null
     });
     const goldBefore = sim.state.pickups.length;
@@ -118,6 +120,8 @@ describe('combat', () => {
       attackCooldown: 0,
       hitstunTicks: 0,
       knockback: { x: 0, y: 0 },
+      slowTicks: 0,
+      slowMult: 1,
       sourceGen: null
     });
     const events = runTicks(sim, TICK_RATE * 3);
@@ -137,6 +141,8 @@ describe('combat', () => {
         attackCooldown: 0,
         hitstunTicks: 0,
         knockback: { x: 0, y: 0 },
+        slowTicks: 0,
+        slowMult: 1,
         sourceGen: null
       });
     }
@@ -310,6 +316,8 @@ describe('mission flow', () => {
       attackCooldown: 0,
       hitstunTicks: 0,
       knockback: { x: 0, y: 0 },
+      slowTicks: 0,
+      slowMult: 1,
       sourceGen: null
     });
     const events = runTicks(sim, TICK_RATE * 2);

@@ -219,15 +219,22 @@ function performAbility(sim: Sim, p: PlayerState, events: SimEvent[]): void {
   if (!hero) return;
   const ab = hero.ability;
   const damage = ab.damage + heroDamageBonus(sim, p);
-  events.push({ type: 'ability', playerId: p.id, pos: { ...p.pos }, radius: ab.radius });
+  // Cast center: at the player, or projected along the facing (Resin Cage).
+  const offset = ab.offsetPx ?? 0;
+  const center = { x: p.pos.x + p.facing.x * offset, y: p.pos.y + p.facing.y * offset };
+  events.push({ type: 'ability', playerId: p.id, pos: { ...center }, radius: ab.radius });
 
   for (const e of sim.state.enemies) {
     if (e.hp <= 0) continue;
     const def = content.enemies[e.typeId];
     if (!def) continue;
-    const d = sub(e.pos, p.pos);
+    const d = sub(e.pos, center);
     const dist = Math.hypot(d.x, d.y);
     if (dist > ab.radius + def.radius) continue;
+    if (ab.slowTicks && ab.slowTicks > 0) {
+      e.slowTicks = Math.max(e.slowTicks, ab.slowTicks);
+      e.slowMult = ab.slowMult ?? 0.5;
+    }
     const dir = dist > 1e-6 ? { x: d.x / dist, y: d.y / dist } : { x: 0, y: -1 };
     damageEnemy(sim, e, damage, dir, ab.knockback, p.id, events);
   }
@@ -235,14 +242,14 @@ function performAbility(sim: Sim, p: PlayerState, events: SimEvent[]): void {
     if (g.hp <= 0) continue;
     const gdef = content.generators[g.typeId];
     if (!gdef) continue;
-    const dist = Math.hypot(g.pos.x - p.pos.x, g.pos.y - p.pos.y);
+    const dist = Math.hypot(g.pos.x - center.x, g.pos.y - center.y);
     if (dist > ab.radius + gdef.radius) continue;
     damageGenerator(sim, g, damage, events);
   }
   for (const pr of sim.state.props) {
     const pdef = content.props[pr.typeId];
     if (!pdef) continue;
-    const dist = Math.hypot(pr.pos.x - p.pos.x, pr.pos.y - p.pos.y);
+    const dist = Math.hypot(pr.pos.x - center.x, pr.pos.y - center.y);
     if (dist > ab.radius + pdef.radius) continue;
     damageProp(sim, pr, damage, events);
   }
@@ -445,6 +452,7 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
     const def = content.enemies[e.typeId];
     if (!def) continue;
     if (e.attackCooldown > 0) e.attackCooldown--;
+    if (e.slowTicks > 0) e.slowTicks--;
 
     // Knockback overrides steering while it is meaningful.
     const kbMag = Math.hypot(e.knockback.x, e.knockback.y);
@@ -467,7 +475,7 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
     const dist = Math.hypot(d.x, d.y);
 
     if (dist > def.attackRange) {
-      const step = def.moveSpeed * TICK_DT;
+      const step = def.moveSpeed * (e.slowTicks > 0 ? e.slowMult : 1) * TICK_DT;
       moveCircle(level, e.pos, def.radius, (d.x / dist) * step, (d.y / dist) * step);
     } else if (e.attackCooldown === 0 && target.invulnTicks === 0) {
       e.attackCooldown = def.attackCooldownTicks;
@@ -542,6 +550,8 @@ function updateGenerators(sim: Sim, events: SimEvent[]): void {
         attackCooldown: 0,
         hitstunTicks: 0,
         knockback: { x: 0, y: 0 },
+        slowTicks: 0,
+        slowMult: 1,
         sourceGen: g.id
       };
       s.enemies.push(enemy);

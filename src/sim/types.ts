@@ -68,6 +68,12 @@ export interface AbilityDef {
   radius: number;
   knockback: number;
   cooldownTicks: number;
+  /** Cast center offset along the facing, in px (default 0 = self-centered). */
+  offsetPx?: number;
+  /** Enemies hit are slowed for this many ticks (with slowMult applied). */
+  slowTicks?: number;
+  /** Movement-speed multiplier while slowed (e.g. 0.1 = near-rooted). */
+  slowMult?: number;
 }
 
 export interface HeroDef {
@@ -226,6 +232,9 @@ export interface EnemyState {
   attackCooldown: number;
   hitstunTicks: number;
   knockback: Vec2;
+  /** Ticks of movement slow remaining (0 = unslowed) and its multiplier. */
+  slowTicks: number;
+  slowMult: number;
   /** Generator that spawned this enemy (for the alive-cap), if any. */
   sourceGen: EntityId | null;
 }

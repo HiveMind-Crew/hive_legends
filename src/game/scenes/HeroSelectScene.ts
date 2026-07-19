@@ -12,31 +12,40 @@ import { TEX, enemyFrame, heroFrame } from '../textures';
  * teasing locked slots. All generated art, no binary assets.
  */
 
-const LOCKED_ROLES = ['Arcanist', 'Ranger', 'Sentinel'];
+const LOCKED_ROLES = ['Ranger', 'Sentinel'];
 
 // Stat bars normalize hero data against these slice-era ceilings.
 const STAT_CEILING = { power: 50, speed: 260, toughness: 220, control: 600 };
+
+/** The Arcanist joins the roster after the first cleared mission. */
+function heroUnlocked(heroId: string, missionsCompleted: number): boolean {
+  return heroId === 'vanguard' || missionsCompleted >= 1;
+}
 
 export class HeroSelectScene extends Phaser.Scene {
   private parade: { img: Phaser.GameObjects.Image; speed: number }[] = [];
   private paradeFrame = 0;
   private heroSprite!: Phaser.GameObjects.Image;
   private heroFrameOn = false;
+  private heroIndex = 0;
 
   constructor() {
     super('hero-select');
   }
 
-  create(): void {
+  create(data?: { heroIndex?: number }): void {
     const { width, height } = this.scale;
     const profile = loadProfile();
-    const hero = CONTENT.heroes['vanguard']!;
+    const roster = Object.values(CONTENT.heroes);
+    this.heroIndex = Math.min(Math.max(data?.heroIndex ?? 0, 0), roster.length - 1);
+    const hero = roster[this.heroIndex]!;
+    const unlocked = heroUnlocked(hero.id, profile.missionsCompleted);
     const mods = profileModifiers(profile);
     this.parade = [];
 
     this.drawAmbient(width, height);
     this.drawTitle(width);
-    this.drawHeroCard(width, hero, mods);
+    this.drawHeroCard(width, hero, mods, unlocked, roster.length);
     this.drawLockedSlots(width);
 
     // Profile summary.
@@ -66,21 +75,36 @@ export class HeroSelectScene extends Phaser.Scene {
       .setOrigin(0.5);
     this.tweens.add({ targets: prompt, alpha: 0.35, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
 
-    this.add.rectangle(width / 2, height - 62, 640, 42, 0x120c1a, 0.8).setStrokeStyle(1, 0x3a2f4a);
+    this.add.rectangle(width / 2, height - 62, 700, 42, 0x120c1a, 0.8).setStrokeStyle(1, 0x3a2f4a);
     this.add
-      .text(width / 2, height - 62, 'Move WASD/Arrows   Attack Space/J   Sunder Slam Shift/K   Mute M', {
+      .text(width / 2, height - 62, '←→ switch hero   Move WASD   Attack Space/J   Ability Shift/K   Mute M', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#a89bb8'
       })
       .setOrigin(0.5);
 
-    this.input.keyboard?.once('keydown-ENTER', () => {
+    const kb = this.input.keyboard;
+    const cycle = (delta: number): void => {
+      const next = (this.heroIndex + delta + roster.length) % roster.length;
+      audio.unlock();
+      audio.uiTick();
+      this.scene.restart({ heroIndex: next });
+    };
+    kb?.on('keydown-LEFT', () => cycle(-1));
+    kb?.on('keydown-RIGHT', () => cycle(1));
+    kb?.on('keydown-A', () => cycle(-1));
+    kb?.on('keydown-D', () => cycle(1));
+    kb?.on('keydown-ENTER', () => {
       // First user gesture: unlock the audio context here so the mission's
       // music can start without tripping the browser autoplay policy.
       audio.unlock();
+      if (!unlocked) {
+        audio.uiTick(200); // locked: low buzz, stay on the roster
+        return;
+      }
       audio.uiConfirm();
-      this.scene.start('mission');
+      this.scene.start('mission', { heroId: hero.id });
     });
   }
 
@@ -169,18 +193,28 @@ export class HeroSelectScene extends Phaser.Scene {
       .setOrigin(0.5);
   }
 
-  private drawHeroCard(width: number, hero: HeroDef, mods: HeroModifiers): void {
+  private drawHeroCard(width: number, hero: HeroDef, mods: HeroModifiers, unlocked: boolean, rosterSize: number): void {
     const cardX = width / 2 - 240;
-    this.add.rectangle(cardX, 320, 300, 320, 0x231a30).setStrokeStyle(2, 0xd9a441);
+    this.add.rectangle(cardX, 320, 300, 320, 0x231a30).setStrokeStyle(2, unlocked ? 0xd9a441 : 0x544868);
+
+    // Roster position indicator.
+    this.add
+      .text(cardX, 168, `◀  ${this.heroIndex + 1} / ${rosterSize}  ▶`, {
+        fontFamily: 'monospace',
+        fontSize: '13px',
+        color: '#a89bb8'
+      })
+      .setOrigin(0.5);
 
     // Animated hero: idle two-frame cycle from the issue #2 frame set.
-    this.heroSprite = this.add.image(cardX, 218, heroFrame(2, 'w0')).setScale(2.4);
+    this.heroSprite = this.add.image(cardX, 218, heroFrame(hero.id, 2, 'w0')).setScale(2.4);
+    if (!unlocked) this.heroSprite.setTint(0x0d0a14);
     this.time.addEvent({
       delay: 320,
       loop: true,
       callback: () => {
         this.heroFrameOn = !this.heroFrameOn;
-        this.heroSprite.setTexture(heroFrame(2, this.heroFrameOn ? 'w1' : 'w0'));
+        this.heroSprite.setTexture(heroFrame(hero.id, 2, this.heroFrameOn ? 'w1' : 'w0'));
       }
     });
 
@@ -188,17 +222,30 @@ export class HeroSelectScene extends Phaser.Scene {
       .text(cardX, 282, `${hero.name}\nthe ${hero.role}`, {
         fontFamily: 'monospace',
         fontSize: '20px',
-        color: '#f4e3b2',
+        color: unlocked ? '#f4e3b2' : '#7a6f92',
         align: 'center'
       })
       .setOrigin(0.5);
 
-    // Stat bars instead of raw numbers (modifier-adjusted).
+    if (!unlocked) {
+      this.add.rectangle(cardX, 460, 260, 24, 0x120c1a).setStrokeStyle(1, 0xff5a4d);
+      this.add
+        .text(cardX, 460, 'LOCKED — clear a mission to recruit', {
+          fontFamily: 'monospace',
+          fontSize: '11px',
+          color: '#ff8a7a'
+        })
+        .setOrigin(0.5);
+    }
+
+    // Stat bars instead of raw numbers (modifier-adjusted). Control counts
+    // either raw knockback or crowd-binding (slow) strength.
+    const control = Math.max(hero.ability.knockback, (hero.ability.slowTicks ?? 0) * 3.5);
     const stats: { label: string; value: number; max: number }[] = [
       { label: 'POWER', value: hero.attack.damage + mods.damageBonus, max: STAT_CEILING.power },
       { label: 'SPEED', value: hero.moveSpeed, max: STAT_CEILING.speed },
       { label: 'TOUGHNESS', value: hero.maxHp + mods.maxHpBonus, max: STAT_CEILING.toughness },
-      { label: 'CONTROL', value: hero.ability.knockback, max: STAT_CEILING.control }
+      { label: 'CONTROL', value: control, max: STAT_CEILING.control }
     ];
     stats.forEach((s, i) => {
       const y = 328 + i * 24;

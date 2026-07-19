@@ -183,9 +183,9 @@ issue #29:
 
 - **Phase 1 — sim foundations**: projectiles/typed kits (#15 — DONE),
   temporary power-ups (#16), keys/gates/secret walls (#17).
-- **Phase 2 — classes & combat**: Arcanist (#18), Ranger (#19), Sentinel
-  (#20), multi-hero roster (#21), weapon tiers (#22), Husk/Spitter/elite
-  enemies (#23).
+- **Phase 2 — classes & combat**: Arcanist (#18 — DONE), Ranger (#19),
+  Sentinel (#20), multi-hero roster (#21), weapon tiers (#22),
+  Husk/Spitter/elite enemies (#23).
 - **Phase 3 — levels & finale**: Realm 2 "The Resin Galleries" (#24), the
   Broodmother boss (#25).
 - **Art track (parallel)**: drop-in asset pipeline + docs/ART.md (#26 —
@@ -199,8 +199,18 @@ code changes; sizes validated at boot against `src/game/textureSpecs.ts`
 (now the single source of truth for canvas sizes); artist contract in
 `docs/ART.md`; proven end-to-end with a throwaway override fixture.
 
+#18 landed: the Arcanist (Veyra Solmerin) is a fully playable second hero —
+a ranged hex-weaver with piercing amber bolts and **Resin Cage**, an
+offset-cast root that slows caught enemies to a crawl (`slowTicks`/`slowMult`
+on `EnemyState`, applied in the enemy movement step, magnitudes authored in
+the ability data). Hero art is now generated per-roster-entry from a
+`HeroStyle` table (Vanguard blade vs. Arcanist purple robe + amber staff),
+and hero-select is a data-driven roster carousel (`◀ n/total ▶`) that gates
+the Arcanist behind a first mission clear. The root/slow mechanic and a
+scripted Arcanist mission-clear are unit-tested in `tests/sim/arcanist.test.ts`.
+
 ## Next recommended task
 
-The Arcanist (#18) — projectiles are in, so the second hero is now mostly
-content data + frames. #16/#17/#20/#22/#26-follow-ons remain open for
-parallel pickup.
+The Ranger (#19) or Sentinel (#20) — the per-hero texture/roster machinery
+from #18 makes each additional class mostly content data + a `HeroStyle`
+entry + frames. #16/#17/#21/#22/#23/#27/#28 remain open for parallel pickup.

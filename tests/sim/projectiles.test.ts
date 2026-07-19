@@ -59,6 +59,8 @@ function spawnEnemy(sim: Sim, id: number, x: number, y: number): EnemyState {
     attackCooldown: 0,
     hitstunTicks: 0,
     knockback: { x: 0, y: 0 },
+    slowTicks: 0,
+    slowMult: 1,
     sourceGen: null
   };
   sim.state.enemies.push(e);

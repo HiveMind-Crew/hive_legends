@@ -1,8 +1,9 @@
 import type { HeroDef } from '../sim/types';
 
 /**
- * Hero roster. Slice 0 ships the Vanguard archetype; the Arcanist, Ranger,
- * and Sentinel land later in the vertical-slice milestone.
+ * Hero roster. The Vanguard and Arcanist are playable; the Ranger and
+ * Sentinel land later in the vertical-slice milestone (#19, #20).
+ * Roster order matters: the first entry is the default hero.
  */
 export const HEROES: Record<string, HeroDef> = {
   vanguard: {
@@ -29,6 +30,37 @@ export const HEROES: Record<string, HeroDef> = {
       radius: 110,
       knockback: 440,
       cooldownTicks: 300
+    }
+  },
+  arcanist: {
+    id: 'arcanist',
+    name: 'Veyra Solmerin',
+    role: 'Arcanist',
+    description:
+      'A hex-weaver who scours the warrens from afar, piercing swarms with amber bolts and binding them in hardened resin.',
+    maxHp: 80,
+    moveSpeed: 170,
+    radius: 11,
+    attack: {
+      kind: 'projectile',
+      damage: 18,
+      speed: 380,
+      radius: 4,
+      range: 320,
+      cooldownTicks: 16,
+      pierce: 1,
+      knockback: 120
+    },
+    ability: {
+      id: 'resin-cage',
+      name: 'Resin Cage',
+      damage: 25,
+      radius: 90,
+      knockback: 0,
+      cooldownTicks: 300,
+      offsetPx: 140,
+      slowTicks: 120, // 2 s near-root
+      slowMult: 0.1
     }
   }
 };
