@@ -1,8 +1,7 @@
 import type { HeroDef } from '../sim/types';
 
 /**
- * Hero roster. The Vanguard, Arcanist and Ranger are playable; the Sentinel
- * lands later in the vertical-slice milestone (#20).
+ * Hero roster: the Vanguard, Arcanist, Ranger and Sentinel are all playable.
  * Roster order matters: the first entry is the default hero.
  */
 export const HEROES: Record<string, HeroDef> = {
@@ -92,6 +91,34 @@ export const HEROES: Record<string, HeroDef> = {
       dashPx: 120,
       dartCount: 5,
       spreadDeg: 70
+    }
+  },
+  sentinel: {
+    id: 'sentinel',
+    name: 'Odo Brakk',
+    role: 'Sentinel',
+    description:
+      'An immovable warden who plants himself between the brood and the party, sweeping ranks aside with a great maul and weathering the tide behind a tower shield.',
+    maxHp: 170,
+    moveSpeed: 150,
+    radius: 13,
+    attack: {
+      kind: 'melee',
+      damage: 20,
+      range: 56,
+      arcDeg: 150,
+      knockback: 380, // heavy sweep that scatters hordes
+      cooldownTicks: 28
+    },
+    ability: {
+      kind: 'guard',
+      id: 'bastion-wall',
+      name: 'Bastion Wall',
+      cooldownTicks: 360, // ~6 s
+      durationTicks: 150, // ~2.5 s guard stance
+      damageMult: 0.25, // soak 75% of incoming damage
+      moveMult: 0.5, // rooted-heavy while braced
+      reflectKnockback: 200 // shove blocked attackers off
     }
   }
 };

@@ -206,10 +206,17 @@ export class HudScene extends Phaser.Scene {
     panel.goldText.setText(String(this.goldShown[i]));
     panel.killsText.setText(`Kills ${p.kills}`);
 
-    // Ability meter: fills as the cooldown recovers; flashes READY! at full.
-    const frac = p.abilityMax > 0 ? Math.max(0, Math.min(1, 1 - p.abilityCooldown / p.abilityMax)) : 1;
-    panel.abilityBar.width = 68 * frac;
-    panel.abilityBar.setFillStyle(p.abilityCooldown === 0 ? playerAccent(i) : 0x6a6480);
+    // Ability meter: while a guard stance is up it doubles as the stance
+    // duration meter (steel, draining); otherwise it fills as the cooldown
+    // recovers and flashes READY! at full.
+    if (p.guardTicks > 0 && p.guardMax > 0) {
+      panel.abilityBar.width = 68 * Math.max(0, Math.min(1, p.guardTicks / p.guardMax));
+      panel.abilityBar.setFillStyle(0xc2c8d2);
+    } else {
+      const frac = p.abilityMax > 0 ? Math.max(0, Math.min(1, 1 - p.abilityCooldown / p.abilityMax)) : 1;
+      panel.abilityBar.width = 68 * frac;
+      panel.abilityBar.setFillStyle(p.abilityCooldown === 0 ? playerAccent(i) : 0x6a6480);
+    }
     if (this.prevAbilityCd[i]! > 0 && p.abilityCooldown === 0) this.readyFlash(panel.abilityBack.x + 34, panel.abilityBack.y + 4);
     this.prevAbilityCd[i] = p.abilityCooldown;
   }

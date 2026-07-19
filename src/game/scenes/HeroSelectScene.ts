@@ -12,13 +12,15 @@ import { TEX, enemyFrame, heroFrame } from '../textures';
  * teasing locked slots. All generated art, no binary assets.
  */
 
-const LOCKED_ROLES = ['Sentinel'];
+// Future classes not yet in the roster get teaser slots. The four core
+// heroes are all playable now, so there are none.
+const LOCKED_ROLES: string[] = [];
 
 // Stat bars normalize hero data against these slice-era ceilings.
 const STAT_CEILING = { power: 50, speed: 260, toughness: 220, control: 600 };
 
 /** Missions that must be cleared before a hero can be recruited. */
-const HERO_UNLOCK_MISSIONS: Record<string, number> = { vanguard: 0, arcanist: 1, ranger: 2 };
+const HERO_UNLOCK_MISSIONS: Record<string, number> = { vanguard: 0, arcanist: 1, ranger: 2, sentinel: 3 };
 
 function heroUnlocked(heroId: string, missionsCompleted: number): boolean {
   return missionsCompleted >= (HERO_UNLOCK_MISSIONS[heroId] ?? 0);
@@ -26,11 +28,12 @@ function heroUnlocked(heroId: string, missionsCompleted: number): boolean {
 
 /**
  * A single "crowd control" score for the stat bar, however the ability
- * achieves it: raw knockback or slow strength for blasts, dash reach for the
- * skirmisher's reposition.
+ * achieves it: knockback or slow strength for blasts, dash reach for the
+ * skirmisher's reposition, or brace-and-reflect for the guard stance.
  */
 function abilityControl(ability: HeroDef['ability']): number {
   if (ability.kind === 'dash-volley') return ability.dashPx + ability.dartCount * 20;
+  if (ability.kind === 'guard') return ability.reflectKnockback + (1 - ability.damageMult) * 400;
   return Math.max(ability.knockback, (ability.slowTicks ?? 0) * 3.5);
 }
 
@@ -206,7 +209,8 @@ export class HeroSelectScene extends Phaser.Scene {
   }
 
   private drawHeroCard(width: number, hero: HeroDef, mods: HeroModifiers, unlocked: boolean, rosterSize: number): void {
-    const cardX = width / 2 - 240;
+    // Sit left of centre when teaser slots share the row; centre when alone.
+    const cardX = LOCKED_ROLES.length > 0 ? width / 2 - 240 : width / 2;
     this.add.rectangle(cardX, 320, 300, 320, 0x231a30).setStrokeStyle(2, unlocked ? 0xd9a441 : 0x544868);
 
     // Roster position indicator.

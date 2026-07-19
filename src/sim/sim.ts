@@ -7,6 +7,7 @@ import {
   type BlastAbilityDef,
   type DashVolleyAbilityDef,
   type EnemyState,
+  type GuardAbilityDef,
   type GeneratorDef,
   type GeneratorState,
   type InputCommand,
@@ -55,6 +56,7 @@ export function createSim(config: SimConfig): Sim {
       attackCooldown: 0,
       abilityCooldown: 0,
       invulnTicks: 0,
+      guardTicks: 0,
       alive: true
     };
   });
@@ -145,8 +147,9 @@ function updatePlayers(sim: Sim, inputs: readonly InputCommand[], events: SimEve
     if (p.attackCooldown > 0) p.attackCooldown--;
     if (p.abilityCooldown > 0) p.abilityCooldown--;
     if (p.invulnTicks > 0) p.invulnTicks--;
+    if (p.guardTicks > 0) p.guardTicks--;
 
-    // Movement (normalized so diagonals aren't faster).
+    // Movement (normalized so diagonals aren't faster). Guarding slows it.
     let mx = clamp(input.moveX, -1, 1);
     let my = clamp(input.moveY, -1, 1);
     const mag = Math.hypot(mx, my);
@@ -154,7 +157,9 @@ function updatePlayers(sim: Sim, inputs: readonly InputCommand[], events: SimEve
       mx /= Math.max(1, mag);
       my /= Math.max(1, mag);
       p.facing = norm({ x: mx, y: my });
-      const step = hero.moveSpeed * TICK_DT;
+      const guard = hero.ability.kind === 'guard' && p.guardTicks > 0 ? hero.ability : null;
+      const moveMult = guard ? guard.moveMult : 1;
+      const step = hero.moveSpeed * moveMult * TICK_DT;
       moveCircle(level, p.pos, hero.radius, mx * step, my * step);
       resolveStaticCircles(sim, p.pos, hero.radius);
     }
@@ -219,7 +224,14 @@ function performAbility(sim: Sim, p: PlayerState, events: SimEvent[]): void {
   const hero = sim.config.content.heroes[p.heroId];
   if (!hero) return;
   if (hero.ability.kind === 'dash-volley') performDashVolley(sim, p, hero.ability, events);
+  else if (hero.ability.kind === 'guard') performGuard(p, hero.ability, events);
   else performBlast(sim, p, hero.ability, events);
+}
+
+/** Bastion Wall: raise the guard stance. Its effects live on p.guardTicks. */
+function performGuard(p: PlayerState, ab: GuardAbilityDef, events: SimEvent[]): void {
+  p.guardTicks = ab.durationTicks;
+  events.push({ type: 'ability-guard', playerId: p.id, pos: { ...p.pos }, durationTicks: ab.durationTicks });
 }
 
 /**
@@ -292,6 +304,13 @@ function performBlast(sim: Sim, p: PlayerState, ab: BlastAbilityDef, events: Sim
 function heroDamageBonus(sim: Sim, p: PlayerState): number {
   const idx = sim.state.players.indexOf(p);
   return sim.config.players[idx]?.modifiers?.damageBonus ?? 0;
+}
+
+/** The active guard-stance def for a player, or null when not guarding. */
+function guardDefFor(sim: Sim, p: PlayerState): GuardAbilityDef | null {
+  if (p.guardTicks <= 0) return null;
+  const ability = sim.config.content.heroes[p.heroId]?.ability;
+  return ability?.kind === 'guard' ? ability : null;
 }
 
 function damageEnemy(
@@ -518,9 +537,20 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
       moveCircle(level, e.pos, def.radius, (d.x / dist) * step, (d.y / dist) * step);
     } else if (e.attackCooldown === 0 && target.invulnTicks === 0) {
       e.attackCooldown = def.attackCooldownTicks;
-      target.hp -= def.touchDamage;
+      // Bastion Wall: a guarding Sentinel soaks most of the hit and shoves the
+      // attacker back on the block.
+      const guard = guardDefFor(sim, target);
+      const damage = guard ? def.touchDamage * guard.damageMult : def.touchDamage;
+      target.hp -= damage;
       target.invulnTicks = PLAYER_HIT_INVULN_TICKS;
-      events.push({ type: 'player-hit', playerId: target.id, damage: def.touchDamage, pos: { ...target.pos } });
+      events.push({ type: 'player-hit', playerId: target.id, damage, pos: { ...target.pos } });
+      if (guard) {
+        if (guard.reflectKnockback > 0 && dist > 1e-6) {
+          e.knockback.x += (-d.x / dist) * guard.reflectKnockback;
+          e.knockback.y += (-d.y / dist) * guard.reflectKnockback;
+        }
+        events.push({ type: 'guard-block', playerId: target.id, enemyId: e.id, pos: { ...e.pos } });
+      }
       if (target.hp <= 0) {
         target.hp = 0;
         target.alive = false;

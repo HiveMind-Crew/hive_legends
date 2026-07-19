@@ -96,7 +96,24 @@ export interface DashVolleyAbilityDef extends AbilityBase {
   spreadDeg: number;
 }
 
-export type AbilityDef = BlastAbilityDef | DashVolleyAbilityDef;
+/**
+ * Timed guard stance: while active, incoming damage is scaled down, movement
+ * is slowed, and each blocked hit shoves the attacker back. Magnitudes are
+ * data; the runtime effect lives on PlayerState.guardTicks.
+ */
+export interface GuardAbilityDef extends AbilityBase {
+  kind: 'guard';
+  /** How long the stance holds, in ticks. */
+  durationTicks: number;
+  /** Incoming-damage multiplier while guarding (e.g. 0.25). */
+  damageMult: number;
+  /** Move-speed multiplier while guarding (e.g. 0.5). */
+  moveMult: number;
+  /** Knockback impulse reflected onto an attacker whose hit is blocked. */
+  reflectKnockback: number;
+}
+
+export type AbilityDef = BlastAbilityDef | DashVolleyAbilityDef | GuardAbilityDef;
 
 export interface HeroDef {
   id: string;
@@ -243,6 +260,8 @@ export interface PlayerState {
   attackCooldown: number;
   abilityCooldown: number;
   invulnTicks: number;
+  /** Ticks of guard stance remaining (Sentinel's Bastion Wall; 0 = not guarding). */
+  guardTicks: number;
   alive: boolean;
 }
 
@@ -330,6 +349,8 @@ export type SimEvent =
   | { type: 'projectile-expired'; projectileId: EntityId; pos: Vec2 }
   | { type: 'ability'; playerId: EntityId; pos: Vec2; radius: number }
   | { type: 'ability-dash'; playerId: EntityId; from: Vec2; to: Vec2 }
+  | { type: 'ability-guard'; playerId: EntityId; pos: Vec2; durationTicks: number }
+  | { type: 'guard-block'; playerId: EntityId; enemyId: EntityId; pos: Vec2 }
   | { type: 'enemy-hit'; enemyId: EntityId; pos: Vec2; damage: number }
   | { type: 'enemy-died'; enemyId: EntityId; typeId: string; pos: Vec2; byPlayer: EntityId; damage: number }
   | { type: 'enemy-spawned'; enemyId: EntityId; typeId: string; pos: Vec2 }

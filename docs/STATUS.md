@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-07-19 (content expansion: #15, #26, #18, #19 landed; three heroes playable)
+Updated: 2026-07-19 (content expansion: #15, #26, #18, #19, #20 landed; all four core heroes playable)
 
 ## Milestones
 
@@ -184,8 +184,8 @@ issue #29:
 - **Phase 1 — sim foundations**: projectiles/typed kits (#15 — DONE),
   temporary power-ups (#16), keys/gates/secret walls (#17).
 - **Phase 2 — classes & combat**: Arcanist (#18 — DONE), Ranger (#19 — DONE),
-  Sentinel (#20), multi-hero roster (#21), weapon tiers (#22),
-  Husk/Spitter/elite enemies (#23).
+  Sentinel (#20 — DONE), multi-hero roster (#21), weapon tiers (#22),
+  Husk/Spitter/elite enemies (#23). All four core classes are now playable.
 - **Phase 3 — levels & finale**: Realm 2 "The Resin Galleries" (#24), the
   Broodmother boss (#25).
 - **Art track (parallel)**: drop-in asset pipeline + docs/ART.md (#26 —
@@ -220,10 +220,23 @@ Volley Step as a fan of fading hero afterimages with a synthesized bow-whoosh.
 Dash determinism, wall-safety, exact dart count, and the pierce cap are covered
 in `tests/sim/ranger.test.ts` alongside a scripted Ranger mission-clear.
 
+#20 landed: the Sentinel (Odo Brakk) is the fourth playable hero and the party
+anchor — a slow, high-HP bulwark with a wide heavy-knockback maul and **Bastion
+Wall**, a timed guard stance. `AbilityDef` gains a third variant (`guard`) and
+`PlayerState` a `guardTicks` field: while braced, incoming damage is scaled by
+`damageMult`, move speed by `moveMult`, and each blocked hit reflects knockback
+onto the attacker (all magnitudes data-authored). Art adds a `maul` weapon
+(tower shield + maul) to the shared `HeroStyle`; the renderer shows a steel
+shield-glow ring while guarding and the HUD ability bar doubles as the stance
+meter; audio adds a guard-raise swell and a block thunk. Damage reduction,
+speed penalty, block-knockback, exact stance duration, determinism, and a
+scripted mission-clear are covered in `tests/sim/sentinel.test.ts`. With the
+Sentinel in, all four core classes are playable and the hero-select roster has
+no locked teaser slots left.
+
 ## Next recommended task
 
-The Sentinel (#20) — the last of the four core classes; the `blast`/`dash-volley`
-ability union plus the per-hero `HeroStyle`/roster machinery make a new class
-mostly content data + a style entry + frames (add a new ability `kind` only if
-its mechanic needs one). #16/#17/#21/#22/#23/#27/#28 remain open for parallel
-pickup.
+Multi-hero roster / co-op groundwork (#21) or weapon tiers (#22) now that the
+four classes exist; alternatively the Husk/Spitter/elite enemy families (#23)
+to give the roster more to fight. #16/#17/#22/#23/#27/#28 remain open for
+parallel pickup.

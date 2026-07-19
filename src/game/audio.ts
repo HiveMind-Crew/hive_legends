@@ -130,6 +130,12 @@ class AudioEngine {
       case 'ability-dash':
         this.dashWhoosh();
         break;
+      case 'ability-guard':
+        this.guardUp();
+        break;
+      case 'guard-block':
+        this.thunk();
+        break;
       case 'exit-opened':
         this.arpeggio([392, 523, 659, 784], 'square', 0.09, 0.9);
         break;
@@ -341,6 +347,30 @@ class AudioEngine {
     src.start(t);
     src.stop(t + 0.17);
     this.tone(520, 'square', 0.1, 0.1, 900);
+  }
+
+  /** Bastion Wall raise: a low metallic swell as the shield comes up. */
+  private guardUp(): void {
+    const t = this.ctx!.currentTime;
+    this.tone(160, 'triangle', 0.22, 0.22, 240, t);
+    this.tone(240, 'sine', 0.26, 0.14, 320, t + 0.02);
+  }
+
+  /** Blocked hit: a short, deep shield thunk with a metallic tick on top. */
+  private thunk(): void {
+    if (!this.throttle('thunk', 40)) return;
+    const t = this.ctx!.currentTime;
+    const osc = this.ctx!.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, t);
+    osc.frequency.exponentialRampToValueAtTime(60, t + 0.12);
+    const g = this.ctx!.createGain();
+    g.gain.setValueAtTime(0.3, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+    osc.connect(g).connect(this.sfxGain!);
+    osc.start(t);
+    osc.stop(t + 0.15);
+    this.tone(640, 'square', 0.03, 0.08);
   }
 
   private arpeggio(freqs: number[], type: OscType, step: number, gain: number): void {
