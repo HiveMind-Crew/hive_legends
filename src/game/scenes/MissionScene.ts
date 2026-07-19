@@ -24,6 +24,7 @@ import {
 const MAX_STEPS_PER_FRAME = 5;
 
 export interface HudPlayerInfo {
+  heroId: string;
   heroName: string;
   hp: number;
   maxHp: number;
@@ -86,6 +87,8 @@ export class MissionScene extends Phaser.Scene {
   private exitGlow!: Phaser.GameObjects.Image;
   private moteFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private exitSprite!: Phaser.GameObjects.Image;
+  private heroId = 'vanguard';
+  private slowedIds = new Set<EntityId>();
   private ended = false;
   private hitStopMs = 0;
   private camFollow = { x: 0, y: 0 };
@@ -103,12 +106,15 @@ export class MissionScene extends Phaser.Scene {
     super('mission');
   }
 
-  create(): void {
+  create(data?: { heroId?: string }): void {
     const profile = loadProfile();
+    // Hero choice flows in from hero select (and results replay); anything
+    // unknown falls back to the default hero so the e2e Enter-flow is safe.
+    this.heroId = data?.heroId && CONTENT.heroes[data.heroId] ? data.heroId : 'vanguard';
     this.sim = createSim({
       seed: (Date.now() ^ 0x5eed) >>> 0,
       level: BROOD_WARRENS,
-      players: [{ heroId: 'vanguard', modifiers: profileModifiers(profile) }],
+      players: [{ heroId: this.heroId, modifiers: profileModifiers(profile) }],
       content: CONTENT
     });
     this.accumulator = 0;
@@ -122,6 +128,7 @@ export class MissionScene extends Phaser.Scene {
     this.movedAtTick.clear();
     this.genPopAt.clear();
     this.hatchAtTick.clear();
+    this.slowedIds.clear();
     this.hitStopMs = 0;
     this.camKick = { x: 0, y: 0 };
     this.trailCount = 0;
@@ -296,6 +303,7 @@ export class MissionScene extends Phaser.Scene {
       players: s.players.map((p) => {
         const hero = CONTENT.heroes[p.heroId];
         return {
+          heroId: p.heroId,
           heroName: hero?.name ?? p.heroId,
           hp: p.hp,
           maxHp: p.maxHp,
@@ -382,9 +390,14 @@ export class MissionScene extends Phaser.Scene {
         case 'attack':
           this.flashArc(ev.pos, ev.facing);
           break;
-        case 'ability':
-          this.shockwave(ev.pos, ev.radius);
+        case 'ability': {
+          // Slowing abilities read as a resin cage, impact abilities as a slam.
+          const caster = this.sim.state.players.find((pl) => pl.id === ev.playerId);
+          const ab = caster ? CONTENT.heroes[caster.heroId]?.ability : undefined;
+          if (ab?.slowTicks) this.resinCage(ev.pos, ev.radius);
+          else this.shockwave(ev.pos, ev.radius);
           break;
+        }
         case 'enemy-hit':
           this.tintFlash(this.spriteFor(ev), 0xffffff);
           this.damageNumber(ev.pos, ev.damage, '#f4e3b2');
@@ -493,7 +506,8 @@ export class MissionScene extends Phaser.Scene {
         victory,
         gold: p.gold,
         kills: p.kills,
-        ticks: this.sim.state.tick
+        ticks: this.sim.state.tick,
+        heroId: this.heroId
       });
     });
   }
@@ -507,8 +521,8 @@ export class MissionScene extends Phaser.Scene {
     s.players.forEach((p, index) => {
       seen.add(p.id);
       this.trackMovement(p.id, p.pos, s.tick);
-      const spr = this.ensureSprite(p.id, heroFrame(2, 'w0'));
-      spr.setTexture(heroFrame(facingDirIndex(p.facing.x, p.facing.y), this.heroPose(p, s.tick)));
+      const spr = this.ensureSprite(p.id, heroFrame(p.heroId, 2, 'w0'));
+      spr.setTexture(heroFrame(p.heroId, facingDirIndex(p.facing.x, p.facing.y), this.heroPose(p, s.tick)));
       spr.setPosition(p.pos.x, p.pos.y).setDepth(p.pos.y);
       spr.setAlpha(p.invulnTicks > 0 && p.invulnTicks % 10 < 5 ? 0.4 : 1);
       if (!p.alive) spr.setTint(0x555555);
@@ -567,6 +581,15 @@ export class MissionScene extends Phaser.Scene {
         frame = (Math.floor(s.tick / CRAWL_FRAME_TICKS) + e.id) % 2 === 0 ? 'w0' : 'w1';
       }
       spr.setTexture(enemyFrame(family, tier, frame));
+      // Resin-caged enemies read amber; clear the tint exactly once on expiry
+      // so hit flashes aren't stomped every frame.
+      if (e.slowTicks > 0) {
+        spr.setTint(0xd9c46a);
+        this.slowedIds.add(e.id);
+      } else if (this.slowedIds.has(e.id)) {
+        spr.clearTint();
+        this.slowedIds.delete(e.id);
+      }
       // Freshly-hatched enemies scale in from the egg-burst; elites run big.
       const hatchAge = s.tick - (this.hatchAtTick.get(e.id) ?? -Infinity);
       const hatchMul = hatchAge < HATCH_TICKS ? 0.25 + 0.75 * (hatchAge / HATCH_TICKS) : 1;
@@ -681,6 +704,7 @@ export class MissionScene extends Phaser.Scene {
         this.movedAtTick.delete(id);
         this.genPopAt.delete(id);
         this.hatchAtTick.delete(id);
+        this.slowedIds.delete(id);
         for (const map of [this.shadows, this.rings, this.chevrons]) {
           map.get(id)?.destroy();
           map.delete(id);
@@ -786,6 +810,21 @@ export class MissionScene extends Phaser.Scene {
         this.floatCount--;
       }
     });
+  }
+
+  /** Resin Cage presentation: violet flash, ring, lingering hardened-web decal. */
+  private resinCage(pos: Vec2, radius: number): void {
+    this.cameras.main.flash(50, 190, 150, 235);
+    this.cameras.main.shake(80, 0.004);
+    this.flashRing(pos, radius, 0xa855c8);
+    const web = this.add
+      .image(pos.x, pos.y, TEX.decorWeb)
+      .setScale((radius * 2) / 28)
+      .setAlpha(0.7)
+      .setTint(0xd9b26a)
+      .setDepth(DEPTH_DECAL + 1);
+    this.tweens.add({ targets: web, alpha: 0, duration: 2000, onComplete: () => web.destroy() });
+    this.burst(this.dustFx, 8, pos);
   }
 
   /** Sunder Slam presentation: screen flash, double shockwave, scorch, heavy shake. */

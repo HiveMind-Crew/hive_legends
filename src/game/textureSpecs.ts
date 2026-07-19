@@ -35,11 +35,13 @@ function buildSpecs(): Record<string, TextureSpec> {
   add('tile-wall-face', 32, 16);
   for (let v = 0; v < 4; v++) add(`tile-floor-${v}`, 32, 32);
 
-  // Hero frames: 8 directions x poses, plus the portrait alias.
-  for (let dir = 0; dir < 8; dir++) {
-    for (const pose of HERO_POSES) add(`hero-vanguard-${dir}-${pose}`, 36, 36);
+  // Hero frames: roster x 8 directions x poses, plus the portrait alias.
+  for (const heroId of ['vanguard', 'arcanist']) {
+    for (let dir = 0; dir < 8; dir++) {
+      for (const pose of HERO_POSES) add(`hero-${heroId}-${dir}-${pose}`, 36, 36);
+    }
+    add(`hero-${heroId}`, 36, 36);
   }
-  add('hero-vanguard', 36, 36);
 
   // Enemy frames: family x tier x animation frame.
   for (const family of ENEMY_FAMILIES) {

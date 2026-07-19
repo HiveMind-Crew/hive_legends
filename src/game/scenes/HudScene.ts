@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { audio } from '../audio';
 import { playerAccent } from '../colors';
-import { TEX } from '../textures';
+import { TEX, heroPortrait } from '../textures';
 import type { HudInfo, MissionScene } from './MissionScene';
 
 /**
@@ -194,6 +194,7 @@ export class HudScene extends Phaser.Scene {
     const low = p.hp / p.maxHp <= LOW_HP_FRACTION;
     panel.hpText.setColor(p.alive ? (low ? '#ff5a4d' : '#ffffff') : '#666270');
     panel.hpText.setScale(low && p.alive ? 1 + 0.06 * Math.sin(this.time.now / 90) : 1);
+    if (panel.portrait.texture.key !== heroPortrait(p.heroId)) panel.portrait.setTexture(heroPortrait(p.heroId));
     panel.portrait.setTint(p.alive ? 0xffffff : 0x555555);
 
     // Gold counter rolls up toward the real value.

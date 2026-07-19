@@ -41,9 +41,50 @@ export const TEX = {
 export type HeroPose = 'w0' | 'w1' | 'atk';
 export type EnemyAnimFrame = 'w0' | 'w1' | 'windup';
 
-export function heroFrame(dir: number, pose: HeroPose): string {
-  return `hero-vanguard-${dir}-${pose}`;
+export function heroFrame(heroId: string, dir: number, pose: HeroPose): string {
+  return `hero-${heroId}-${dir}-${pose}`;
 }
+
+export function heroPortrait(heroId: string): string {
+  return `hero-${heroId}`;
+}
+
+/** Per-hero look for the shared frame layout (accent-neutral; see ART.md). */
+interface HeroStyle {
+  body: number;
+  inner: number;
+  trim: number;
+  crest: number;
+  feet: number;
+  outline: number;
+  weapon: 'blade' | 'staff';
+  weaponColor: number;
+}
+
+const HERO_STYLES: Record<string, HeroStyle> = {
+  vanguard: {
+    body: 0x5a8fd9,
+    inner: 0x2f5a8c,
+    trim: 0x87b1e8,
+    crest: 0xd9e6f4,
+    feet: 0x1c2c44,
+    outline: 0x14243d,
+    weapon: 'blade',
+    weaponColor: 0xd9e6f4
+  },
+  arcanist: {
+    body: 0x8a5fc9,
+    inner: 0x5a3a8c,
+    trim: 0xb69ae0,
+    crest: 0xf0e6a0,
+    feet: 0x2a1c44,
+    outline: 0x2a1440,
+    weapon: 'staff',
+    weaponColor: 0xffd75e
+  }
+};
+
+const DEFAULT_HERO_STYLE = HERO_STYLES['vanguard']!;
 
 /** Composed enemy frames: silhouette family x palette tier x animation frame. */
 export function enemyFrame(family: EnemyFamily, tier: EnemyTier, frame: EnemyAnimFrame): string {
@@ -198,14 +239,17 @@ export function generateTextures(scene: Phaser.Scene): void {
     gen(floorVariant(v));
   }
 
-  // Hero frame set: 8 directions x (walk0, walk1, attack).
-  for (let dir = 0; dir < 8; dir++) {
-    drawHeroFrame(g, dir, 'w0', heroFrame(dir, 'w0'));
-    drawHeroFrame(g, dir, 'w1', heroFrame(dir, 'w1'));
-    drawHeroFrame(g, dir, 'atk', heroFrame(dir, 'atk'));
+  // Hero frame sets: every roster hero x 8 directions x (walk0, walk1,
+  // attack), plus a south-facing portrait alias for menus.
+  for (const heroId of Object.keys(HERO_STYLES)) {
+    const style = HERO_STYLES[heroId] ?? DEFAULT_HERO_STYLE;
+    for (let dir = 0; dir < 8; dir++) {
+      drawHeroFrame(g, style, dir, 'w0', heroFrame(heroId, dir, 'w0'));
+      drawHeroFrame(g, style, dir, 'w1', heroFrame(heroId, dir, 'w1'));
+      drawHeroFrame(g, style, dir, 'atk', heroFrame(heroId, dir, 'atk'));
+    }
+    drawHeroFrame(g, style, 2, 'w0', heroPortrait(heroId));
   }
-  // Portrait alias for menus: south-facing idle.
-  drawHeroFrame(g, 2, 'w0', TEX.hero);
 
   // Enemy frame sets: every silhouette family x palette tier x anim frame
   // (drawn facing +x; the scene rotates the sprite).
@@ -387,8 +431,8 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.destroy();
 }
 
-/** Armored vanguard: body disc, pauldrons, helm crest toward facing, blade. */
-function drawHeroFrame(g: Phaser.GameObjects.Graphics, dir: number, pose: HeroPose, key: string): void {
+/** Shared hero layout: body disc, shoulders, crest toward facing, weapon. */
+function drawHeroFrame(g: Phaser.GameObjects.Graphics, style: HeroStyle, dir: number, pose: HeroPose, key: string): void {
   const C = 18; // center of the 36x36 frame
   const a = (dir * Math.PI) / 4;
   const dx = Math.cos(a);
@@ -400,32 +444,46 @@ function drawHeroFrame(g: Phaser.GameObjects.Graphics, dir: number, pose: HeroPo
   g.clear();
 
   // Feet, behind the body, alternating along the facing axis when walking.
-  g.fillStyle(0x1c2c44);
+  g.fillStyle(style.feet);
   g.fillCircle(C - dx * 7 + px * 5 + dx * stride, C - dy * 7 + py * 5 + dy * stride, 3);
   g.fillCircle(C - dx * 7 - px * 5 - dx * stride, C - dy * 7 - py * 5 - dy * stride, 3);
 
-  // Body and armor.
-  g.fillStyle(0x5a8fd9);
+  // Body.
+  g.fillStyle(style.body);
   g.fillCircle(C, C, 11);
-  g.fillStyle(0x2f5a8c);
+  g.fillStyle(style.inner);
   g.fillCircle(C - dx * 2, C - dy * 2, 6);
-  g.lineStyle(2, 0x14243d);
+  g.lineStyle(2, style.outline);
   g.strokeCircle(C, C, 11);
 
-  // Pauldrons on the perpendicular axis.
-  g.fillStyle(0x87b1e8);
+  // Shoulders on the perpendicular axis.
+  g.fillStyle(style.trim);
   g.fillCircle(C + px * 9, C + py * 9, 3.5);
   g.fillCircle(C - px * 9, C - py * 9, 3.5);
 
-  // Helm crest marks the facing even when stationary.
-  g.fillStyle(0xd9e6f4);
+  // Crest marks the facing even when stationary.
+  g.fillStyle(style.crest);
   g.fillCircle(C + dx * 5, C + dy * 5, 3);
 
-  // Blade: held beside the body at rest, swung out front on attack.
-  const reach = pose === 'atk' ? 15 : 13;
-  const side = pose === 'atk' ? 0 : 4;
-  g.lineStyle(pose === 'atk' ? 5 : 4, 0xd9e6f4);
-  g.lineBetween(C + dx * 9 + px * 4, C + dy * 9 + py * 4, C + dx * reach + px * side, C + dy * reach + py * side);
+  if (style.weapon === 'blade') {
+    // Blade: held beside the body at rest, swung out front on attack.
+    const reach = pose === 'atk' ? 15 : 13;
+    const side = pose === 'atk' ? 0 : 4;
+    g.lineStyle(pose === 'atk' ? 5 : 4, style.weaponColor);
+    g.lineBetween(C + dx * 9 + px * 4, C + dy * 9 + py * 4, C + dx * reach + px * side, C + dy * reach + py * side);
+  } else {
+    // Staff: carried at the side; thrust forward with a flaring orb on cast.
+    const side = pose === 'atk' ? 2 : 6;
+    const reach = pose === 'atk' ? 15 : 11;
+    g.lineStyle(2.5, 0x6a4a2e);
+    g.lineBetween(C - dx * 6 + px * side, C - dy * 6 + py * side, C + dx * reach + px * side, C + dy * reach + py * side);
+    g.fillStyle(style.weaponColor);
+    g.fillCircle(C + dx * reach + px * side, C + dy * reach + py * side, pose === 'atk' ? 3.5 : 2.5);
+    if (pose === 'atk') {
+      g.fillStyle(0xffffff, 0.7);
+      g.fillCircle(C + dx * reach + px * side, C + dy * reach + py * side, 1.6);
+    }
+  }
 
   gen(key);
 }
