@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-07-18 (look & feel: issues #1–#9 ALL landed; balance pass)
+Updated: 2026-07-19 (content expansion: #15, #26, #18, #19 landed; three heroes playable)
 
 ## Milestones
 
@@ -183,7 +183,7 @@ issue #29:
 
 - **Phase 1 — sim foundations**: projectiles/typed kits (#15 — DONE),
   temporary power-ups (#16), keys/gates/secret walls (#17).
-- **Phase 2 — classes & combat**: Arcanist (#18 — DONE), Ranger (#19),
+- **Phase 2 — classes & combat**: Arcanist (#18 — DONE), Ranger (#19 — DONE),
   Sentinel (#20), multi-hero roster (#21), weapon tiers (#22),
   Husk/Spitter/elite enemies (#23).
 - **Phase 3 — levels & finale**: Realm 2 "The Resin Galleries" (#24), the
@@ -209,8 +209,21 @@ and hero-select is a data-driven roster carousel (`◀ n/total ▶`) that gates
 the Arcanist behind a first mission clear. The root/slow mechanic and a
 scripted Arcanist mission-clear are unit-tested in `tests/sim/arcanist.test.ts`.
 
+#19 landed: the Ranger (Tamsin Vael) is the third playable hero — the fastest
+class, a rapid piercing skirmisher with **Volley Step**, an instant wall-clipped
+dash that sprays a backward fan of the hero's own darts. `AbilityDef` is now a
+discriminated union (`blast` | `dash-volley`), matching the `AttackDef` pattern,
+so abilities are as data-driven as attacks; the dash reuses `moveCircle` (no
+i-frames) and `spawnProjectile` fires the fan along fixed deterministic angles.
+Art adds a `bow` weapon to the shared `HeroStyle` layout; the renderer draws
+Volley Step as a fan of fading hero afterimages with a synthesized bow-whoosh.
+Dash determinism, wall-safety, exact dart count, and the pierce cap are covered
+in `tests/sim/ranger.test.ts` alongside a scripted Ranger mission-clear.
+
 ## Next recommended task
 
-The Ranger (#19) or Sentinel (#20) — the per-hero texture/roster machinery
-from #18 makes each additional class mostly content data + a `HeroStyle`
-entry + frames. #16/#17/#21/#22/#23/#27/#28 remain open for parallel pickup.
+The Sentinel (#20) — the last of the four core classes; the `blast`/`dash-volley`
+ability union plus the per-hero `HeroStyle`/roster machinery make a new class
+mostly content data + a style entry + frames (add a new ability `kind` only if
+its mechanic needs one). #16/#17/#21/#22/#23/#27/#28 remain open for parallel
+pickup.

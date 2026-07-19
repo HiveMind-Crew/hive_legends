@@ -127,6 +127,9 @@ class AudioEngine {
       case 'ability':
         this.slam();
         break;
+      case 'ability-dash':
+        this.dashWhoosh();
+        break;
       case 'exit-opened':
         this.arpeggio([392, 523, 659, 784], 'square', 0.09, 0.9);
         break;
@@ -319,6 +322,25 @@ class AudioEngine {
     osc.connect(og).connect(this.sfxGain!);
     osc.start(t);
     osc.stop(t + 0.36);
+  }
+
+  /** Volley Step: a short bright noise-whoosh plus a rising bow-snap tone. */
+  private dashWhoosh(): void {
+    const t = this.ctx!.currentTime;
+    const src = this.ctx!.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    const filter = this.ctx!.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(700, t);
+    filter.frequency.exponentialRampToValueAtTime(2600, t + 0.14);
+    filter.Q.value = 0.9;
+    const ng = this.ctx!.createGain();
+    ng.gain.setValueAtTime(0.16, t);
+    ng.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+    src.connect(filter).connect(ng).connect(this.sfxGain!);
+    src.start(t);
+    src.stop(t + 0.17);
+    this.tone(520, 'square', 0.1, 0.1, 900);
   }
 
   private arpeggio(freqs: number[], type: OscType, step: number, gain: number): void {

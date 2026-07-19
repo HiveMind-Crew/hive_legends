@@ -57,7 +57,7 @@ interface HeroStyle {
   crest: number;
   feet: number;
   outline: number;
-  weapon: 'blade' | 'staff';
+  weapon: 'blade' | 'staff' | 'bow';
   weaponColor: number;
 }
 
@@ -81,6 +81,16 @@ const HERO_STYLES: Record<string, HeroStyle> = {
     outline: 0x2a1440,
     weapon: 'staff',
     weaponColor: 0xffd75e
+  },
+  ranger: {
+    body: 0x5aa16a,
+    inner: 0x2f6a44,
+    trim: 0x86c98f,
+    crest: 0xe0d59a,
+    feet: 0x1f3524,
+    outline: 0x173a26,
+    weapon: 'bow',
+    weaponColor: 0xcaa66a
   }
 };
 
@@ -465,7 +475,28 @@ function drawHeroFrame(g: Phaser.GameObjects.Graphics, style: HeroStyle, dir: nu
   g.fillStyle(style.crest);
   g.fillCircle(C + dx * 5, C + dy * 5, 3);
 
-  if (style.weapon === 'blade') {
+  if (style.weapon === 'bow') {
+    // Shortbow held crosswise (across the facing) ahead of the body; on the
+    // attack pose the stave bends and a nocked dart points along the facing.
+    const fwd = pose === 'atk' ? 11 : 8;
+    const bx = C + dx * fwd;
+    const by = C + dy * fwd;
+    const tip = pose === 'atk' ? 8 : 9; // limb half-length along the perpendicular
+    const belly = pose === 'atk' ? 3 : 1; // how far the stave bows forward
+    g.lineStyle(2, style.weaponColor);
+    g.lineBetween(bx + px * tip, by + py * tip, bx + dx * belly, by + dy * belly);
+    g.lineBetween(bx + dx * belly, by + dy * belly, bx - px * tip, by - py * tip);
+    // Bowstring across the limb tips (drawn back toward the body on attack).
+    const pull = pose === 'atk' ? -3 : 0;
+    g.lineStyle(1, 0xe8e2d0, 0.85);
+    g.lineBetween(bx + px * tip, by + py * tip, bx + dx * pull, by + dy * pull);
+    g.lineBetween(bx + dx * pull, by + dy * pull, bx - px * tip, by - py * tip);
+    if (pose === 'atk') {
+      // Nocked thorn dart ready to loose.
+      g.lineStyle(2, 0xf4ead0);
+      g.lineBetween(bx + dx * pull, by + dy * pull, bx + dx * 9, by + dy * 9);
+    }
+  } else if (style.weapon === 'blade') {
     // Blade: held beside the body at rest, swung out front on attack.
     const reach = pose === 'atk' ? 15 : 13;
     const side = pose === 'atk' ? 0 : 4;

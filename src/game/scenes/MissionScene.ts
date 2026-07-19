@@ -394,10 +394,13 @@ export class MissionScene extends Phaser.Scene {
           // Slowing abilities read as a resin cage, impact abilities as a slam.
           const caster = this.sim.state.players.find((pl) => pl.id === ev.playerId);
           const ab = caster ? CONTENT.heroes[caster.heroId]?.ability : undefined;
-          if (ab?.slowTicks) this.resinCage(ev.pos, ev.radius);
+          if (ab?.kind === 'blast' && ab.slowTicks) this.resinCage(ev.pos, ev.radius);
           else this.shockwave(ev.pos, ev.radius);
           break;
         }
+        case 'ability-dash':
+          this.dashTrail(ev.playerId, ev.from, ev.to);
+          break;
         case 'enemy-hit':
           this.tintFlash(this.spriteFor(ev), 0xffffff);
           this.damageNumber(ev.pos, ev.damage, '#f4e3b2');
@@ -825,6 +828,27 @@ export class MissionScene extends Phaser.Scene {
       .setDepth(DEPTH_DECAL + 1);
     this.tweens.add({ targets: web, alpha: 0, duration: 2000, onComplete: () => web.destroy() });
     this.burst(this.dustFx, 8, pos);
+  }
+
+  /** Volley Step presentation: a fan of fading hero afterimages along the dash. */
+  private dashTrail(playerId: EntityId, from: Vec2, to: Vec2): void {
+    const spr = this.sprites.get(playerId);
+    const key = spr?.texture.key ?? heroFrame(this.heroId, 2, 'w0');
+    const accent = playerAccent(Math.max(0, this.sim.state.players.findIndex((pl) => pl.id === playerId)));
+    const GHOSTS = 5;
+    for (let i = 0; i < GHOSTS; i++) {
+      const t = i / (GHOSTS - 1);
+      const ghost = this.add
+        .image(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t, key)
+        .setAlpha(0.45 * (1 - t * 0.5))
+        .setTint(accent)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(to.y - 1);
+      this.tweens.add({ targets: ghost, alpha: 0, duration: 260, onComplete: () => ghost.destroy() });
+    }
+    this.camKick.x = (to.x - from.x) * 0.06;
+    this.camKick.y = (to.y - from.y) * 0.06;
+    this.burst(this.dustFx, 6, from);
   }
 
   /** Sunder Slam presentation: screen flash, double shockwave, scorch, heavy shake. */

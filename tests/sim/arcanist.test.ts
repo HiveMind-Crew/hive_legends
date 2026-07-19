@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { BROOD_WARRENS, CONTENT } from '../../src/content';
 import { createSim, simTick, type Sim } from '../../src/sim/sim';
-import { EMPTY_INPUT, type EnemyState, type InputCommand, type SimEvent } from '../../src/sim/types';
+import {
+  EMPTY_INPUT,
+  type BlastAbilityDef,
+  type EnemyState,
+  type InputCommand,
+  type SimEvent
+} from '../../src/sim/types';
 
 /**
  * The Arcanist hero (issue #18): a ranged hex-weaver. These tests drive the
@@ -9,6 +15,9 @@ import { EMPTY_INPUT, type EnemyState, type InputCommand, type SimEvent } from '
  * selectable and completable, and that Resin Cage roots/slows enemies through
  * the seeded, deterministic sim.
  */
+
+/** Resin Cage is a blast ability; narrow once for the whole suite. */
+const RESIN_CAGE = CONTENT.heroes['arcanist']!.ability as BlastAbilityDef;
 
 function newArcanistSim(seed = 55): Sim {
   return createSim({ seed, level: BROOD_WARRENS, players: [{ heroId: 'arcanist' }], content: CONTENT });
@@ -65,15 +74,14 @@ describe('arcanist roster entry', () => {
 describe('resin cage', () => {
   it('roots enemies in front of the caster (offset cast center)', () => {
     const sim = newArcanistSim();
-    const ability = CONTENT.heroes['arcanist']!.ability;
     const p = sim.state.players[0]!;
     p.facing = { x: 1, y: 0 };
     // Enemy sits at the projected cast center, well beyond point-blank range —
     // proving the ability is thrown ahead of the caster.
-    const e = spawnEnemy(sim, 910, p.pos.x + ability.offsetPx!, p.pos.y, 1000);
+    const e = spawnEnemy(sim, 910, p.pos.x + RESIN_CAGE.offsetPx!, p.pos.y, 1000);
     runTicks(sim, 1, input({ ability: true }));
     expect(e.slowTicks).toBeGreaterThan(0);
-    expect(e.slowMult).toBe(ability.slowMult);
+    expect(e.slowMult).toBe(RESIN_CAGE.slowMult);
   });
 
   it('leaves an enemy at the caster untouched — the cage lands downrange', () => {
@@ -87,7 +95,6 @@ describe('resin cage', () => {
 
   it('a rooted enemy crawls while slowed, then chases at full pace once it wears off', () => {
     const sim = newArcanistSim();
-    const ability = CONTENT.heroes['arcanist']!.ability;
     // Isolate from the horde so only our test enemy moves and the caster is
     // never chipped to death over the ~200-tick observation window.
     sim.state.generators = [];
@@ -95,11 +102,11 @@ describe('resin cage', () => {
     p.facing = { x: 1, y: 0 };
     // One enemy on open floor at the cage center, with huge HP so the cage's
     // damage never removes it. Facing +x keeps its chase path clear of walls.
-    const caged = spawnEnemy(sim, 920, p.pos.x + ability.offsetPx!, p.pos.y, 100000);
+    const caged = spawnEnemy(sim, 920, p.pos.x + RESIN_CAGE.offsetPx!, p.pos.y, 100000);
     p.abilityCooldown = 0;
     runTicks(sim, 1, input({ ability: true }));
     expect(caged.slowTicks).toBeGreaterThan(0);
-    expect(caged.slowMult).toBe(ability.slowMult);
+    expect(caged.slowMult).toBe(RESIN_CAGE.slowMult);
 
     // Distance crawled over 40 ticks while rooted...
     const slowedStart = { ...caged.pos };

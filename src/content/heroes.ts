@@ -1,8 +1,8 @@
 import type { HeroDef } from '../sim/types';
 
 /**
- * Hero roster. The Vanguard and Arcanist are playable; the Ranger and
- * Sentinel land later in the vertical-slice milestone (#19, #20).
+ * Hero roster. The Vanguard, Arcanist and Ranger are playable; the Sentinel
+ * lands later in the vertical-slice milestone (#20).
  * Roster order matters: the first entry is the default hero.
  */
 export const HEROES: Record<string, HeroDef> = {
@@ -24,6 +24,7 @@ export const HEROES: Record<string, HeroDef> = {
       cooldownTicks: 22
     },
     ability: {
+      kind: 'blast',
       id: 'sunder-slam',
       name: 'Sunder Slam',
       damage: 40,
@@ -52,6 +53,7 @@ export const HEROES: Record<string, HeroDef> = {
       knockback: 120
     },
     ability: {
+      kind: 'blast',
       id: 'resin-cage',
       name: 'Resin Cage',
       damage: 25,
@@ -61,6 +63,35 @@ export const HEROES: Record<string, HeroDef> = {
       offsetPx: 140,
       slowTicks: 120, // 2 s near-root
       slowMult: 0.1
+    }
+  },
+  ranger: {
+    id: 'ranger',
+    name: 'Tamsin Vael',
+    role: 'Ranger',
+    description:
+      'A fleet-footed warren-stalker who dances at the edge of the swarm, threading thorn darts through whole ranks and vaulting clear with a backward volley.',
+    maxHp: 90,
+    moveSpeed: 230,
+    radius: 10,
+    attack: {
+      kind: 'projectile',
+      damage: 12,
+      speed: 520,
+      radius: 4,
+      range: 380,
+      cooldownTicks: 9, // rapid fire
+      pierce: 2, // a dart hits up to three targets in a line
+      knockback: 40
+    },
+    ability: {
+      kind: 'dash-volley',
+      id: 'volley-step',
+      name: 'Volley Step',
+      cooldownTicks: 240, // ~4 s
+      dashPx: 120,
+      dartCount: 5,
+      spreadDeg: 70
     }
   }
 };
