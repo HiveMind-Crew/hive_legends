@@ -15,6 +15,7 @@ export const HEROES: Record<string, HeroDef> = {
     moveSpeed: 190,
     radius: 12,
     attack: {
+      kind: 'melee',
       damage: 25,
       range: 52,
       arcDeg: 110,

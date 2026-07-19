@@ -93,6 +93,9 @@ class AudioEngine {
       case 'attack':
         this.whoosh();
         break;
+      case 'projectile-fired':
+        this.pew();
+        break;
       case 'enemy-hit':
         this.thud(220, 0.06, 0.12);
         break;
@@ -157,6 +160,11 @@ class AudioEngine {
     if (now - last < ms) return false;
     this.lastPlayed.set(key, now);
     return true;
+  }
+
+  private pew(): void {
+    if (!this.throttle('pew', 50)) return;
+    this.tone(880, 'square', 0.09, 0.12, 330);
   }
 
   private whoosh(): void {

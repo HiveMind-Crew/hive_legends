@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { ENEMY_FAMILIES, ENEMY_TIERS, type EnemyFamily, type EnemyTier } from '../sim/types';
+import { TEXTURE_SPECS } from './textureSpecs';
 
 /**
  * Generated programmer-art textures and sprite frames. Everything is drawn
@@ -22,6 +23,7 @@ export const TEX = {
   decorSpore: 'decor-spore-patch',
   glow: 'fx-glow',
   mote: 'fx-mote',
+  bolt: 'fx-bolt',
   hero: 'hero-vanguard', // portrait alias (south-facing idle frame)
   gold: 'pickup-gold',
   health: 'pickup-health',
@@ -110,8 +112,23 @@ export function facingDirIndex(x: number, y: number): number {
   return ((idx % 8) + 8) % 8;
 }
 
+/**
+ * Bound for the duration of a generation pass. Draw helpers finish each
+ * texture through this so canvas sizes come from TEXTURE_SPECS (the single
+ * source of truth) and keys already loaded as drop-in art overrides
+ * (public/art/<key>.png, see BootScene and docs/ART.md) are left untouched.
+ */
+let gen: (key: string) => void = () => {
+  throw new Error('gen used outside generateTextures');
+};
+
 export function generateTextures(scene: Phaser.Scene): void {
   const g = scene.add.graphics();
+  gen = (key: string): void => {
+    const spec = TEXTURE_SPECS[key];
+    if (!spec) throw new Error(`no texture spec for key: ${key}`);
+    if (!scene.textures.exists(key)) g.generateTexture(key, spec.w, spec.h);
+  };
 
   // Wall top face: chitin roof slab, read from above.
   g.clear();
@@ -124,7 +141,7 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.fillRect(19, 18, 9, 7);
   g.lineStyle(1, 0x120c1a);
   g.strokeRect(0, 0, 32, 32);
-  g.generateTexture(TEX.wall, 32, 32);
+  gen(TEX.wall);
 
   // Wall front face: darker vertical slab under south-facing wall edges,
   // giving walls visible height (32x16, overlaps the floor tile below).
@@ -139,7 +156,7 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.fillRect(0, 0, 32, 2);
   g.fillStyle(0x0d0912, 0.9);
   g.fillRect(0, 14, 32, 2);
-  g.generateTexture(TEX.wallFace, 32, 16);
+  gen(TEX.wallFace);
 
   // Inner wall (surrounded by walls on all sides): flat, dark, undetailed.
   g.clear();
@@ -148,7 +165,7 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.fillStyle(0x241b2e);
   g.fillRect(6, 8, 9, 7);
   g.fillRect(19, 20, 8, 6);
-  g.generateTexture(TEX.wallInner, 32, 32);
+  gen(TEX.wallInner);
 
   // Floor variants: base mottle, cracks, hive-membrane patch, bone scatter.
   // A tile-coordinate hash picks the variant, so dressing is deterministic.
@@ -178,7 +195,7 @@ export function generateTextures(scene: Phaser.Scene): void {
       g.fillStyle(0x5d5766);
       g.fillCircle(24, 7, 1.5);
     }
-    g.generateTexture(floorVariant(v), 32, 32);
+    gen(floorVariant(v));
   }
 
   // Hero frame set: 8 directions x (walk0, walk1, attack).
@@ -211,7 +228,7 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.fillCircle(8, 8, 7);
   g.fillStyle(0xb8922e);
   g.fillCircle(8, 8, 4);
-  g.generateTexture(TEX.gold, 16, 16);
+  gen(TEX.gold);
 
   // Health: hearty red morsel.
   g.clear();
@@ -219,7 +236,7 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.fillCircle(6, 9, 5);
   g.fillCircle(12, 9, 5);
   g.fillTriangle(2, 11, 16, 11, 9, 17);
-  g.generateTexture(TEX.health, 18, 18);
+  gen(TEX.health);
 
   // Exit portal: glowing ring.
   g.clear();
@@ -227,19 +244,19 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.strokeCircle(24, 24, 18);
   g.lineStyle(2, 0xbdf4ff);
   g.strokeCircle(24, 24, 11);
-  g.generateTexture(TEX.exit, 48, 48);
+  gen(TEX.exit);
 
   // Elliptical drop shadow (alpha baked in; scaled per entity).
   g.clear();
   g.fillStyle(0x000000, 0.4);
   g.fillEllipse(16, 7, 28, 10);
-  g.generateTexture(TEX.shadow, 32, 14);
+  gen(TEX.shadow);
 
   // Player accent underglow ring (white; tinted per player, squashed to ground).
   g.clear();
   g.lineStyle(3, 0xffffff);
   g.strokeCircle(20, 20, 15);
-  g.generateTexture(TEX.accentRing, 40, 40);
+  gen(TEX.accentRing);
 
   // Set dressing (issue #5): egg clusters, resin webbing, glowing spore patches.
   g.clear();
@@ -253,7 +270,7 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.fillCircle(7, 10.5, 2);
   g.fillCircle(15, 11.5, 1.8);
   g.fillCircle(11, 6.5, 1.6);
-  g.generateTexture(TEX.decorEgg, 24, 20);
+  gen(TEX.decorEgg);
 
   g.clear();
   g.lineStyle(1, 0xcfc4de, 0.4);
@@ -264,7 +281,7 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.lineStyle(1, 0xffffff, 0.25);
   g.strokeCircle(14, 14, 8);
   g.strokeCircle(14, 14, 4);
-  g.generateTexture(TEX.decorWeb, 28, 28);
+  gen(TEX.decorWeb);
 
   g.clear();
   g.fillStyle(0x2c4020, 0.9);
@@ -276,7 +293,7 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.fillStyle(0xd6f7b0);
   g.fillCircle(8, 8, 1);
   g.fillCircle(15, 11, 0.8);
-  g.generateTexture(TEX.decorSpore, 24, 18);
+  gen(TEX.decorSpore);
 
   // Radial glow (white, tinted per light source, additive blend).
   g.clear();
@@ -284,13 +301,21 @@ export function generateTextures(scene: Phaser.Scene): void {
     g.fillStyle(0xffffff, 0.05 + (0.16 * (24 - r)) / 20);
     g.fillCircle(24, 24, r);
   }
-  g.generateTexture(TEX.glow, 48, 48);
+  gen(TEX.glow);
 
   // Drifting portal mote.
   g.clear();
   g.fillStyle(0xffffff);
   g.fillCircle(2, 2, 2);
-  g.generateTexture(TEX.mote, 4, 4);
+  gen(TEX.mote);
+
+  // Projectile bolt: bright capsule pointing +x (tinted per hero, rotated).
+  g.clear();
+  g.fillStyle(0xffffff, 0.55);
+  g.fillEllipse(6, 3, 12, 6);
+  g.fillStyle(0xffffff);
+  g.fillEllipse(7, 3, 8, 4);
+  gen(TEX.bolt);
 
   // Breakable props: resin husk (gold) and amber clutch (health).
   g.clear();
@@ -303,7 +328,7 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.lineStyle(1, 0x4a3d22);
   g.strokeCircle(10, 10, 7);
   g.lineBetween(6, 7, 12, 13);
-  g.generateTexture(propTexture('resin-husk'), 20, 20);
+  gen(propTexture('resin-husk'));
 
   g.clear();
   g.fillStyle(0x000000, 0.3);
@@ -316,7 +341,7 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.fillCircle(10, 7, 2.2);
   g.fillCircle(7, 11, 2);
   g.fillCircle(13, 11, 2);
-  g.generateTexture(propTexture('amber-clutch'), 20, 20);
+  gen(propTexture('amber-clutch'));
 
   // Particle sprites for combat feedback (issue #3).
   g.clear();
@@ -324,32 +349,32 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.fillCircle(3, 3, 3);
   g.fillStyle(0x5b8f33);
   g.fillCircle(4, 4, 1.5);
-  g.generateTexture(TEX.ichor, 6, 6);
+  gen(TEX.ichor);
 
   g.clear();
   g.fillStyle(0xa855c8);
   g.fillTriangle(0, 8, 4, 0, 8, 8);
   g.fillStyle(0x7a3b8f);
   g.fillTriangle(2, 8, 4, 3, 6, 8);
-  g.generateTexture(TEX.shard, 8, 8);
+  gen(TEX.shard);
 
   g.clear();
   g.fillStyle(0xffd75e);
   g.fillTriangle(3, 0, 6, 3, 3, 6);
   g.fillTriangle(3, 0, 0, 3, 3, 6);
-  g.generateTexture(TEX.spark, 6, 6);
+  gen(TEX.spark);
 
   g.clear();
   g.fillStyle(0x8a7f96, 0.5);
   g.fillCircle(4, 4, 4);
-  g.generateTexture(TEX.dust, 8, 8);
+  gen(TEX.dust);
 
   g.clear();
   g.fillStyle(0xe0524d);
   g.fillCircle(2, 2.5, 2);
   g.fillCircle(4.5, 2.5, 2);
   g.fillTriangle(0.5, 3.5, 6, 3.5, 3.2, 6.5);
-  g.generateTexture(TEX.heart, 7, 7);
+  gen(TEX.heart);
 
   // Facing chevron (white, points +x; tinted per player and rotated).
   g.clear();
@@ -357,7 +382,7 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.fillTriangle(3, 2, 12, 7, 3, 12);
   g.fillStyle(0x000000, 0.35);
   g.fillTriangle(3, 4, 8, 7, 3, 10);
-  g.generateTexture(TEX.chevron, 14, 14);
+  gen(TEX.chevron);
 
   g.destroy();
 }
@@ -402,7 +427,7 @@ function drawHeroFrame(g: Phaser.GameObjects.Graphics, dir: number, pose: HeroPo
   g.lineStyle(pose === 'atk' ? 5 : 4, 0xd9e6f4);
   g.lineBetween(C + dx * 9 + px * 4, C + dy * 9 + py * 4, C + dx * reach + px * side, C + dy * reach + py * side);
 
-  g.generateTexture(key, 36, 36);
+  gen(key);
 }
 
 /** Egg mound in three damage states so hurt nodes read at a glance. */
@@ -448,7 +473,7 @@ function drawBroodNode(g: Phaser.GameObjects.Graphics, tier: number): void {
     g.fillCircle(39, 36, 2.5);
     g.fillCircle(33, 40, 2);
   }
-  g.generateTexture(broodNodeFrame(tier), 44, 44);
+  gen(broodNodeFrame(tier));
 }
 
 /** Dispatch: one draw routine per silhouette family, palette from the tier. */
@@ -489,7 +514,7 @@ function drawSkitter(g: Phaser.GameObjects.Graphics, pal: TierPalette, frame: En
   g.fillCircle(17, 9.5, 2);
   g.fillCircle(17, 14.5, 2);
 
-  g.generateTexture(key, 24, 24);
+  gen(key);
 }
 
 /** Husk: tall lumbering bruiser — broad plated torso, heavy arms, small head. */
@@ -530,7 +555,7 @@ function drawHusk(g: Phaser.GameObjects.Graphics, pal: TierPalette, frame: Enemy
   g.fillCircle(27, 14, 1.7);
   g.fillCircle(27, 18, 1.7);
 
-  g.generateTexture(key, 32, 32);
+  gen(key);
 }
 
 /** Spitter: ranged shape — bulbous rear sac, thin body, unmistakable funnel head. */
@@ -567,5 +592,5 @@ function drawSpitter(g: Phaser.GameObjects.Graphics, pal: TierPalette, frame: En
   g.fillCircle(16, 8, 1.6);
   g.fillCircle(16, 16, 1.6);
 
-  g.generateTexture(key, 28, 24);
+  gen(key);
 }

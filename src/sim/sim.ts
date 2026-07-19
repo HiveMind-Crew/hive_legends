@@ -10,6 +10,8 @@ import {
   type InputCommand,
   type PickupState,
   type PlayerState,
+  type ProjectileAttackDef,
+  type ProjectileState,
   type PropState,
   type SimConfig,
   type SimEvent,
@@ -100,6 +102,7 @@ export function createSim(config: SimConfig): Sim {
       generators,
       pickups,
       props,
+      projectiles: [],
       exitPos: tileCenter(level, level.exit.tx, level.exit.ty)
     }
   };
@@ -114,6 +117,7 @@ export function simTick(sim: Sim, inputs: readonly InputCommand[]): SimEvent[] {
     return events;
   }
   updatePlayers(sim, inputs, events);
+  updateProjectiles(sim, events);
   updateEnemies(sim, events);
   separateEnemies(sim);
   updateGenerators(sim, events);
@@ -155,7 +159,8 @@ function updatePlayers(sim: Sim, inputs: readonly InputCommand[], events: SimEve
 
     if (input.attack && p.attackCooldown === 0) {
       p.attackCooldown = hero.attack.cooldownTicks;
-      performMeleeAttack(sim, p, events);
+      if (hero.attack.kind === 'projectile') fireProjectile(sim, p, hero.attack, events);
+      else performMeleeAttack(sim, p, events);
     }
 
     if (input.ability && p.abilityCooldown === 0) {
@@ -168,7 +173,7 @@ function updatePlayers(sim: Sim, inputs: readonly InputCommand[], events: SimEve
 function performMeleeAttack(sim: Sim, p: PlayerState, events: SimEvent[]): void {
   const { content } = sim.config;
   const hero = content.heroes[p.heroId];
-  if (!hero) return;
+  if (!hero || hero.attack.kind !== 'melee') return;
   const atk = hero.attack;
   const damage = atk.damage + heroDamageBonus(sim, p);
   const cosHalfArc = Math.cos(((atk.arcDeg / 2) * Math.PI) / 180);
@@ -311,6 +316,102 @@ function damageGenerator(sim: Sim, g: GeneratorState, damage: number, events: Si
   } else {
     events.push({ type: 'generator-hit', generatorId: g.id, pos: { ...g.pos }, damage });
   }
+}
+
+function fireProjectile(sim: Sim, p: PlayerState, atk: ProjectileAttackDef, events: SimEvent[]): void {
+  const hero = sim.config.content.heroes[p.heroId];
+  if (!hero) return;
+  const dir = norm(p.facing);
+  const spawnDist = hero.radius + atk.radius + 1;
+  const projectile: ProjectileState = {
+    id: sim.state.nextEntityId++,
+    ownerId: p.id,
+    pos: { x: p.pos.x + dir.x * spawnDist, y: p.pos.y + dir.y * spawnDist },
+    vel: { x: dir.x * atk.speed, y: dir.y * atk.speed },
+    radius: atk.radius,
+    distanceLeft: atk.range,
+    pierceLeft: atk.pierce,
+    damage: atk.damage + heroDamageBonus(sim, p),
+    knockback: atk.knockback,
+    hitIds: []
+  };
+  sim.state.projectiles.push(projectile);
+  events.push({
+    type: 'projectile-fired',
+    playerId: p.id,
+    projectileId: projectile.id,
+    pos: { ...projectile.pos },
+    vel: { ...projectile.vel }
+  });
+}
+
+/** Advances bolts: fly, stop at walls, damage what they touch, pierce, expire. */
+function updateProjectiles(sim: Sim, events: SimEvent[]): void {
+  const s = sim.state;
+  if (s.projectiles.length === 0) return;
+  const { level, content } = sim.config;
+
+  const surviving: ProjectileState[] = [];
+  for (const bolt of s.projectiles) {
+    const stepLen = Math.hypot(bolt.vel.x, bolt.vel.y) * TICK_DT;
+    const next = { x: bolt.pos.x + bolt.vel.x * TICK_DT, y: bolt.pos.y + bolt.vel.y * TICK_DT };
+
+    if (circleHitsWall(level, next, bolt.radius)) {
+      events.push({ type: 'projectile-expired', projectileId: bolt.id, pos: { ...bolt.pos } });
+      continue;
+    }
+    bolt.pos = next;
+    bolt.distanceLeft -= stepLen;
+
+    let dead = false;
+    const dir = norm(bolt.vel);
+
+    for (const e of s.enemies) {
+      if (e.hp <= 0 || bolt.hitIds.includes(e.id)) continue;
+      const def = content.enemies[e.typeId];
+      if (!def) continue;
+      if (Math.hypot(e.pos.x - bolt.pos.x, e.pos.y - bolt.pos.y) > bolt.radius + def.radius) continue;
+      bolt.hitIds.push(e.id);
+      events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
+      damageEnemy(sim, e, bolt.damage, dir, bolt.knockback, bolt.ownerId, events);
+      if (bolt.pierceLeft <= 0) {
+        dead = true;
+        break;
+      }
+      bolt.pierceLeft--;
+    }
+
+    // Generators and props always stop a bolt (no piercing structures).
+    if (!dead) {
+      for (const g of s.generators) {
+        const gdef = content.generators[g.typeId];
+        if (!gdef || g.hp <= 0) continue;
+        if (Math.hypot(g.pos.x - bolt.pos.x, g.pos.y - bolt.pos.y) > bolt.radius + gdef.radius) continue;
+        events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
+        damageGenerator(sim, g, bolt.damage, events);
+        dead = true;
+        break;
+      }
+    }
+    if (!dead) {
+      for (const pr of s.props) {
+        const pdef = content.props[pr.typeId];
+        if (!pdef) continue;
+        if (Math.hypot(pr.pos.x - bolt.pos.x, pr.pos.y - bolt.pos.y) > bolt.radius + pdef.radius) continue;
+        events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
+        damageProp(sim, pr, bolt.damage, events);
+        dead = true;
+        break;
+      }
+    }
+
+    if (!dead && bolt.distanceLeft <= 0) {
+      events.push({ type: 'projectile-expired', projectileId: bolt.id, pos: { ...bolt.pos } });
+      dead = true;
+    }
+    if (!dead) surviving.push(bolt);
+  }
+  s.projectiles = surviving;
 }
 
 /** Props shatter on any damage and drop loot rolled from the seeded RNG. */

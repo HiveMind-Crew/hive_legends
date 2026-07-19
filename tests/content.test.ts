@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BROOD_WARRENS, CONTENT } from '../src/content';
+import { TEXTURE_SPECS } from '../src/game/textureSpecs';
 import { DECOR_KINDS, ENEMY_FAMILIES, ENEMY_TIERS } from '../src/sim/types';
 
 /**
@@ -32,5 +33,27 @@ describe('content validity', () => {
     }
     expect(BROOD_WARRENS.props?.length ?? 0).toBeGreaterThan(0);
     expect(BROOD_WARRENS.decor?.length ?? 0).toBeGreaterThan(0);
+  });
+
+  it('the texture spec table covers every composed frame family', () => {
+    // Hero: 8 directions x 3 poses + portrait alias.
+    for (let dir = 0; dir < 8; dir++) {
+      for (const pose of ['w0', 'w1', 'atk']) {
+        expect(TEXTURE_SPECS[`hero-vanguard-${dir}-${pose}`]).toBeDefined();
+      }
+    }
+    expect(TEXTURE_SPECS['hero-vanguard']).toBeDefined();
+    // Enemies: family x tier x frame.
+    for (const family of ENEMY_FAMILIES) {
+      for (const tier of ENEMY_TIERS) {
+        for (const frame of ['w0', 'w1', 'windup']) {
+          expect(TEXTURE_SPECS[`enemy-${family}-${tier}-${frame}`]).toBeDefined();
+        }
+      }
+    }
+    // Damage-tier and variant sets, plus every prop in content.
+    for (let t = 0; t < 3; t++) expect(TEXTURE_SPECS[`generator-brood-node-${t}`]).toBeDefined();
+    for (let v = 0; v < 4; v++) expect(TEXTURE_SPECS[`tile-floor-${v}`]).toBeDefined();
+    for (const id of Object.keys(CONTENT.props)) expect(TEXTURE_SPECS[`prop-${id}`]).toBeDefined();
   });
 });

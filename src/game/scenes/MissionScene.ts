@@ -449,6 +449,12 @@ export class MissionScene extends Phaser.Scene {
           this.deathPuff(ev.pos, 0xd9b26a, 0.8);
           this.burst(this.sparkFx, 4, ev.pos);
           break;
+        case 'projectile-fired':
+          this.burst(this.sparkFx, 2, ev.pos); // muzzle flick
+          break;
+        case 'projectile-expired':
+          this.burst(this.dustFx, 2, ev.pos);
+          break;
         case 'exit-opened':
           this.exitSprite.setVisible(true);
           this.exitGlow.setVisible(true);
@@ -654,6 +660,17 @@ export class MissionScene extends Phaser.Scene {
     for (const pr of s.props) {
       seen.add(pr.id);
       this.ensureSprite(pr.id, propTexture(pr.typeId)).setPosition(pr.pos.x, pr.pos.y).setDepth(pr.pos.y);
+    }
+
+    for (const bolt of s.projectiles) {
+      seen.add(bolt.id);
+      const spr = this.ensureSprite(bolt.id, TEX.bolt);
+      spr
+        .setPosition(bolt.pos.x, bolt.pos.y)
+        .setRotation(Math.atan2(bolt.vel.y, bolt.vel.x))
+        .setTint(0xffd75e)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(bolt.pos.y + 1);
     }
 
     for (const [id, spr] of this.sprites) {
