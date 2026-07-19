@@ -175,8 +175,32 @@ on any future failure.
 - Phaser bundle is ~1.5 MB (348 kB gzip); fine for now, consider code-splitting
   at content growth.
 
+## Content expansion roadmap (issues #15–#29)
+
+The look & feel track (#1–#9, tracking #10) is complete. The next board is
+the content expansion, orchestrated for parallel contributors and tracked in
+issue #29:
+
+- **Phase 1 — sim foundations**: projectiles/typed kits (#15 — DONE),
+  temporary power-ups (#16), keys/gates/secret walls (#17).
+- **Phase 2 — classes & combat**: Arcanist (#18), Ranger (#19), Sentinel
+  (#20), multi-hero roster (#21), weapon tiers (#22), Husk/Spitter/elite
+  enemies (#23).
+- **Phase 3 — levels & finale**: Realm 2 "The Resin Galleries" (#24), the
+  Broodmother boss (#25).
+- **Art track (parallel)**: drop-in asset pipeline + docs/ART.md (#26 —
+  DONE), character art pack (#27), environment/props/UI art pack (#28).
+
+#15 landed: attack defs are a typed union (melee | projectile), bolts are
+deterministic sim entities (wall-stopped, piercing, range-limited), with
+renderer bolts/muzzle/expiry effects and a synthesized pew. #26 landed:
+`public/art/<key>.png` + a manifest entry replaces any texture with zero
+code changes; sizes validated at boot against `src/game/textureSpecs.ts`
+(now the single source of truth for canvas sizes); artist contract in
+`docs/ART.md`; proven end-to-end with a throwaway override fixture.
+
 ## Next recommended task
 
-Add the Arcanist as the second hero (validates that hero kits are truly
-data-driven), then the elite enemy + boss encounter to complete the combat
-variety of the slice.
+The Arcanist (#18) — projectiles are in, so the second hero is now mostly
+content data + frames. #16/#17/#20/#22/#26-follow-ons remain open for
+parallel pickup.

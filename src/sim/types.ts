@@ -36,12 +36,30 @@ export type EntityId = number;
 // ---------------------------------------------------------------------------
 
 export interface MeleeAttackDef {
+  kind: 'melee';
   damage: number;
   range: number;
   arcDeg: number;
   knockback: number;
   cooldownTicks: number;
 }
+
+export interface ProjectileAttackDef {
+  kind: 'projectile';
+  damage: number;
+  /** Bolt speed in px/s. */
+  speed: number;
+  /** Bolt collision radius in px. */
+  radius: number;
+  /** Max flight distance in px. */
+  range: number;
+  cooldownTicks: number;
+  /** Extra enemies a bolt passes through after its first hit. */
+  pierce: number;
+  knockback: number;
+}
+
+export type AttackDef = MeleeAttackDef | ProjectileAttackDef;
 
 export interface AbilityDef {
   id: string;
@@ -60,7 +78,7 @@ export interface HeroDef {
   maxHp: number;
   moveSpeed: number; // world units (px) per second
   radius: number;
-  attack: MeleeAttackDef;
+  attack: AttackDef;
   ability: AbilityDef;
 }
 
@@ -238,6 +256,22 @@ export interface PropState {
   hp: number;
 }
 
+/** A player-fired bolt in flight. */
+export interface ProjectileState {
+  id: EntityId;
+  ownerId: EntityId;
+  pos: Vec2;
+  /** Velocity in px/s. */
+  vel: Vec2;
+  radius: number;
+  distanceLeft: number;
+  pierceLeft: number;
+  damage: number;
+  knockback: number;
+  /** Enemies already damaged by this bolt (a pierced bolt must not re-hit). */
+  hitIds: EntityId[];
+}
+
 export type MissionPhase = 'combat' | 'exit-open' | 'complete' | 'failed';
 
 export interface SimState {
@@ -250,6 +284,7 @@ export interface SimState {
   generators: GeneratorState[];
   pickups: PickupState[];
   props: PropState[];
+  projectiles: ProjectileState[];
   exitPos: Vec2;
 }
 
@@ -259,6 +294,9 @@ export interface SimState {
 
 export type SimEvent =
   | { type: 'attack'; playerId: EntityId; pos: Vec2; facing: Vec2 }
+  | { type: 'projectile-fired'; playerId: EntityId; projectileId: EntityId; pos: Vec2; vel: Vec2 }
+  | { type: 'projectile-hit'; projectileId: EntityId; pos: Vec2 }
+  | { type: 'projectile-expired'; projectileId: EntityId; pos: Vec2 }
   | { type: 'ability'; playerId: EntityId; pos: Vec2; radius: number }
   | { type: 'enemy-hit'; enemyId: EntityId; pos: Vec2; damage: number }
   | { type: 'enemy-died'; enemyId: EntityId; typeId: string; pos: Vec2; byPlayer: EntityId; damage: number }
