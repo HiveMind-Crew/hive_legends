@@ -4,6 +4,8 @@ import {
   EMPTY_INPUT,
   NO_MODIFIERS,
   TICK_DT,
+  type BlastAbilityDef,
+  type DashVolleyAbilityDef,
   type EnemyState,
   type GeneratorDef,
   type GeneratorState,
@@ -214,10 +216,42 @@ function performMeleeAttack(sim: Sim, p: PlayerState, events: SimEvent[]): void 
 }
 
 function performAbility(sim: Sim, p: PlayerState, events: SimEvent[]): void {
-  const { content } = sim.config;
+  const hero = sim.config.content.heroes[p.heroId];
+  if (!hero) return;
+  if (hero.ability.kind === 'dash-volley') performDashVolley(sim, p, hero.ability, events);
+  else performBlast(sim, p, hero.ability, events);
+}
+
+/**
+ * Volley Step: an instant, wall-clipped dash along the facing that leaves a
+ * fan of the hero's own darts fired backward across the vacated ground. No
+ * i-frames (kept simple, per design). Fully deterministic: fixed dash vector,
+ * fixed fan angles, no RNG.
+ */
+function performDashVolley(sim: Sim, p: PlayerState, ab: DashVolleyAbilityDef, events: SimEvent[]): void {
+  const { level, content } = sim.config;
   const hero = content.heroes[p.heroId];
   if (!hero) return;
-  const ab = hero.ability;
+  const dir = norm(p.facing);
+  const from = { ...p.pos };
+  moveCircle(level, p.pos, hero.radius, dir.x * ab.dashPx, dir.y * ab.dashPx);
+  resolveStaticCircles(sim, p.pos, hero.radius);
+  events.push({ type: 'ability-dash', playerId: p.id, from, to: { ...p.pos } });
+
+  // Spray darts backward along the dash. Reuses the hero's projectile attack
+  // so the volley IS the same thorn dart (piercing, ranged) as the basic shot.
+  if (hero.attack.kind !== 'projectile') return;
+  const baseAngle = Math.atan2(-dir.y, -dir.x);
+  const spread = (ab.spreadDeg * Math.PI) / 180;
+  for (let i = 0; i < ab.dartCount; i++) {
+    const frac = ab.dartCount > 1 ? i / (ab.dartCount - 1) : 0.5;
+    const angle = baseAngle + (frac - 0.5) * spread;
+    spawnProjectile(sim, p, hero.attack, { x: Math.cos(angle), y: Math.sin(angle) }, events);
+  }
+}
+
+function performBlast(sim: Sim, p: PlayerState, ab: BlastAbilityDef, events: SimEvent[]): void {
+  const { content } = sim.config;
   const damage = ab.damage + heroDamageBonus(sim, p);
   // Cast center: at the player, or projected along the facing (Resin Cage).
   const offset = ab.offsetPx ?? 0;
@@ -326,9 +360,14 @@ function damageGenerator(sim: Sim, g: GeneratorState, damage: number, events: Si
 }
 
 function fireProjectile(sim: Sim, p: PlayerState, atk: ProjectileAttackDef, events: SimEvent[]): void {
+  spawnProjectile(sim, p, atk, p.facing, events);
+}
+
+/** Spawns one bolt from the player along an arbitrary direction. */
+function spawnProjectile(sim: Sim, p: PlayerState, atk: ProjectileAttackDef, dirIn: Vec2, events: SimEvent[]): void {
   const hero = sim.config.content.heroes[p.heroId];
   if (!hero) return;
-  const dir = norm(p.facing);
+  const dir = norm(dirIn);
   const spawnDist = hero.radius + atk.radius + 1;
   const projectile: ProjectileState = {
     id: sim.state.nextEntityId++,

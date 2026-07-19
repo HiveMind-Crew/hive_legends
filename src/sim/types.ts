@@ -61,13 +61,18 @@ export interface ProjectileAttackDef {
 
 export type AttackDef = MeleeAttackDef | ProjectileAttackDef;
 
-export interface AbilityDef {
+interface AbilityBase {
   id: string;
   name: string;
+  cooldownTicks: number;
+}
+
+/** Area burst centered on (or offset ahead of) the caster. */
+export interface BlastAbilityDef extends AbilityBase {
+  kind: 'blast';
   damage: number;
   radius: number;
   knockback: number;
-  cooldownTicks: number;
   /** Cast center offset along the facing, in px (default 0 = self-centered). */
   offsetPx?: number;
   /** Enemies hit are slowed for this many ticks (with slowMult applied). */
@@ -75,6 +80,23 @@ export interface AbilityDef {
   /** Movement-speed multiplier while slowed (e.g. 0.1 = near-rooted). */
   slowMult?: number;
 }
+
+/**
+ * Reposition dash that sprays a fan of the hero's own projectile darts
+ * backward along the dash. The dash is an instant, wall-clipped move (no
+ * i-frames); the darts reuse the hero's projectile attack def.
+ */
+export interface DashVolleyAbilityDef extends AbilityBase {
+  kind: 'dash-volley';
+  /** Dash distance along the facing, in px (wall-clipped via moveCircle). */
+  dashPx: number;
+  /** Number of darts sprayed backward across the fan. */
+  dartCount: number;
+  /** Total angular spread of the backward fan, in degrees. */
+  spreadDeg: number;
+}
+
+export type AbilityDef = BlastAbilityDef | DashVolleyAbilityDef;
 
 export interface HeroDef {
   id: string;
@@ -307,6 +329,7 @@ export type SimEvent =
   | { type: 'projectile-hit'; projectileId: EntityId; pos: Vec2 }
   | { type: 'projectile-expired'; projectileId: EntityId; pos: Vec2 }
   | { type: 'ability'; playerId: EntityId; pos: Vec2; radius: number }
+  | { type: 'ability-dash'; playerId: EntityId; from: Vec2; to: Vec2 }
   | { type: 'enemy-hit'; enemyId: EntityId; pos: Vec2; damage: number }
   | { type: 'enemy-died'; enemyId: EntityId; typeId: string; pos: Vec2; byPlayer: EntityId; damage: number }
   | { type: 'enemy-spawned'; enemyId: EntityId; typeId: string; pos: Vec2 }

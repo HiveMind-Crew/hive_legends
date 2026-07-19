@@ -12,14 +12,26 @@ import { TEX, enemyFrame, heroFrame } from '../textures';
  * teasing locked slots. All generated art, no binary assets.
  */
 
-const LOCKED_ROLES = ['Ranger', 'Sentinel'];
+const LOCKED_ROLES = ['Sentinel'];
 
 // Stat bars normalize hero data against these slice-era ceilings.
 const STAT_CEILING = { power: 50, speed: 260, toughness: 220, control: 600 };
 
-/** The Arcanist joins the roster after the first cleared mission. */
+/** Missions that must be cleared before a hero can be recruited. */
+const HERO_UNLOCK_MISSIONS: Record<string, number> = { vanguard: 0, arcanist: 1, ranger: 2 };
+
 function heroUnlocked(heroId: string, missionsCompleted: number): boolean {
-  return heroId === 'vanguard' || missionsCompleted >= 1;
+  return missionsCompleted >= (HERO_UNLOCK_MISSIONS[heroId] ?? 0);
+}
+
+/**
+ * A single "crowd control" score for the stat bar, however the ability
+ * achieves it: raw knockback or slow strength for blasts, dash reach for the
+ * skirmisher's reposition.
+ */
+function abilityControl(ability: HeroDef['ability']): number {
+  if (ability.kind === 'dash-volley') return ability.dashPx + ability.dartCount * 20;
+  return Math.max(ability.knockback, (ability.slowTicks ?? 0) * 3.5);
 }
 
 export class HeroSelectScene extends Phaser.Scene {
@@ -238,9 +250,9 @@ export class HeroSelectScene extends Phaser.Scene {
         .setOrigin(0.5);
     }
 
-    // Stat bars instead of raw numbers (modifier-adjusted). Control counts
-    // either raw knockback or crowd-binding (slow) strength.
-    const control = Math.max(hero.ability.knockback, (hero.ability.slowTicks ?? 0) * 3.5);
+    // Stat bars instead of raw numbers (modifier-adjusted). Control folds
+    // knockback, crowd-binding, or dash reach into one score (see helper).
+    const control = abilityControl(hero.ability);
     const stats: { label: string; value: number; max: number }[] = [
       { label: 'POWER', value: hero.attack.damage + mods.damageBonus, max: STAT_CEILING.power },
       { label: 'SPEED', value: hero.moveSpeed, max: STAT_CEILING.speed },
