@@ -57,7 +57,7 @@ interface HeroStyle {
   crest: number;
   feet: number;
   outline: number;
-  weapon: 'blade' | 'staff' | 'bow';
+  weapon: 'blade' | 'staff' | 'bow' | 'maul';
   weaponColor: number;
 }
 
@@ -91,6 +91,16 @@ const HERO_STYLES: Record<string, HeroStyle> = {
     outline: 0x173a26,
     weapon: 'bow',
     weaponColor: 0xcaa66a
+  },
+  sentinel: {
+    body: 0x8f96a3,
+    inner: 0x5b6270,
+    trim: 0xc2c8d2,
+    crest: 0xe6b45a,
+    feet: 0x2b2f38,
+    outline: 0x2a2e36,
+    weapon: 'maul',
+    weaponColor: 0xb9c0cc
   }
 };
 
@@ -475,7 +485,32 @@ function drawHeroFrame(g: Phaser.GameObjects.Graphics, style: HeroStyle, dir: nu
   g.fillStyle(style.crest);
   g.fillCircle(C + dx * 5, C + dy * 5, 3);
 
-  if (style.weapon === 'bow') {
+  if (style.weapon === 'maul') {
+    // Tower shield held to the left of the facing (broad enough to read at
+    // 36px); a stubby maul juts forward, hoisted higher on the attack sweep.
+    const sx = C - px * 8; // shield sits on the perpendicular (left) side
+    const sy = C - py * 8;
+    g.fillStyle(0x3b4049);
+    g.fillEllipse(sx + dx, sy + dy, 15, 20); // shield backing/shadow
+    g.fillStyle(style.trim);
+    g.fillEllipse(sx, sy, 13, 18); // shield face
+    g.fillStyle(style.inner);
+    g.fillEllipse(sx, sy, 6, 11); // boss
+    g.lineStyle(1.5, style.outline);
+    g.strokeEllipse(sx, sy, 13, 18);
+
+    // Maul: haft + heavy head out toward the facing (raised on attack).
+    const reach = pose === 'atk' ? 16 : 12;
+    const side = 5;
+    const hx = C + dx * reach + px * side;
+    const hy = C + dy * reach + py * side;
+    g.lineStyle(3, 0x6a5636);
+    g.lineBetween(C + px * side, C + py * side, hx, hy);
+    g.fillStyle(style.weaponColor);
+    g.fillCircle(hx, hy, pose === 'atk' ? 5 : 4);
+    g.lineStyle(1.5, style.outline);
+    g.strokeCircle(hx, hy, pose === 'atk' ? 5 : 4);
+  } else if (style.weapon === 'bow') {
     // Shortbow held crosswise (across the facing) ahead of the body; on the
     // attack pose the stave bends and a nocked dart points along the facing.
     const fwd = pose === 'atk' ? 11 : 8;

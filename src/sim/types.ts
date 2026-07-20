@@ -96,7 +96,24 @@ export interface DashVolleyAbilityDef extends AbilityBase {
   spreadDeg: number;
 }
 
-export type AbilityDef = BlastAbilityDef | DashVolleyAbilityDef;
+/**
+ * Timed guard stance: while active, incoming damage is scaled down, movement
+ * is slowed, and each blocked hit shoves the attacker back. Magnitudes are
+ * data; the runtime effect lives on PlayerState.guardTicks.
+ */
+export interface GuardAbilityDef extends AbilityBase {
+  kind: 'guard';
+  /** How long the stance holds, in ticks. */
+  durationTicks: number;
+  /** Incoming-damage multiplier while guarding (e.g. 0.25). */
+  damageMult: number;
+  /** Move-speed multiplier while guarding (e.g. 0.5). */
+  moveMult: number;
+  /** Knockback impulse reflected onto an attacker whose hit is blocked. */
+  reflectKnockback: number;
+}
+
+export type AbilityDef = BlastAbilityDef | DashVolleyAbilityDef | GuardAbilityDef;
 
 export interface HeroDef {
   id: string;
@@ -121,6 +138,17 @@ export type EnemyFamily = (typeof ENEMY_FAMILIES)[number];
 export const ENEMY_TIERS = ['common', 'veteran', 'elite'] as const;
 export type EnemyTier = (typeof ENEMY_TIERS)[number];
 
+/** A ranged enemy attack: at attackRange, the enemy spits a hostile bolt. */
+export interface EnemyRangedDef {
+  /** Bolt speed in px/s. */
+  projectileSpeed: number;
+  /** Bolt collision radius in px. */
+  projectileRadius: number;
+  projectileDamage: number;
+  /** Max flight distance in px. */
+  projectileRange: number;
+}
+
 export interface EnemyDef {
   id: string;
   name: string;
@@ -136,6 +164,8 @@ export interface EnemyDef {
   attackCooldownTicks: number;
   goldMin: number;
   goldMax: number;
+  /** If present, the enemy fires hostile bolts at attackRange instead of meleeing. */
+  ranged?: EnemyRangedDef;
 }
 
 /** One-shot frenzy when a generator first drops to low HP. */
@@ -243,6 +273,8 @@ export interface PlayerState {
   attackCooldown: number;
   abilityCooldown: number;
   invulnTicks: number;
+  /** Ticks of guard stance remaining (Sentinel's Bastion Wall; 0 = not guarding). */
+  guardTicks: number;
   alive: boolean;
 }
 
@@ -287,7 +319,7 @@ export interface PropState {
   hp: number;
 }
 
-/** A player-fired bolt in flight. */
+/** A bolt in flight. Player-fired bolts strike enemies; hostile ones strike players. */
 export interface ProjectileState {
   id: EntityId;
   ownerId: EntityId;
@@ -301,6 +333,8 @@ export interface ProjectileState {
   knockback: number;
   /** Enemies already damaged by this bolt (a pierced bolt must not re-hit). */
   hitIds: EntityId[];
+  /** True for enemy fire (hits players); false for player fire (hits enemies). */
+  hostile: boolean;
 }
 
 export type MissionPhase = 'combat' | 'exit-open' | 'complete' | 'failed';
@@ -326,10 +360,13 @@ export interface SimState {
 export type SimEvent =
   | { type: 'attack'; playerId: EntityId; pos: Vec2; facing: Vec2 }
   | { type: 'projectile-fired'; playerId: EntityId; projectileId: EntityId; pos: Vec2; vel: Vec2 }
+  | { type: 'enemy-shot'; enemyId: EntityId; projectileId: EntityId; pos: Vec2; vel: Vec2 }
   | { type: 'projectile-hit'; projectileId: EntityId; pos: Vec2 }
   | { type: 'projectile-expired'; projectileId: EntityId; pos: Vec2 }
   | { type: 'ability'; playerId: EntityId; pos: Vec2; radius: number }
   | { type: 'ability-dash'; playerId: EntityId; from: Vec2; to: Vec2 }
+  | { type: 'ability-guard'; playerId: EntityId; pos: Vec2; durationTicks: number }
+  | { type: 'guard-block'; playerId: EntityId; enemyId: EntityId; pos: Vec2 }
   | { type: 'enemy-hit'; enemyId: EntityId; pos: Vec2; damage: number }
   | { type: 'enemy-died'; enemyId: EntityId; typeId: string; pos: Vec2; byPlayer: EntityId; damage: number }
   | { type: 'enemy-spawned'; enemyId: EntityId; typeId: string; pos: Vec2 }

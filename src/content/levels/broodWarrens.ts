@@ -3,8 +3,9 @@ import type { LevelDef } from '../../sim/types';
 /**
  * Mission 1: The Brood Warrens.
  * A compact three-chamber warren. The party starts in the west hall, fights
- * through two Brood Nodes in the eastern chambers, then reaches the exit in
- * the south-west vault once every node is destroyed.
+ * through three spawners in the eastern chambers — a skitterling Brood Node, a
+ * Husk Mound, and a Spitter Nest — then reaches the exit in the south-west
+ * vault once every spawner is destroyed.
  *
  * 32 x 24 tiles, '#' = wall, '.' = floor.
  */
@@ -45,8 +46,9 @@ export const BROOD_WARRENS: LevelDef = {
     { tx: 6, ty: 5 }
   ],
   generators: [
-    { typeId: 'brood-node', tx: 24, ty: 5 },
-    { typeId: 'brood-node', tx: 24, ty: 15 }
+    { typeId: 'brood-node', tx: 24, ty: 5 }, // skitterling swarm (north-east)
+    { typeId: 'husk-mound', tx: 24, ty: 15 }, // tanky husk bruisers (mid-east)
+    { typeId: 'spitter-nest', tx: 27, ty: 18 } // ranged spitters (south-east)
   ],
   pickups: [
     { kind: 'gold', amount: 10, tx: 8, ty: 3 },

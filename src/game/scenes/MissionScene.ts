@@ -32,6 +32,9 @@ export interface HudPlayerInfo {
   kills: number;
   abilityCooldown: number;
   abilityMax: number;
+  /** Guard-stance ticks remaining and the stance's full duration (0 if none). */
+  guardTicks: number;
+  guardMax: number;
   alive: boolean;
 }
 
@@ -89,6 +92,7 @@ export class MissionScene extends Phaser.Scene {
   private exitSprite!: Phaser.GameObjects.Image;
   private heroId = 'vanguard';
   private slowedIds = new Set<EntityId>();
+  private guardGlow = new Map<EntityId, Phaser.GameObjects.Image>();
   private ended = false;
   private hitStopMs = 0;
   private camFollow = { x: 0, y: 0 };
@@ -129,6 +133,7 @@ export class MissionScene extends Phaser.Scene {
     this.genPopAt.clear();
     this.hatchAtTick.clear();
     this.slowedIds.clear();
+    this.guardGlow.clear();
     this.hitStopMs = 0;
     this.camKick = { x: 0, y: 0 };
     this.trailCount = 0;
@@ -311,6 +316,8 @@ export class MissionScene extends Phaser.Scene {
           kills: p.kills,
           abilityCooldown: p.abilityCooldown,
           abilityMax: hero?.ability.cooldownTicks ?? 1,
+          guardTicks: p.guardTicks,
+          guardMax: hero?.ability.kind === 'guard' ? hero.ability.durationTicks : 0,
           alive: p.alive
         };
       }),
@@ -401,6 +408,16 @@ export class MissionScene extends Phaser.Scene {
         case 'ability-dash':
           this.dashTrail(ev.playerId, ev.from, ev.to);
           break;
+        case 'ability-guard':
+          this.cameras.main.flash(60, 150, 175, 210);
+          this.flashRing(ev.pos, 40, 0xc2c8d2);
+          break;
+        case 'guard-block':
+          // Sparks off the shield plus a small camera nudge on the block.
+          this.burst(this.sparkFx, 4, ev.pos);
+          this.flashRing(ev.pos, 18, 0xdfe6f2);
+          this.hitStop(20);
+          break;
         case 'enemy-hit':
           this.tintFlash(this.spriteFor(ev), 0xffffff);
           this.damageNumber(ev.pos, ev.damage, '#f4e3b2');
@@ -468,6 +485,9 @@ export class MissionScene extends Phaser.Scene {
         case 'projectile-fired':
           this.burst(this.sparkFx, 2, ev.pos); // muzzle flick
           break;
+        case 'enemy-shot':
+          this.burst(this.ichorFx, 3, ev.pos); // bile muzzle spit
+          break;
         case 'projectile-expired':
           this.burst(this.dustFx, 2, ev.pos);
           break;
@@ -531,6 +551,17 @@ export class MissionScene extends Phaser.Scene {
       if (!p.alive) spr.setTint(0x555555);
 
       this.ensureShadow(p.id).setPosition(p.pos.x, p.pos.y + 10);
+
+      // Bastion Wall: a steel shield-glow ring pulses beneath the hero while
+      // the guard stance is up.
+      const guarding = p.guardTicks > 0;
+      let gg = this.guardGlow.get(p.id);
+      if (!gg) {
+        gg = this.add.image(0, 0, TEX.glow).setBlendMode(Phaser.BlendModes.ADD).setTint(0xbcd0ee);
+        this.guardGlow.set(p.id, gg);
+      }
+      gg.setVisible(guarding).setPosition(p.pos.x, p.pos.y).setDepth(p.pos.y - 1);
+      if (guarding) gg.setScale(1.7).setAlpha(0.35 + 0.18 * Math.sin(this.time.now / 110));
 
       const accent = playerAccent(index);
       let ring = this.rings.get(p.id);
@@ -694,7 +725,8 @@ export class MissionScene extends Phaser.Scene {
       spr
         .setPosition(bolt.pos.x, bolt.pos.y)
         .setRotation(Math.atan2(bolt.vel.y, bolt.vel.x))
-        .setTint(0xffd75e)
+        // Enemy bile reads sickly-green; player bolts stay hot gold.
+        .setTint(bolt.hostile ? 0x9fe06a : 0xffd75e)
         .setBlendMode(Phaser.BlendModes.ADD)
         .setDepth(bolt.pos.y + 1);
     }
@@ -708,7 +740,7 @@ export class MissionScene extends Phaser.Scene {
         this.genPopAt.delete(id);
         this.hatchAtTick.delete(id);
         this.slowedIds.delete(id);
-        for (const map of [this.shadows, this.rings, this.chevrons]) {
+        for (const map of [this.shadows, this.rings, this.chevrons, this.guardGlow]) {
           map.get(id)?.destroy();
           map.delete(id);
         }
