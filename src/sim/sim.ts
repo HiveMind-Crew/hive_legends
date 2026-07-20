@@ -1,4 +1,4 @@
-import { moveCircle, circleHitsWall, tileCenter } from './level';
+import { moveCircle, circleHitsWall, tileCenter, type Blockage } from './level';
 import { rngIntRange, rngNext, rngSeed } from './rng';
 import {
   EMPTY_INPUT,
@@ -10,7 +10,9 @@ import {
   type DashVolleyAbilityDef,
   type EnemyRangedDef,
   type EnemyState,
+  type GateState,
   type GuardAbilityDef,
+  type SecretWallState,
   type GeneratorDef,
   type GeneratorState,
   type InputCommand,
@@ -30,6 +32,8 @@ const ENEMY_HITSTUN_TICKS = 10;
 const KNOCKBACK_DECAY = 0.85;
 const EXIT_RADIUS = 26;
 const PICKUP_RADIUS = 14;
+const SECRET_WALL_HP = 60;
+const SECRET_RADIUS = 15; // secret walls fill roughly a tile for attack collision
 
 export interface Sim {
   state: SimState;
@@ -61,6 +65,7 @@ export function createSim(config: SimConfig): Sim {
       invulnTicks: 0,
       guardTicks: 0,
       power: emptyPowerTimers(),
+      keys: 0,
       alive: true
     };
   });
@@ -99,6 +104,23 @@ export function createSim(config: SimConfig): Sim {
     };
   });
 
+  const gates: GateState[] = (level.gates ?? []).map((g) => ({
+    id: nextEntityId++,
+    tx: g.tx,
+    ty: g.ty,
+    pos: tileCenter(level, g.tx, g.ty),
+    locked: true
+  }));
+
+  const secrets: SecretWallState[] = (level.secrets ?? []).map((sw) => ({
+    id: nextEntityId++,
+    tx: sw.tx,
+    ty: sw.ty,
+    pos: tileCenter(level, sw.tx, sw.ty),
+    hp: sw.hp ?? SECRET_WALL_HP,
+    maxHp: sw.hp ?? SECRET_WALL_HP
+  }));
+
   return {
     config,
     state: {
@@ -111,6 +133,8 @@ export function createSim(config: SimConfig): Sim {
       generators,
       pickups,
       props,
+      gates,
+      secrets,
       projectiles: [],
       exitPos: tileCenter(level, level.exit.tx, level.exit.ty)
     }
@@ -131,6 +155,7 @@ export function simTick(sim: Sim, inputs: readonly InputCommand[]): SimEvent[] {
   separateEnemies(sim);
   updateGenerators(sim, events);
   collectPickups(sim, events);
+  updateGates(sim, events);
   updateObjective(sim, events);
 
   s.tick++;
@@ -167,7 +192,7 @@ function updatePlayers(sim: Sim, inputs: readonly InputCommand[], events: SimEve
       const guard = hero.ability.kind === 'guard' && p.guardTicks > 0 ? hero.ability : null;
       const moveMult = (guard ? guard.moveMult : 1) * powerMult(sim, p, 'speedMult');
       const step = hero.moveSpeed * moveMult * TICK_DT;
-      moveCircle(level, p.pos, hero.radius, mx * step, my * step);
+      moveCircle(level, p.pos, hero.radius, mx * step, my * step, blockOf(sim, true));
       resolveStaticCircles(sim, p.pos, hero.radius);
     }
 
@@ -225,6 +250,14 @@ function performMeleeAttack(sim: Sim, p: PlayerState, events: SimEvent[]): void 
     if (dir.x * p.facing.x + dir.y * p.facing.y < cosHalfArc) continue;
     damageProp(sim, pr, damage, events);
   }
+  for (const sw of sim.state.secrets) {
+    const d = sub(sw.pos, p.pos);
+    const dist = Math.hypot(d.x, d.y);
+    if (dist > atk.range + SECRET_RADIUS) continue;
+    const dir = dist > 1e-6 ? { x: d.x / dist, y: d.y / dist } : { ...p.facing };
+    if (dir.x * p.facing.x + dir.y * p.facing.y < cosHalfArc) continue;
+    damageSecret(sim, sw, damage, events);
+  }
 }
 
 function performAbility(sim: Sim, p: PlayerState, events: SimEvent[]): void {
@@ -253,7 +286,7 @@ function performDashVolley(sim: Sim, p: PlayerState, ab: DashVolleyAbilityDef, e
   if (!hero) return;
   const dir = norm(p.facing);
   const from = { ...p.pos };
-  moveCircle(level, p.pos, hero.radius, dir.x * ab.dashPx, dir.y * ab.dashPx);
+  moveCircle(level, p.pos, hero.radius, dir.x * ab.dashPx, dir.y * ab.dashPx, blockOf(sim, true));
   resolveStaticCircles(sim, p.pos, hero.radius);
   events.push({ type: 'ability-dash', playerId: p.id, from, to: { ...p.pos } });
 
@@ -305,6 +338,11 @@ function performBlast(sim: Sim, p: PlayerState, ab: BlastAbilityDef, events: Sim
     const dist = Math.hypot(pr.pos.x - center.x, pr.pos.y - center.y);
     if (dist > ab.radius + pdef.radius) continue;
     damageProp(sim, pr, damage, events);
+  }
+  for (const sw of sim.state.secrets) {
+    const dist = Math.hypot(sw.pos.x - center.x, sw.pos.y - center.y);
+    if (dist > ab.radius + SECRET_RADIUS) continue;
+    damageSecret(sim, sw, damage, events);
   }
 }
 
@@ -472,11 +510,12 @@ function updateProjectiles(sim: Sim, events: SimEvent[]): void {
   const { level, content } = sim.config;
 
   const surviving: ProjectileState[] = [];
+  const barrier = blockOf(sim, false); // gates stop bolts; secrets take damage instead
   for (const bolt of s.projectiles) {
     const stepLen = Math.hypot(bolt.vel.x, bolt.vel.y) * TICK_DT;
     const next = { x: bolt.pos.x + bolt.vel.x * TICK_DT, y: bolt.pos.y + bolt.vel.y * TICK_DT };
 
-    if (circleHitsWall(level, next, bolt.radius)) {
+    if (circleHitsWall(level, next, bolt.radius, barrier)) {
       events.push({ type: 'projectile-expired', projectileId: bolt.id, pos: { ...bolt.pos } });
       continue;
     }
@@ -524,6 +563,16 @@ function updateProjectiles(sim: Sim, events: SimEvent[]): void {
           if (Math.hypot(pr.pos.x - bolt.pos.x, pr.pos.y - bolt.pos.y) > bolt.radius + pdef.radius) continue;
           events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
           damageProp(sim, pr, bolt.damage, events);
+          dead = true;
+          break;
+        }
+      }
+      // Player bolts chip secret walls open too.
+      if (!dead) {
+        for (const sw of s.secrets) {
+          if (Math.hypot(sw.pos.x - bolt.pos.x, sw.pos.y - bolt.pos.y) > bolt.radius + SECRET_RADIUS) continue;
+          events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
+          damageSecret(sim, sw, bolt.damage, events);
           dead = true;
           break;
         }
@@ -594,6 +643,7 @@ function damageProp(sim: Sim, pr: PropState, damage: number, events: SimEvent[])
 function updateEnemies(sim: Sim, events: SimEvent[]): void {
   const s = sim.state;
   const { level, content } = sim.config;
+  const blk = blockOf(sim, true);
 
   for (const e of s.enemies) {
     const def = content.enemies[e.typeId];
@@ -604,7 +654,7 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
     // Knockback overrides steering while it is meaningful.
     const kbMag = Math.hypot(e.knockback.x, e.knockback.y);
     if (kbMag > 1) {
-      moveCircle(level, e.pos, def.radius, e.knockback.x * TICK_DT, e.knockback.y * TICK_DT);
+      moveCircle(level, e.pos, def.radius, e.knockback.x * TICK_DT, e.knockback.y * TICK_DT, blk);
       e.knockback.x *= KNOCKBACK_DECAY;
       e.knockback.y *= KNOCKBACK_DECAY;
     } else {
@@ -623,7 +673,7 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
 
     if (dist > def.attackRange) {
       const step = def.moveSpeed * (e.slowTicks > 0 ? e.slowMult : 1) * TICK_DT;
-      moveCircle(level, e.pos, def.radius, (d.x / dist) * step, (d.y / dist) * step);
+      moveCircle(level, e.pos, def.radius, (d.x / dist) * step, (d.y / dist) * step, blk);
     } else if (e.attackCooldown === 0 && (def.ranged || target.invulnTicks === 0)) {
       e.attackCooldown = def.attackCooldownTicks;
       // Ranged families spit a hostile bolt; melee families strike on contact.
@@ -657,6 +707,7 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
 /** Light pairwise push-apart so hordes read as a crowd, not a stack. */
 function separateEnemies(sim: Sim): void {
   const { level, content } = sim.config;
+  const blk = blockOf(sim, true);
   const enemies = sim.state.enemies;
   for (let i = 0; i < enemies.length; i++) {
     for (let j = i + 1; j < enemies.length; j++) {
@@ -672,8 +723,8 @@ function separateEnemies(sim: Sim): void {
       const push = (minDist - dist) / 2;
       const nx = d.x / dist;
       const ny = d.y / dist;
-      moveCircle(level, a.pos, ra, -nx * push, -ny * push);
-      moveCircle(level, b.pos, rb, nx * push, ny * push);
+      moveCircle(level, a.pos, ra, -nx * push, -ny * push, blk);
+      moveCircle(level, b.pos, rb, nx * push, ny * push, blk);
     }
   }
 }
@@ -704,7 +755,7 @@ function updateGenerators(sim: Sim, events: SimEvent[]): void {
       const angle = v * Math.PI * 2;
       const dist = def.radius + enemyDef.radius + 6;
       const pos = { x: g.pos.x + Math.cos(angle) * dist, y: g.pos.y + Math.sin(angle) * dist };
-      if (circleHitsWall(level, pos, enemyDef.radius)) continue;
+      if (circleHitsWall(level, pos, enemyDef.radius, blockOf(sim, true))) continue;
       const enemy: EnemyState = {
         id: s.nextEntityId++,
         typeId: enemyDef.id,
@@ -751,6 +802,9 @@ function collectPickups(sim: Sim, events: SimEvent[]): void {
         // (Re)start the buff timer; grabbing the same relic again refreshes it.
         p.power[pk.power] = content.powerups[pk.power].durationTicks;
         events.push({ type: 'powerup-gained', playerId: p.id, power: pk.power, pos: { ...pk.pos } });
+      } else if (pk.kind === 'key') {
+        p.keys += pk.amount;
+        events.push({ type: 'pickup-collected', playerId: p.id, kind: pk.kind, amount: pk.amount, pos: { ...pk.pos } });
       } else {
         p.gold += pk.amount;
         events.push({ type: 'pickup-collected', playerId: p.id, kind: pk.kind, amount: pk.amount, pos: { ...pk.pos } });
@@ -801,6 +855,51 @@ function resolveStaticCircles(sim: Sim, pos: Vec2, radius: number): void {
     if (dist >= minDist || dist < 1e-6) continue;
     pos.x = g.pos.x + (d.x / dist) * minDist;
     pos.y = g.pos.y + (d.y / dist) * minDist;
+  }
+}
+
+/**
+ * The current dynamic collision overlay (issue #17): locked gates always
+ * block; intact secret walls block movement (`includeSecrets`) but not
+ * projectiles (bolts damage them via an explicit collision instead, so a
+ * secret can be shot open once its guarding gate is passed).
+ */
+function blockOf(sim: Sim, includeSecrets: boolean): Blockage {
+  const s = sim.state;
+  const width = sim.config.level.walls[0]?.length ?? 0;
+  const blockedTiles: number[] = [];
+  for (const g of s.gates) if (g.locked) blockedTiles.push(g.ty * width + g.tx);
+  if (includeSecrets) for (const sw of s.secrets) blockedTiles.push(sw.ty * width + sw.tx);
+  return { blockedTiles, width };
+}
+
+/** A player standing against a locked gate with a key in hand opens it. */
+function updateGates(sim: Sim, events: SimEvent[]): void {
+  const { content, level } = sim.config;
+  for (const gate of sim.state.gates) {
+    if (!gate.locked) continue;
+    for (const p of sim.state.players) {
+      if (!p.alive || p.keys <= 0) continue;
+      const hero = content.heroes[p.heroId];
+      if (!hero) continue;
+      const reach = hero.radius + level.tileSize * 0.6;
+      if (Math.hypot(p.pos.x - gate.pos.x, p.pos.y - gate.pos.y) > reach) continue;
+      p.keys -= 1;
+      gate.locked = false;
+      events.push({ type: 'gate-opened', gateId: gate.id, pos: { ...gate.pos } });
+      break;
+    }
+  }
+}
+
+/** A secret wall takes damage; at zero HP it crumbles into an open passage. */
+function damageSecret(sim: Sim, sw: SecretWallState, damage: number, events: SimEvent[]): void {
+  sw.hp -= damage;
+  if (sw.hp <= 0) {
+    events.push({ type: 'secret-revealed', secretId: sw.id, pos: { ...sw.pos } });
+    sim.state.secrets = sim.state.secrets.filter((x) => x !== sw);
+  } else {
+    events.push({ type: 'secret-hit', secretId: sw.id, pos: { ...sw.pos }, damage });
   }
 }
 

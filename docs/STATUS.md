@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-07-20 (content expansion: #15, #26, #18, #19, #20, #23, #16 landed; four heroes, three enemy families, power-ups)
+Updated: 2026-07-20 (content expansion: Phase 1 complete — #15/#16/#17 + heroes #18-#20, enemies #23, art pipeline #26)
 
 ## Milestones
 
@@ -182,7 +182,8 @@ the content expansion, orchestrated for parallel contributors and tracked in
 issue #29:
 
 - **Phase 1 — sim foundations**: projectiles/typed kits (#15 — DONE),
-  temporary power-ups (#16 — DONE), keys/gates/secret walls (#17).
+  temporary power-ups (#16 — DONE), keys/gates/secret walls (#17 — DONE).
+  **Phase 1 is complete.**
 - **Phase 2 — classes & combat**: Arcanist (#18 — DONE), Ranger (#19 — DONE),
   Sentinel (#20 — DONE), multi-hero roster (#21), weapon tiers (#22),
   Husk/Spitter/elite enemies (#23 — DONE). All four core classes are now
@@ -261,8 +262,24 @@ a Herald call-out on pickup; audio adds a rising chime. Buffs stack with the
 Sentinel's guard multiplicatively. Covered in `tests/sim/powerups.test.ts`; the
 Brood Warrens seeds one relic of each.
 
+#17 landed: the level-mechanics toolkit — **keys**, **key-locked gates**, and
+breakable **secret walls** — completing Phase 1. Movement collision now consults
+a sim-side blocked-tile overlay (`Blockage`) on top of the static wall grid, so
+opening a gate or crumbling a secret makes its tile passable with zero level-data
+mutation; the overlay rides the hot path as a tiny tile-index array (no Sets, so
+`hashState` stays stable). A `key` pickup kind fills `PlayerState.keys`; standing
+against a locked gate with a key in hand spends it and opens the gate
+permanently (`gate-opened`). Secret walls are damageable entities on floor tiles
+that render as ordinary wall tops until melee/ability/bolt damage crumbles them
+into a passage (`secret-revealed`); enemy fire leaves them be, and gates stop
+bolts. The Brood Warrens gains two optional NW-corner vaults — one behind a
+secret wall, one behind a key gate — authored off the critical path so the e2e
+bot is unaffected. HUD shows a key tally; audio adds a key chime, gate clank, and
+crumble rumble. Covered in `tests/sim/levelMechanics.test.ts`.
+
 ## Next recommended task
 
-Keys/gates/secret walls (#17) finishes the Phase-1 sim foundations, or
-multi-hero roster / co-op groundwork (#21). Weapon tiers (#22), Realm 2 (#24),
-and the Broodmother boss (#25) also remain open, along with #27/#28 (art).
+Phase 1 is done, so Phase 2/3 opens up: multi-hero roster/unlock data (#21) or
+weapon tiers (#22); **Realm 2 "The Resin Galleries" (#24)** is now unblocked (it
+needs #17 + the enemy families, both landed) and pairs with the Broodmother boss
+(#25). #27/#28 (original art packs) remain open in parallel.

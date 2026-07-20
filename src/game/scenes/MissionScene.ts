@@ -37,6 +37,7 @@ export interface HudPlayerInfo {
   /** Guard-stance ticks remaining and the stance's full duration (0 if none). */
   guardTicks: number;
   guardMax: number;
+  keys: number;
   alive: boolean;
 }
 
@@ -322,6 +323,7 @@ export class MissionScene extends Phaser.Scene {
           abilityMax: hero?.ability.cooldownTicks ?? 1,
           guardTicks: p.guardTicks,
           guardMax: hero?.ability.kind === 'guard' ? hero.ability.durationTicks : 0,
+          keys: p.keys,
           alive: p.alive
         };
       }),
@@ -475,10 +477,14 @@ export class MissionScene extends Phaser.Scene {
           this.tweens.add({ targets: scorch, alpha: 0, duration: 2500, onComplete: () => scorch.destroy() });
           break;
         }
-        case 'pickup-collected':
-          this.floatText(ev.pos, ev.kind === 'gold' ? `+${ev.amount}` : `+${ev.amount} HP`, ev.kind === 'gold' ? '#ffd75e' : '#e0524d');
-          this.burst(ev.kind === 'gold' ? this.sparkFx : this.heartFx, ev.kind === 'gold' ? 6 : 5, ev.pos);
+        case 'pickup-collected': {
+          const label = ev.kind === 'gold' ? `+${ev.amount}` : ev.kind === 'key' ? 'KEY' : `+${ev.amount} HP`;
+          const color = ev.kind === 'gold' ? '#ffd75e' : ev.kind === 'key' ? '#e6c34a' : '#e0524d';
+          this.floatText(ev.pos, label, color);
+          this.burst(ev.kind === 'health' ? this.heartFx : this.sparkFx, ev.kind === 'health' ? 5 : 6, ev.pos);
+          if (ev.kind === 'key') hud.herald('YOU FOUND A KEY', '#e6c34a');
           break;
+        }
         case 'powerup-gained': {
           const name = CONTENT.powerups[ev.power].name;
           const color = POWERUP_COLORS[ev.power] ?? 0xffffff;
@@ -495,6 +501,21 @@ export class MissionScene extends Phaser.Scene {
         case 'prop-destroyed':
           this.deathPuff(ev.pos, 0xd9b26a, 0.8);
           this.burst(this.sparkFx, 4, ev.pos);
+          break;
+        case 'gate-opened':
+          this.burst(this.dustFx, 10, ev.pos);
+          this.flashRing(ev.pos, 30, 0xe6c34a);
+          hud.herald('THE GATE SWINGS OPEN', '#e6c34a');
+          break;
+        case 'secret-hit':
+          this.tintFlash(this.spriteFor({ enemyId: ev.secretId }), 0xffffff);
+          this.burst(this.dustFx, 3, ev.pos);
+          break;
+        case 'secret-revealed':
+          this.deathPuff(ev.pos, 0x8a8298, 1.6);
+          this.burst(this.dustFx, 14, ev.pos);
+          this.cameras.main.shake(180, 0.006);
+          hud.herald('A HIDDEN PASSAGE!', '#bdf4ff');
           break;
         case 'projectile-fired':
           this.burst(this.sparkFx, 2, ev.pos); // muzzle flick
@@ -735,7 +756,14 @@ export class MissionScene extends Phaser.Scene {
 
     for (const pk of s.pickups) {
       seen.add(pk.id);
-      const key = pk.kind === 'gold' ? TEX.gold : pk.kind === 'health' ? TEX.health : powerupTexture(pk.power ?? 'frenzy');
+      const key =
+        pk.kind === 'gold'
+          ? TEX.gold
+          : pk.kind === 'health'
+            ? TEX.health
+            : pk.kind === 'key'
+              ? TEX.key
+              : powerupTexture(pk.power ?? 'frenzy');
       const spr = this.ensureSprite(pk.id, key);
       const bob = Math.sin(this.time.now / 280 + pk.id) * 2.5;
       spr.setPosition(pk.pos.x, pk.pos.y - 3 + bob).setDepth(pk.pos.y);
@@ -747,6 +775,20 @@ export class MissionScene extends Phaser.Scene {
     for (const pr of s.props) {
       seen.add(pr.id);
       this.ensureSprite(pr.id, propTexture(pr.typeId)).setPosition(pr.pos.x, pr.pos.y).setDepth(pr.pos.y);
+    }
+
+    // Locked gates render as barred doors; unlocking drops them from `seen` so
+    // the sprite is torn down. Secret walls masquerade as ordinary wall tops
+    // until broken (then removed from state → sprite cleaned up).
+    const ts = s ? this.sim.config.level.tileSize : 32;
+    for (const gate of s.gates) {
+      if (!gate.locked) continue;
+      seen.add(gate.id);
+      this.ensureSprite(gate.id, TEX.gate).setPosition(gate.pos.x, gate.pos.y).setDepth((gate.ty + 1) * ts);
+    }
+    for (const sw of s.secrets) {
+      seen.add(sw.id);
+      this.ensureSprite(sw.id, TEX.wall).setPosition(sw.pos.x, sw.pos.y).setDepth((sw.ty + 1) * ts);
     }
 
     for (const bolt of s.projectiles) {

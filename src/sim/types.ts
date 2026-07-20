@@ -234,6 +234,23 @@ export interface LevelGeneratorDef {
   ty: number;
 }
 
+/** A key-locked gate that blocks its tile until a player spends a key. */
+export interface LevelGateDef {
+  tx: number;
+  ty: number;
+}
+
+/**
+ * A breakable secret wall: rendered as a normal wall and blocking movement,
+ * but with HP — attacks crumble it into a passage. Sits on a floor tile.
+ */
+export interface LevelSecretDef {
+  tx: number;
+  ty: number;
+  /** Optional HP override; defaults to a standard secret-wall toughness. */
+  hp?: number;
+}
+
 export interface LevelDef {
   id: string;
   name: string;
@@ -245,6 +262,10 @@ export interface LevelDef {
   pickups: readonly LevelPickupDef[];
   /** Breakable props (sim entities). */
   props?: readonly LevelPropDef[];
+  /** Key-locked gates guarding optional routes. */
+  gates?: readonly LevelGateDef[];
+  /** Breakable secret walls hiding treasure. */
+  secrets?: readonly LevelSecretDef[];
   /** Visual set dressing (render-only). */
   decor?: readonly LevelDecorDef[];
   exit: { tx: number; ty: number };
@@ -282,7 +303,7 @@ export interface ContentDb {
 // Runtime state
 // ---------------------------------------------------------------------------
 
-export type PickupKind = 'gold' | 'health' | 'powerup';
+export type PickupKind = 'gold' | 'health' | 'powerup' | 'key';
 
 export interface PlayerState {
   id: EntityId;
@@ -300,6 +321,8 @@ export interface PlayerState {
   guardTicks: number;
   /** Ticks remaining on each temporary power-up (0 = inactive). */
   power: Record<PowerUpKind, number>;
+  /** Keys held (spent to open gates). Party-shared semantics in solo. */
+  keys: number;
   alive: boolean;
 }
 
@@ -346,6 +369,23 @@ export interface PropState {
   hp: number;
 }
 
+export interface GateState {
+  id: EntityId;
+  tx: number;
+  ty: number;
+  pos: Vec2;
+  locked: boolean;
+}
+
+export interface SecretWallState {
+  id: EntityId;
+  tx: number;
+  ty: number;
+  pos: Vec2;
+  hp: number;
+  maxHp: number;
+}
+
 /** A bolt in flight. Player-fired bolts strike enemies; hostile ones strike players. */
 export interface ProjectileState {
   id: EntityId;
@@ -376,6 +416,8 @@ export interface SimState {
   generators: GeneratorState[];
   pickups: PickupState[];
   props: PropState[];
+  gates: GateState[];
+  secrets: SecretWallState[];
   projectiles: ProjectileState[];
   exitPos: Vec2;
 }
@@ -401,6 +443,9 @@ export type SimEvent =
   | { type: 'generator-enraged'; generatorId: EntityId; pos: Vec2 }
   | { type: 'generator-destroyed'; generatorId: EntityId; pos: Vec2 }
   | { type: 'prop-destroyed'; propId: EntityId; pos: Vec2 }
+  | { type: 'gate-opened'; gateId: EntityId; pos: Vec2 }
+  | { type: 'secret-hit'; secretId: EntityId; pos: Vec2; damage: number }
+  | { type: 'secret-revealed'; secretId: EntityId; pos: Vec2 }
   | { type: 'pickup-collected'; playerId: EntityId; kind: PickupKind; amount: number; pos: Vec2 }
   | { type: 'powerup-gained'; playerId: EntityId; power: PowerUpKind; pos: Vec2 }
   | { type: 'player-hit'; playerId: EntityId; damage: number; pos: Vec2 }

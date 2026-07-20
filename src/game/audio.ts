@@ -119,7 +119,14 @@ class AudioEngine {
         break;
       case 'pickup-collected':
         if (ev.kind === 'gold') this.coin();
+        else if (ev.kind === 'key') this.keyChime();
         else this.chomp();
+        break;
+      case 'gate-opened':
+        this.gateClank();
+        break;
+      case 'secret-revealed':
+        this.rumble();
         break;
       case 'powerup-gained':
         this.arpeggio([523, 659, 784, 1047], 'triangle', 0.07, 0.7);
@@ -383,6 +390,38 @@ class AudioEngine {
     osc.start(t);
     osc.stop(t + 0.15);
     this.tone(640, 'square', 0.03, 0.08);
+  }
+
+  /** Key pickup: a bright two-note ping. */
+  private keyChime(): void {
+    const t = this.ctx!.currentTime;
+    this.tone(1175, 'triangle', 0.07, 0.16, undefined, t);
+    this.tone(1568, 'triangle', 0.1, 0.14, undefined, t + 0.06);
+  }
+
+  /** Gate opening: a metallic clank with a low unlatch thump. */
+  private gateClank(): void {
+    const t = this.ctx!.currentTime;
+    this.tone(180, 'square', 0.12, 0.2, 90, t);
+    this.tone(520, 'square', 0.05, 0.12, undefined, t + 0.02);
+    this.tone(660, 'square', 0.08, 0.1, undefined, t + 0.1);
+  }
+
+  /** Secret wall crumbling: a low filtered-noise rumble. */
+  private rumble(): void {
+    const t = this.ctx!.currentTime;
+    const src = this.ctx!.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    const filter = this.ctx!.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(600, t);
+    filter.frequency.exponentialRampToValueAtTime(120, t + 0.45);
+    const g = this.ctx!.createGain();
+    g.gain.setValueAtTime(0.35, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    src.connect(filter).connect(g).connect(this.sfxGain!);
+    src.start(t);
+    src.stop(t + 0.51);
   }
 
   private arpeggio(freqs: number[], type: OscType, step: number, gain: number): void {

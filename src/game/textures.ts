@@ -27,6 +27,8 @@ export const TEX = {
   hero: 'hero-vanguard', // portrait alias (south-facing idle frame)
   gold: 'pickup-gold',
   health: 'pickup-health',
+  key: 'pickup-key',
+  gate: 'level-gate',
   exit: 'exit-portal',
   shadow: 'fx-shadow',
   accentRing: 'fx-accent-ring',
@@ -319,6 +321,33 @@ export function generateTextures(scene: Phaser.Scene): void {
   drawRelic(g, 'pickup-frenzy', 0xff8a3d, 0xffd08a, 'spike');
   drawRelic(g, 'pickup-swiftness', 0x5ad6ff, 0xc8f2ff, 'chevron');
   drawRelic(g, 'pickup-ward', 0x7be08a, 0xd6ffd0, 'shield');
+
+  // Key pickup (issue #17): a small brass key.
+  g.clear();
+  g.fillStyle(0xe6c34a);
+  g.fillCircle(6, 7, 4); // bow
+  g.fillStyle(0x141018);
+  g.fillCircle(6, 7, 1.6); // hole
+  g.fillStyle(0xe6c34a);
+  g.fillRect(9, 6, 7, 2.4); // shaft
+  g.fillRect(13, 8, 2, 3); // teeth
+  g.fillRect(15, 8, 2, 2); // teeth
+  gen(TEX.key);
+
+  // Key-locked gate (issue #17): heavy barred door filling a tile.
+  g.clear();
+  g.fillStyle(0x3a2f22);
+  g.fillRect(2, 1, 28, 30); // frame backing
+  g.fillStyle(0x6a5636);
+  for (let bx = 4; bx <= 26; bx += 6) g.fillRect(bx, 3, 3, 26); // vertical bars
+  g.fillStyle(0x8a7048);
+  g.fillRect(3, 6, 26, 3);
+  g.fillRect(3, 22, 26, 3); // cross braces
+  g.fillStyle(0xe6c34a);
+  g.fillCircle(16, 16, 3); // lock plate
+  g.lineStyle(2, 0x241b12);
+  g.strokeRect(2, 1, 28, 30);
+  gen(TEX.gate);
 
   // Exit portal: glowing ring.
   g.clear();
