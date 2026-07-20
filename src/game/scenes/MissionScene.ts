@@ -485,6 +485,9 @@ export class MissionScene extends Phaser.Scene {
         case 'projectile-fired':
           this.burst(this.sparkFx, 2, ev.pos); // muzzle flick
           break;
+        case 'enemy-shot':
+          this.burst(this.ichorFx, 3, ev.pos); // bile muzzle spit
+          break;
         case 'projectile-expired':
           this.burst(this.dustFx, 2, ev.pos);
           break;
@@ -722,7 +725,8 @@ export class MissionScene extends Phaser.Scene {
       spr
         .setPosition(bolt.pos.x, bolt.pos.y)
         .setRotation(Math.atan2(bolt.vel.y, bolt.vel.x))
-        .setTint(0xffd75e)
+        // Enemy bile reads sickly-green; player bolts stay hot gold.
+        .setTint(bolt.hostile ? 0x9fe06a : 0xffd75e)
         .setBlendMode(Phaser.BlendModes.ADD)
         .setDepth(bolt.pos.y + 1);
     }

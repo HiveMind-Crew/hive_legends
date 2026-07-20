@@ -138,6 +138,17 @@ export type EnemyFamily = (typeof ENEMY_FAMILIES)[number];
 export const ENEMY_TIERS = ['common', 'veteran', 'elite'] as const;
 export type EnemyTier = (typeof ENEMY_TIERS)[number];
 
+/** A ranged enemy attack: at attackRange, the enemy spits a hostile bolt. */
+export interface EnemyRangedDef {
+  /** Bolt speed in px/s. */
+  projectileSpeed: number;
+  /** Bolt collision radius in px. */
+  projectileRadius: number;
+  projectileDamage: number;
+  /** Max flight distance in px. */
+  projectileRange: number;
+}
+
 export interface EnemyDef {
   id: string;
   name: string;
@@ -153,6 +164,8 @@ export interface EnemyDef {
   attackCooldownTicks: number;
   goldMin: number;
   goldMax: number;
+  /** If present, the enemy fires hostile bolts at attackRange instead of meleeing. */
+  ranged?: EnemyRangedDef;
 }
 
 /** One-shot frenzy when a generator first drops to low HP. */
@@ -306,7 +319,7 @@ export interface PropState {
   hp: number;
 }
 
-/** A player-fired bolt in flight. */
+/** A bolt in flight. Player-fired bolts strike enemies; hostile ones strike players. */
 export interface ProjectileState {
   id: EntityId;
   ownerId: EntityId;
@@ -320,6 +333,8 @@ export interface ProjectileState {
   knockback: number;
   /** Enemies already damaged by this bolt (a pierced bolt must not re-hit). */
   hitIds: EntityId[];
+  /** True for enemy fire (hits players); false for player fire (hits enemies). */
+  hostile: boolean;
 }
 
 export type MissionPhase = 'combat' | 'exit-open' | 'complete' | 'failed';
@@ -345,6 +360,7 @@ export interface SimState {
 export type SimEvent =
   | { type: 'attack'; playerId: EntityId; pos: Vec2; facing: Vec2 }
   | { type: 'projectile-fired'; playerId: EntityId; projectileId: EntityId; pos: Vec2; vel: Vec2 }
+  | { type: 'enemy-shot'; enemyId: EntityId; projectileId: EntityId; pos: Vec2; vel: Vec2 }
   | { type: 'projectile-hit'; projectileId: EntityId; pos: Vec2 }
   | { type: 'projectile-expired'; projectileId: EntityId; pos: Vec2 }
   | { type: 'ability'; playerId: EntityId; pos: Vec2; radius: number }

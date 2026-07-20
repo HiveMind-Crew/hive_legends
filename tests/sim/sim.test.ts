@@ -27,7 +27,7 @@ describe('sim setup', () => {
     const sim = newSim();
     expect(sim.state.players).toHaveLength(1);
     expect(sim.state.players[0]!.hp).toBe(CONTENT.heroes['vanguard']!.maxHp);
-    expect(sim.state.generators).toHaveLength(2);
+    expect(sim.state.generators).toHaveLength(BROOD_WARRENS.generators.length);
     expect(sim.state.pickups).toHaveLength(BROOD_WARRENS.pickups.length);
     expect(sim.state.phase).toBe('combat');
   });
@@ -219,7 +219,7 @@ describe('generators', () => {
   it('destroyed generator stops spawning, drops gold, and opens the exit when all are down', () => {
     const sim = newSim();
     const events: SimEvent[] = [];
-    // Destroy both generators directly through the damage path.
+    // Destroy every generator directly through the damage path.
     for (const g of [...sim.state.generators]) {
       const p = sim.state.players[0]!;
       p.pos = { x: g.pos.x - 40, y: g.pos.y };
@@ -230,7 +230,7 @@ describe('generators', () => {
         events.push(...simTick(sim, [input({ attack: true })]));
       }
     }
-    expect(events.filter((e) => e.type === 'generator-destroyed')).toHaveLength(2);
+    expect(events.filter((e) => e.type === 'generator-destroyed')).toHaveLength(BROOD_WARRENS.generators.length);
     expect(events.some((e) => e.type === 'exit-opened')).toBe(true);
     expect(sim.state.phase).toBe('exit-open');
     expect(sim.state.pickups.some((pk) => pk.kind === 'gold' && pk.amount === 25)).toBe(true);
@@ -327,7 +327,7 @@ describe('mission flow', () => {
 
   it('a full scripted playthrough completes the mission', () => {
     // Not a real player, but proves the loop is winnable: teleport-free,
-    // input-driven kill of both generators then walk to the exit is complex
+    // input-driven kill of every generator then walk to the exit is complex
     // to script, so we drive positions and use the real damage/objective path.
     const sim = newSim(777);
     const p = sim.state.players[0]!;

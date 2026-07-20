@@ -96,6 +96,9 @@ class AudioEngine {
       case 'projectile-fired':
         this.pew();
         break;
+      case 'enemy-shot':
+        this.spit();
+        break;
       case 'enemy-hit':
         this.thud(220, 0.06, 0.12);
         break;
@@ -174,6 +177,12 @@ class AudioEngine {
   private pew(): void {
     if (!this.throttle('pew', 50)) return;
     this.tone(880, 'square', 0.09, 0.12, 330);
+  }
+
+  /** Spitter fire: a short wet downward blip, distinct from the player's pew. */
+  private spit(): void {
+    if (!this.throttle('spit', 60)) return;
+    this.tone(300, 'sawtooth', 0.1, 0.12, 120);
   }
 
   private whoosh(): void {

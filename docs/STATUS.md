@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-07-19 (content expansion: #15, #26, #18, #19, #20 landed; all four core heroes playable)
+Updated: 2026-07-19 (content expansion: #15, #26, #18, #19, #20, #23 landed; four heroes, three enemy families)
 
 ## Milestones
 
@@ -185,7 +185,8 @@ issue #29:
   temporary power-ups (#16), keys/gates/secret walls (#17).
 - **Phase 2 — classes & combat**: Arcanist (#18 — DONE), Ranger (#19 — DONE),
   Sentinel (#20 — DONE), multi-hero roster (#21), weapon tiers (#22),
-  Husk/Spitter/elite enemies (#23). All four core classes are now playable.
+  Husk/Spitter/elite enemies (#23 — DONE). All four core classes are now
+  playable and the enemy roster spans three families.
 - **Phase 3 — levels & finale**: Realm 2 "The Resin Galleries" (#24), the
   Broodmother boss (#25).
 - **Art track (parallel)**: drop-in asset pipeline + docs/ART.md (#26 —
@@ -234,9 +235,22 @@ scripted mission-clear are covered in `tests/sim/sentinel.test.ts`. With the
 Sentinel in, all four core classes are playable and the hero-select roster has
 no locked teaser slots left.
 
+#23 landed: the enemy roster expands past the lone Skitterling into three
+families — the **Carapace Husk** (slow, tanky melee bruiser), the **Bile
+Spitter** (ranged), and the elite **Gravebound Ravager**. The Spitter needed a
+new sim mechanic: `ProjectileState` gained a `hostile` flag and `EnemyDef` an
+optional `ranged` def, so enemy fire flies as deterministic sim bolts that
+strike players (respecting i-frames and Bastion Wall) while player fire still
+strikes enemies — the two never cross streams, and `updateProjectiles` shares
+one wall-stop path. The Brood Warrens now fields all three from a Brood Node, a
+Husk Mound, and a Spitter Nest; the e2e bot still clears it. Renderer tints
+hostile bile bolts sickly-green and plays a distinct spit SFX; the family×tier
+art grammar (#7) drew every new silhouette with zero new texture code. Covered
+in `tests/sim/enemies.test.ts`.
+
 ## Next recommended task
 
-Multi-hero roster / co-op groundwork (#21) or weapon tiers (#22) now that the
-four classes exist; alternatively the Husk/Spitter/elite enemy families (#23)
-to give the roster more to fight. #16/#17/#22/#23/#27/#28 remain open for
-parallel pickup.
+Multi-hero roster / co-op groundwork (#21) or weapon tiers (#22). The
+Spitter's hostile-projectile plumbing also unblocks ranged hazards and the
+Broodmother boss (#25). #16/#17/#22/#24/#25/#27/#28 remain open for parallel
+pickup.

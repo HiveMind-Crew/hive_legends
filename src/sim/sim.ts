@@ -6,6 +6,7 @@ import {
   TICK_DT,
   type BlastAbilityDef,
   type DashVolleyAbilityDef,
+  type EnemyRangedDef,
   type EnemyState,
   type GuardAbilityDef,
   type GeneratorDef,
@@ -398,12 +399,40 @@ function spawnProjectile(sim: Sim, p: PlayerState, atk: ProjectileAttackDef, dir
     pierceLeft: atk.pierce,
     damage: atk.damage + heroDamageBonus(sim, p),
     knockback: atk.knockback,
-    hitIds: []
+    hitIds: [],
+    hostile: false
   };
   sim.state.projectiles.push(projectile);
   events.push({
     type: 'projectile-fired',
     playerId: p.id,
+    projectileId: projectile.id,
+    pos: { ...projectile.pos },
+    vel: { ...projectile.vel }
+  });
+}
+
+/** Spawns one hostile bolt from an enemy toward a target position. */
+function spawnEnemyProjectile(sim: Sim, e: EnemyState, ranged: EnemyRangedDef, radius: number, target: Vec2, events: SimEvent[]): void {
+  const dir = norm(sub(target, e.pos));
+  const spawnDist = radius + ranged.projectileRadius + 1;
+  const projectile: ProjectileState = {
+    id: sim.state.nextEntityId++,
+    ownerId: e.id,
+    pos: { x: e.pos.x + dir.x * spawnDist, y: e.pos.y + dir.y * spawnDist },
+    vel: { x: dir.x * ranged.projectileSpeed, y: dir.y * ranged.projectileSpeed },
+    radius: ranged.projectileRadius,
+    distanceLeft: ranged.projectileRange,
+    pierceLeft: 0,
+    damage: ranged.projectileDamage,
+    knockback: 0,
+    hitIds: [],
+    hostile: true
+  };
+  sim.state.projectiles.push(projectile);
+  events.push({
+    type: 'enemy-shot',
+    enemyId: e.id,
     projectileId: projectile.id,
     pos: { ...projectile.pos },
     vel: { ...projectile.vel }
@@ -431,42 +460,47 @@ function updateProjectiles(sim: Sim, events: SimEvent[]): void {
     let dead = false;
     const dir = norm(bolt.vel);
 
-    for (const e of s.enemies) {
-      if (e.hp <= 0 || bolt.hitIds.includes(e.id)) continue;
-      const def = content.enemies[e.typeId];
-      if (!def) continue;
-      if (Math.hypot(e.pos.x - bolt.pos.x, e.pos.y - bolt.pos.y) > bolt.radius + def.radius) continue;
-      bolt.hitIds.push(e.id);
-      events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
-      damageEnemy(sim, e, bolt.damage, dir, bolt.knockback, bolt.ownerId, events);
-      if (bolt.pierceLeft <= 0) {
-        dead = true;
-        break;
+    if (bolt.hostile) {
+      // Enemy fire: strikes the first living, vulnerable player it touches.
+      dead = hostileBoltHitsPlayer(sim, bolt, events);
+    } else {
+      for (const e of s.enemies) {
+        if (e.hp <= 0 || bolt.hitIds.includes(e.id)) continue;
+        const def = content.enemies[e.typeId];
+        if (!def) continue;
+        if (Math.hypot(e.pos.x - bolt.pos.x, e.pos.y - bolt.pos.y) > bolt.radius + def.radius) continue;
+        bolt.hitIds.push(e.id);
+        events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
+        damageEnemy(sim, e, bolt.damage, dir, bolt.knockback, bolt.ownerId, events);
+        if (bolt.pierceLeft <= 0) {
+          dead = true;
+          break;
+        }
+        bolt.pierceLeft--;
       }
-      bolt.pierceLeft--;
-    }
 
-    // Generators and props always stop a bolt (no piercing structures).
-    if (!dead) {
-      for (const g of s.generators) {
-        const gdef = content.generators[g.typeId];
-        if (!gdef || g.hp <= 0) continue;
-        if (Math.hypot(g.pos.x - bolt.pos.x, g.pos.y - bolt.pos.y) > bolt.radius + gdef.radius) continue;
-        events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
-        damageGenerator(sim, g, bolt.damage, events);
-        dead = true;
-        break;
+      // Generators and props always stop a player bolt (no piercing structures).
+      if (!dead) {
+        for (const g of s.generators) {
+          const gdef = content.generators[g.typeId];
+          if (!gdef || g.hp <= 0) continue;
+          if (Math.hypot(g.pos.x - bolt.pos.x, g.pos.y - bolt.pos.y) > bolt.radius + gdef.radius) continue;
+          events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
+          damageGenerator(sim, g, bolt.damage, events);
+          dead = true;
+          break;
+        }
       }
-    }
-    if (!dead) {
-      for (const pr of s.props) {
-        const pdef = content.props[pr.typeId];
-        if (!pdef) continue;
-        if (Math.hypot(pr.pos.x - bolt.pos.x, pr.pos.y - bolt.pos.y) > bolt.radius + pdef.radius) continue;
-        events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
-        damageProp(sim, pr, bolt.damage, events);
-        dead = true;
-        break;
+      if (!dead) {
+        for (const pr of s.props) {
+          const pdef = content.props[pr.typeId];
+          if (!pdef) continue;
+          if (Math.hypot(pr.pos.x - bolt.pos.x, pr.pos.y - bolt.pos.y) > bolt.radius + pdef.radius) continue;
+          events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
+          damageProp(sim, pr, bolt.damage, events);
+          dead = true;
+          break;
+        }
       }
     }
 
@@ -477,6 +511,35 @@ function updateProjectiles(sim: Sim, events: SimEvent[]): void {
     if (!dead) surviving.push(bolt);
   }
   s.projectiles = surviving;
+}
+
+/**
+ * A hostile bolt vs. players. Passes harmlessly through a player still in
+ * i-frames (so spit can't stunlock); on a clean hit it deals damage — reduced
+ * and announced as a block if the target is guarding — and dies.
+ */
+function hostileBoltHitsPlayer(sim: Sim, bolt: ProjectileState, events: SimEvent[]): boolean {
+  const { content } = sim.config;
+  for (const p of sim.state.players) {
+    if (!p.alive || p.invulnTicks > 0) continue;
+    const hero = content.heroes[p.heroId];
+    if (!hero) continue;
+    if (Math.hypot(p.pos.x - bolt.pos.x, p.pos.y - bolt.pos.y) > bolt.radius + hero.radius) continue;
+    const guard = guardDefFor(sim, p);
+    const damage = guard ? bolt.damage * guard.damageMult : bolt.damage;
+    p.hp -= damage;
+    p.invulnTicks = PLAYER_HIT_INVULN_TICKS;
+    events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
+    events.push({ type: 'player-hit', playerId: p.id, damage, pos: { ...p.pos } });
+    if (guard) events.push({ type: 'guard-block', playerId: p.id, enemyId: bolt.ownerId, pos: { ...p.pos } });
+    if (p.hp <= 0) {
+      p.hp = 0;
+      p.alive = false;
+      events.push({ type: 'player-died', playerId: p.id, pos: { ...p.pos } });
+    }
+    return true;
+  }
+  return false;
 }
 
 /** Props shatter on any damage and drop loot rolled from the seeded RNG. */
@@ -535,8 +598,13 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
     if (dist > def.attackRange) {
       const step = def.moveSpeed * (e.slowTicks > 0 ? e.slowMult : 1) * TICK_DT;
       moveCircle(level, e.pos, def.radius, (d.x / dist) * step, (d.y / dist) * step);
-    } else if (e.attackCooldown === 0 && target.invulnTicks === 0) {
+    } else if (e.attackCooldown === 0 && (def.ranged || target.invulnTicks === 0)) {
       e.attackCooldown = def.attackCooldownTicks;
+      // Ranged families spit a hostile bolt; melee families strike on contact.
+      if (def.ranged) {
+        spawnEnemyProjectile(sim, e, def.ranged, def.radius, target.pos, events);
+        continue;
+      }
       // Bastion Wall: a guarding Sentinel soaks most of the hit and shoves the
       // attacker back on the block.
       const guard = guardDefFor(sim, target);
