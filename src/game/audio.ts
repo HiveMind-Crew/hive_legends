@@ -121,6 +121,9 @@ class AudioEngine {
         if (ev.kind === 'gold') this.coin();
         else this.chomp();
         break;
+      case 'powerup-gained':
+        this.arpeggio([523, 659, 784, 1047], 'triangle', 0.07, 0.7);
+        break;
       case 'player-hit':
         this.hurt();
         break;

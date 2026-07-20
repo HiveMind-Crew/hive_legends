@@ -3,7 +3,9 @@ import { rngIntRange, rngNext, rngSeed } from './rng';
 import {
   EMPTY_INPUT,
   NO_MODIFIERS,
+  POWERUP_KINDS,
   TICK_DT,
+  type PowerUpKind,
   type BlastAbilityDef,
   type DashVolleyAbilityDef,
   type EnemyRangedDef,
@@ -58,6 +60,7 @@ export function createSim(config: SimConfig): Sim {
       abilityCooldown: 0,
       invulnTicks: 0,
       guardTicks: 0,
+      power: emptyPowerTimers(),
       alive: true
     };
   });
@@ -81,6 +84,7 @@ export function createSim(config: SimConfig): Sim {
     id: nextEntityId++,
     kind: p.kind,
     amount: p.amount,
+    power: p.power,
     pos: tileCenter(level, p.tx, p.ty)
   }));
 
@@ -149,8 +153,10 @@ function updatePlayers(sim: Sim, inputs: readonly InputCommand[], events: SimEve
     if (p.abilityCooldown > 0) p.abilityCooldown--;
     if (p.invulnTicks > 0) p.invulnTicks--;
     if (p.guardTicks > 0) p.guardTicks--;
+    for (const k of POWERUP_KINDS) if (p.power[k] > 0) p.power[k]--;
 
-    // Movement (normalized so diagonals aren't faster). Guarding slows it.
+    // Movement (normalized so diagonals aren't faster). Guarding slows it,
+    // the swiftness relic speeds it.
     let mx = clamp(input.moveX, -1, 1);
     let my = clamp(input.moveY, -1, 1);
     const mag = Math.hypot(mx, my);
@@ -159,7 +165,7 @@ function updatePlayers(sim: Sim, inputs: readonly InputCommand[], events: SimEve
       my /= Math.max(1, mag);
       p.facing = norm({ x: mx, y: my });
       const guard = hero.ability.kind === 'guard' && p.guardTicks > 0 ? hero.ability : null;
-      const moveMult = guard ? guard.moveMult : 1;
+      const moveMult = (guard ? guard.moveMult : 1) * powerMult(sim, p, 'speedMult');
       const step = hero.moveSpeed * moveMult * TICK_DT;
       moveCircle(level, p.pos, hero.radius, mx * step, my * step);
       resolveStaticCircles(sim, p.pos, hero.radius);
@@ -183,7 +189,7 @@ function performMeleeAttack(sim: Sim, p: PlayerState, events: SimEvent[]): void 
   const hero = content.heroes[p.heroId];
   if (!hero || hero.attack.kind !== 'melee') return;
   const atk = hero.attack;
-  const damage = atk.damage + heroDamageBonus(sim, p);
+  const damage = heroDamage(sim, p, atk.damage);
   const cosHalfArc = Math.cos(((atk.arcDeg / 2) * Math.PI) / 180);
   events.push({ type: 'attack', playerId: p.id, pos: { ...p.pos }, facing: { ...p.facing } });
 
@@ -265,7 +271,7 @@ function performDashVolley(sim: Sim, p: PlayerState, ab: DashVolleyAbilityDef, e
 
 function performBlast(sim: Sim, p: PlayerState, ab: BlastAbilityDef, events: SimEvent[]): void {
   const { content } = sim.config;
-  const damage = ab.damage + heroDamageBonus(sim, p);
+  const damage = heroDamage(sim, p, ab.damage);
   // Cast center: at the player, or projected along the facing (Resin Cage).
   const offset = ab.offsetPx ?? 0;
   const center = { x: p.pos.x + p.facing.x * offset, y: p.pos.y + p.facing.y * offset };
@@ -312,6 +318,26 @@ function guardDefFor(sim: Sim, p: PlayerState): GuardAbilityDef | null {
   if (p.guardTicks <= 0) return null;
   const ability = sim.config.content.heroes[p.heroId]?.ability;
   return ability?.kind === 'guard' ? ability : null;
+}
+
+function emptyPowerTimers(): Record<PowerUpKind, number> {
+  const timers = {} as Record<PowerUpKind, number>;
+  for (const k of POWERUP_KINDS) timers[k] = 0;
+  return timers;
+}
+
+/** Product of one multiplier field across every currently-active power-up. */
+function powerMult(sim: Sim, p: PlayerState, field: 'damageMult' | 'speedMult' | 'damageTakenMult'): number {
+  let mult = 1;
+  for (const k of POWERUP_KINDS) {
+    if (p.power[k] > 0) mult *= sim.config.content.powerups[k][field];
+  }
+  return mult;
+}
+
+/** Outgoing attack/ability damage after flat modifiers and the frenzy buff. */
+function heroDamage(sim: Sim, p: PlayerState, base: number): number {
+  return (base + heroDamageBonus(sim, p)) * powerMult(sim, p, 'damageMult');
 }
 
 function damageEnemy(
@@ -397,7 +423,7 @@ function spawnProjectile(sim: Sim, p: PlayerState, atk: ProjectileAttackDef, dir
     radius: atk.radius,
     distanceLeft: atk.range,
     pierceLeft: atk.pierce,
-    damage: atk.damage + heroDamageBonus(sim, p),
+    damage: heroDamage(sim, p, atk.damage),
     knockback: atk.knockback,
     hitIds: [],
     hostile: false
@@ -526,7 +552,7 @@ function hostileBoltHitsPlayer(sim: Sim, bolt: ProjectileState, events: SimEvent
     if (!hero) continue;
     if (Math.hypot(p.pos.x - bolt.pos.x, p.pos.y - bolt.pos.y) > bolt.radius + hero.radius) continue;
     const guard = guardDefFor(sim, p);
-    const damage = guard ? bolt.damage * guard.damageMult : bolt.damage;
+    const damage = bolt.damage * (guard ? guard.damageMult : 1) * powerMult(sim, p, 'damageTakenMult');
     p.hp -= damage;
     p.invulnTicks = PLAYER_HIT_INVULN_TICKS;
     events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
@@ -605,10 +631,10 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
         spawnEnemyProjectile(sim, e, def.ranged, def.radius, target.pos, events);
         continue;
       }
-      // Bastion Wall: a guarding Sentinel soaks most of the hit and shoves the
-      // attacker back on the block.
+      // Bastion Wall soaks most of the hit and shoves the attacker back; the
+      // Aegis ward stacks a further reduction on top.
       const guard = guardDefFor(sim, target);
-      const damage = guard ? def.touchDamage * guard.damageMult : def.touchDamage;
+      const damage = def.touchDamage * (guard ? guard.damageMult : 1) * powerMult(sim, target, 'damageTakenMult');
       target.hp -= damage;
       target.invulnTicks = PLAYER_HIT_INVULN_TICKS;
       events.push({ type: 'player-hit', playerId: target.id, damage, pos: { ...target.pos } });
@@ -720,10 +746,15 @@ function collectPickups(sim: Sim, events: SimEvent[]): void {
       if (pk.kind === 'health') {
         if (p.hp >= p.maxHp) continue; // leave food for when it matters
         p.hp = Math.min(p.maxHp, p.hp + pk.amount);
+        events.push({ type: 'pickup-collected', playerId: p.id, kind: pk.kind, amount: pk.amount, pos: { ...pk.pos } });
+      } else if (pk.kind === 'powerup' && pk.power) {
+        // (Re)start the buff timer; grabbing the same relic again refreshes it.
+        p.power[pk.power] = content.powerups[pk.power].durationTicks;
+        events.push({ type: 'powerup-gained', playerId: p.id, power: pk.power, pos: { ...pk.pos } });
       } else {
         p.gold += pk.amount;
+        events.push({ type: 'pickup-collected', playerId: p.id, kind: pk.kind, amount: pk.amount, pos: { ...pk.pos } });
       }
-      events.push({ type: 'pickup-collected', playerId: p.id, kind: pk.kind, amount: pk.amount, pos: { ...pk.pos } });
       collected = true;
       break;
     }

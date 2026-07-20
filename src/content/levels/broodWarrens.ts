@@ -60,7 +60,11 @@ export const BROOD_WARRENS: LevelDef = {
     { kind: 'gold', amount: 10, tx: 3, ty: 12 },
     { kind: 'health', amount: 30, tx: 28, ty: 2 },
     { kind: 'health', amount: 30, tx: 10, ty: 20 },
-    { kind: 'health', amount: 30, tx: 16, ty: 6 }
+    { kind: 'health', amount: 30, tx: 16, ty: 6 },
+    // Temporary power-up relics (issue #16), one of each buff.
+    { kind: 'powerup', amount: 0, power: 'swiftness', tx: 10, ty: 10 },
+    { kind: 'powerup', amount: 0, power: 'frenzy', tx: 20, ty: 10 },
+    { kind: 'powerup', amount: 0, power: 'ward', tx: 26, ty: 16 }
   ],
   props: [
     { typeId: 'resin-husk', tx: 10, ty: 5 },

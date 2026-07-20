@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-07-19 (content expansion: #15, #26, #18, #19, #20, #23 landed; four heroes, three enemy families)
+Updated: 2026-07-20 (content expansion: #15, #26, #18, #19, #20, #23, #16 landed; four heroes, three enemy families, power-ups)
 
 ## Milestones
 
@@ -182,7 +182,7 @@ the content expansion, orchestrated for parallel contributors and tracked in
 issue #29:
 
 - **Phase 1 — sim foundations**: projectiles/typed kits (#15 — DONE),
-  temporary power-ups (#16), keys/gates/secret walls (#17).
+  temporary power-ups (#16 — DONE), keys/gates/secret walls (#17).
 - **Phase 2 — classes & combat**: Arcanist (#18 — DONE), Ranger (#19 — DONE),
   Sentinel (#20 — DONE), multi-hero roster (#21), weapon tiers (#22),
   Husk/Spitter/elite enemies (#23 — DONE). All four core classes are now
@@ -248,9 +248,21 @@ hostile bile bolts sickly-green and plays a distinct spit SFX; the family×tier
 art grammar (#7) drew every new silhouette with zero new texture code. Covered
 in `tests/sim/enemies.test.ts`.
 
+#16 landed: temporary power-ups — floor relics that grant a short, stacking
+timed buff. Three ship: **Emberheart** (frenzy, +damage), **Windstep Sigil**
+(swiftness, +move speed), and **Aegis Bloom** (ward, −damage taken). Buff
+magnitudes are data (`src/content/powerups.ts`); each def carries all three
+multipliers (unused ones at 1) so the sim multiplies uniformly with no per-kind
+branching. `PlayerState.power` holds per-buff tick timers that decrement each
+tick; the pickup model gained a `'powerup'` kind so relics flow through the
+existing collection path (grabbing one refreshes its full duration). The
+renderer draws a spinning gem per buff, a colored player aura while active, and
+a Herald call-out on pickup; audio adds a rising chime. Buffs stack with the
+Sentinel's guard multiplicatively. Covered in `tests/sim/powerups.test.ts`; the
+Brood Warrens seeds one relic of each.
+
 ## Next recommended task
 
-Multi-hero roster / co-op groundwork (#21) or weapon tiers (#22). The
-Spitter's hostile-projectile plumbing also unblocks ranged hazards and the
-Broodmother boss (#25). #16/#17/#22/#24/#25/#27/#28 remain open for parallel
-pickup.
+Keys/gates/secret walls (#17) finishes the Phase-1 sim foundations, or
+multi-hero roster / co-op groundwork (#21). Weapon tiers (#22), Realm 2 (#24),
+and the Broodmother boss (#25) also remain open, along with #27/#28 (art).

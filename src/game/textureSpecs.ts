@@ -59,6 +59,9 @@ function buildSpecs(): Record<string, TextureSpec> {
   add('prop-amber-clutch', 20, 20);
   add('pickup-gold', 16, 16);
   add('pickup-health', 18, 18);
+  add('pickup-frenzy', 18, 18);
+  add('pickup-swiftness', 18, 18);
+  add('pickup-ward', 18, 18);
   add('exit-portal', 48, 48);
 
   // Decor.

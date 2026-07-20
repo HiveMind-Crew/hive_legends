@@ -167,6 +167,18 @@ export function propTexture(typeId: string): string {
   return `prop-${typeId}`;
 }
 
+/** Pickup sprite key for a power-up buff. */
+export function powerupTexture(power: string): string {
+  return `pickup-${power}`;
+}
+
+/** Aura tint for an active power-up buff (pickup, player glow, HUD). */
+export const POWERUP_COLORS: Record<string, number> = {
+  frenzy: 0xff8a3d,
+  swiftness: 0x5ad6ff,
+  ward: 0x7be08a
+};
+
 /** Maps a facing vector to one of 8 direction indices (0 = east, clockwise). */
 export function facingDirIndex(x: number, y: number): number {
   const idx = Math.round(Math.atan2(y, x) / (Math.PI / 4));
@@ -301,6 +313,12 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.fillCircle(12, 9, 5);
   g.fillTriangle(2, 11, 16, 11, 9, 17);
   gen(TEX.health);
+
+  // Power-up relics (issue #16): a gem in a colored aura per buff. Frenzy
+  // burns orange, Swiftness streaks cyan, Ward glows a protective green.
+  drawRelic(g, 'pickup-frenzy', 0xff8a3d, 0xffd08a, 'spike');
+  drawRelic(g, 'pickup-swiftness', 0x5ad6ff, 0xc8f2ff, 'chevron');
+  drawRelic(g, 'pickup-ward', 0x7be08a, 0xd6ffd0, 'shield');
 
   // Exit portal: glowing ring.
   g.clear();
@@ -551,6 +569,38 @@ function drawHeroFrame(g: Phaser.GameObjects.Graphics, style: HeroStyle, dir: nu
     }
   }
 
+  gen(key);
+}
+
+/** A power-up relic: an aura disc, a bright gem, and a per-buff glyph. */
+function drawRelic(
+  g: Phaser.GameObjects.Graphics,
+  key: string,
+  color: number,
+  bright: number,
+  glyph: 'spike' | 'chevron' | 'shield'
+): void {
+  g.clear();
+  g.fillStyle(color, 0.3);
+  g.fillCircle(9, 9, 8.5); // soft aura
+  g.fillStyle(color);
+  g.fillCircle(9, 9, 5.5);
+  g.fillStyle(bright);
+  if (glyph === 'spike') {
+    // A four-point burst for Frenzy.
+    g.fillTriangle(9, 3, 11, 9, 7, 9);
+    g.fillTriangle(9, 15, 11, 9, 7, 9);
+    g.fillTriangle(3, 9, 9, 11, 9, 7);
+    g.fillTriangle(15, 9, 9, 11, 9, 7);
+  } else if (glyph === 'chevron') {
+    // Forward chevrons for Swiftness.
+    g.fillTriangle(6, 5, 11, 9, 6, 13);
+    g.fillTriangle(9, 5, 14, 9, 9, 13);
+  } else {
+    // A little shield for Ward.
+    g.fillRect(6, 5, 6, 4);
+    g.fillTriangle(6, 9, 12, 9, 9, 14);
+  }
   gen(key);
 }
 

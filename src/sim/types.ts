@@ -221,6 +221,8 @@ export interface LevelPropDef {
 export interface LevelPickupDef {
   kind: PickupKind;
   amount: number;
+  /** Which buff a 'powerup' pickup grants (ignored for gold/health). */
+  power?: PowerUpKind;
   /** Tile coordinates. */
   tx: number;
   ty: number;
@@ -248,18 +250,39 @@ export interface LevelDef {
   exit: { tx: number; ty: number };
 }
 
+/**
+ * Temporary power-ups (issue #16): floor pickups that grant a timed buff.
+ * Every def carries all three multipliers; the ones a given power-up doesn't
+ * use stay at 1, so the sim can multiply uniformly with no per-kind branching.
+ */
+export const POWERUP_KINDS = ['frenzy', 'swiftness', 'ward'] as const;
+export type PowerUpKind = (typeof POWERUP_KINDS)[number];
+
+export interface PowerUpDef {
+  kind: PowerUpKind;
+  name: string;
+  durationTicks: number;
+  /** Outgoing-damage multiplier (frenzy). */
+  damageMult: number;
+  /** Move-speed multiplier (swiftness). */
+  speedMult: number;
+  /** Incoming-damage multiplier (ward). */
+  damageTakenMult: number;
+}
+
 export interface ContentDb {
   heroes: Record<string, HeroDef>;
   enemies: Record<string, EnemyDef>;
   generators: Record<string, GeneratorDef>;
   props: Record<string, PropDef>;
+  powerups: Record<PowerUpKind, PowerUpDef>;
 }
 
 // ---------------------------------------------------------------------------
 // Runtime state
 // ---------------------------------------------------------------------------
 
-export type PickupKind = 'gold' | 'health';
+export type PickupKind = 'gold' | 'health' | 'powerup';
 
 export interface PlayerState {
   id: EntityId;
@@ -275,6 +298,8 @@ export interface PlayerState {
   invulnTicks: number;
   /** Ticks of guard stance remaining (Sentinel's Bastion Wall; 0 = not guarding). */
   guardTicks: number;
+  /** Ticks remaining on each temporary power-up (0 = inactive). */
+  power: Record<PowerUpKind, number>;
   alive: boolean;
 }
 
@@ -309,6 +334,8 @@ export interface PickupState {
   id: EntityId;
   kind: PickupKind;
   amount: number;
+  /** Which buff a 'powerup' pickup grants (undefined for gold/health). */
+  power?: PowerUpKind;
   pos: Vec2;
 }
 
@@ -375,6 +402,7 @@ export type SimEvent =
   | { type: 'generator-destroyed'; generatorId: EntityId; pos: Vec2 }
   | { type: 'prop-destroyed'; propId: EntityId; pos: Vec2 }
   | { type: 'pickup-collected'; playerId: EntityId; kind: PickupKind; amount: number; pos: Vec2 }
+  | { type: 'powerup-gained'; playerId: EntityId; power: PowerUpKind; pos: Vec2 }
   | { type: 'player-hit'; playerId: EntityId; damage: number; pos: Vec2 }
   | { type: 'player-died'; playerId: EntityId; pos: Vec2 }
   | { type: 'exit-opened'; pos: Vec2 }
