@@ -1,14 +1,47 @@
 import { describe, expect, it } from 'vitest';
-import { BROOD_WARRENS } from '../../src/content';
+import { BROOD_WARRENS, LEVELS, MISSION_ORDER, RESIN_GALLERIES } from '../../src/content';
 import { circleHitsWall, moveCircle, tileCenter, validateLevel } from '../../src/sim/level';
+import type { LevelDef } from '../../src/sim/types';
+
+const AUTHORED = [BROOD_WARRENS, RESIN_GALLERIES];
+
+/** Floor-BFS reachability from a start tile; `blocked` tiles are impassable. */
+function reachable(level: LevelDef, start: { tx: number; ty: number }, blocked: { tx: number; ty: number }[] = []) {
+  const w = level.walls[0]!.length;
+  const h = level.walls.length;
+  const isFloor = (tx: number, ty: number) => level.walls[ty]?.[tx] === '.';
+  const blk = new Set(blocked.map((b) => b.ty * w + b.tx));
+  const seen = new Set<number>();
+  const q = [start.ty * w + start.tx];
+  seen.add(q[0]!);
+  while (q.length) {
+    const cur = q.shift()!;
+    const cx = cur % w;
+    const cy = Math.floor(cur / w);
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1]
+    ] as const) {
+      const nx = cx + dx;
+      const ny = cy + dy;
+      const nk = ny * w + nx;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h || seen.has(nk) || blk.has(nk) || !isFloor(nx, ny)) continue;
+      seen.add(nk);
+      q.push(nk);
+    }
+  }
+  return (tx: number, ty: number) => seen.has(ty * w + tx);
+}
 
 describe('level validation', () => {
-  it('brood warrens is a well-formed level', () => {
-    expect(validateLevel(BROOD_WARRENS)).toEqual([]);
+  it.each(AUTHORED)('$name is a well-formed level', (level) => {
+    expect(validateLevel(level)).toEqual([]);
   });
 
-  it('level border is fully walled', () => {
-    const rows = BROOD_WARRENS.walls;
+  it.each(AUTHORED)('$name border is fully walled', (level) => {
+    const rows = level.walls;
     const w = rows[0]!.length;
     expect(rows[0]).toBe('#'.repeat(w));
     expect(rows[rows.length - 1]).toBe('#'.repeat(w));
@@ -16,6 +49,43 @@ describe('level validation', () => {
       expect(row[0]).toBe('#');
       expect(row[w - 1]).toBe('#');
     }
+  });
+
+  it('every authored mission is registered in the level order', () => {
+    for (const level of AUTHORED) {
+      expect(LEVELS[level.id]).toBe(level);
+      expect(MISSION_ORDER).toContain(level.id);
+    }
+    // The Brood Warrens must stay first (e2e Enter-default).
+    expect(MISSION_ORDER[0]).toBe(BROOD_WARRENS.id);
+  });
+
+  it.each(AUTHORED)('$name: every generator and the exit is reachable from spawn', (level) => {
+    const spawn = level.playerSpawns[0]!;
+    const canReach = reachable(level, spawn);
+    for (const g of level.generators) expect(canReach(g.tx, g.ty), `gen ${g.typeId}`).toBe(true);
+    expect(canReach(level.exit.tx, level.exit.ty), 'exit').toBe(true);
+  });
+
+  it('The Resin Galleries vaults are sealed behind their gate and secret wall', () => {
+    const spawn = RESIN_GALLERIES.playerSpawns[0]!;
+    const gate = RESIN_GALLERIES.gates![0]!;
+    const secret = RESIN_GALLERIES.secrets![0]!;
+    // Treasure tiles sit just inside each vault.
+    const gateTreasure = { tx: 12, ty: 25 };
+    const secretTreasure = { tx: 25, ty: 25 };
+
+    // Open (mechanic solved): reachable.
+    const open = reachable(RESIN_GALLERIES, spawn);
+    expect(open(gateTreasure.tx, gateTreasure.ty)).toBe(true);
+    expect(open(secretTreasure.tx, secretTreasure.ty)).toBe(true);
+
+    // Sealed (gate/secret tile impassable): the treasure is cut off, proving
+    // the vault is only reachable through the #17 mechanic.
+    const sealedGate = reachable(RESIN_GALLERIES, spawn, [gate]);
+    expect(sealedGate(gateTreasure.tx, gateTreasure.ty)).toBe(false);
+    const sealedSecret = reachable(RESIN_GALLERIES, spawn, [secret]);
+    expect(sealedSecret(secretTreasure.tx, secretTreasure.ty)).toBe(false);
   });
 });
 

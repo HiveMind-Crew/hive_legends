@@ -293,10 +293,26 @@ export interface LevelSecretDef {
   hp?: number;
 }
 
+/**
+ * Per-realm palette accent. Multiplicative tints (0xRRGGBB) let a realm reuse
+ * the shared textures but read as a distinct place — no new drawing code. Omit
+ * a field to leave that layer at its base (untinted) look.
+ */
+export interface LevelTheme {
+  /** Tint applied to wall tops, inner walls, and front faces. */
+  wall?: number;
+  /** Tint applied to floor tiles. */
+  floor?: number;
+  /** Accent color for the exit portal glow and its drifting motes. */
+  accent?: number;
+}
+
 export interface LevelDef {
   id: string;
   name: string;
   tileSize: number;
+  /** Optional palette accent for the realm; omit for the base (violet) look. */
+  theme?: LevelTheme;
   /** One string per row; '#' = wall, '.' = floor. All rows equal length. */
   walls: readonly string[];
   playerSpawns: readonly { tx: number; ty: number }[];

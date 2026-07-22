@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BROOD_WARRENS, CONTENT } from '../../content';
+import { BROOD_WARRENS, CONTENT, LEVELS } from '../../content';
 import { equippedAttack, loadProfile, profileModifiers } from '../../meta/save';
 import { levelHeightPx, levelWidthPx } from '../../sim/level';
 import { createSim, simTick, type Sim } from '../../sim/sim';
@@ -94,6 +94,7 @@ export class MissionScene extends Phaser.Scene {
   private moteFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private exitSprite!: Phaser.GameObjects.Image;
   private heroId = 'vanguard';
+  private levelId = BROOD_WARRENS.id;
   private slowedIds = new Set<EntityId>();
   private guardGlow = new Map<EntityId, Phaser.GameObjects.Image>();
   private powerAura = new Map<EntityId, Phaser.GameObjects.Image>();
@@ -114,15 +115,19 @@ export class MissionScene extends Phaser.Scene {
     super('mission');
   }
 
-  create(data?: { heroId?: string }): void {
+  create(data?: { heroId?: string; levelId?: string }): void {
     const profile = loadProfile();
     // Hero choice flows in from hero select (and results replay); anything
     // unknown falls back to the default hero so the e2e Enter-flow is safe.
     this.heroId = data?.heroId && CONTENT.heroes[data.heroId] ? data.heroId : 'vanguard';
+    // Level likewise flows in from the hub / next-mission flow; unknown ids
+    // fall back to the Warrens so the e2e Enter-default lands there.
+    this.levelId = data?.levelId && LEVELS[data.levelId] ? data.levelId : BROOD_WARRENS.id;
+    const level = LEVELS[this.levelId]!;
     const hero = CONTENT.heroes[this.heroId]!;
     this.sim = createSim({
       seed: (Date.now() ^ 0x5eed) >>> 0,
-      level: BROOD_WARRENS,
+      level,
       players: [
         {
           heroId: this.heroId,
@@ -161,17 +166,17 @@ export class MissionScene extends Phaser.Scene {
     this.createEmitters();
 
     const exitPos = this.sim.state.exitPos;
+    const exitAccent = level.theme?.accent ?? 0x64e6ff;
     this.exitSprite = this.add.image(exitPos.x, exitPos.y, TEX.exit).setDepth(DEPTH_DECAL).setVisible(false);
     this.exitGlow = this.add
       .image(exitPos.x, exitPos.y, TEX.glow)
       .setBlendMode(Phaser.BlendModes.ADD)
-      .setTint(0x64e6ff)
+      .setTint(exitAccent)
       .setAlpha(0.4)
       .setScale(1.8)
       .setDepth(DEPTH_DECAL)
       .setVisible(false);
 
-    const level = this.sim.config.level;
     this.cameras.main.setBounds(0, 0, levelWidthPx(level), levelHeightPx(level));
     this.cameras.main.setZoom(1.25);
 
@@ -195,6 +200,10 @@ export class MissionScene extends Phaser.Scene {
   private drawLevel(): void {
     const level = this.sim.config.level;
     const ts = level.tileSize;
+    // Realm palette accent (issue #24): multiplicative tints reskin the shared
+    // textures so each realm reads as a distinct place, with no new art.
+    const wallTint = level.theme?.wall;
+    const floorTint = level.theme?.floor;
     const isWall = (tx: number, ty: number): boolean => {
       const row = level.walls[ty];
       return row === undefined || row[tx] !== '.';
@@ -207,17 +216,22 @@ export class MissionScene extends Phaser.Scene {
           // flat inner variant so edges pop.
           const bottomY = (ty + 1) * ts;
           const inner = isWall(tx - 1, ty) && isWall(tx + 1, ty) && isWall(tx, ty - 1) && isWall(tx, ty + 1);
-          this.add.image(tx * ts + ts / 2, ty * ts + ts / 2, inner ? TEX.wallInner : TEX.wall).setDepth(bottomY);
+          const wallImg = this.add
+            .image(tx * ts + ts / 2, ty * ts + ts / 2, inner ? TEX.wallInner : TEX.wall)
+            .setDepth(bottomY);
+          if (wallTint !== undefined) wallImg.setTint(wallTint);
           // South-facing wall edges get a front face, faking wall height.
           const below = level.walls[ty + 1];
           if (below && below[tx] === '.') {
-            this.add.image(tx * ts + ts / 2, bottomY + 8, TEX.wallFace).setDepth(bottomY);
+            const face = this.add.image(tx * ts + ts / 2, bottomY + 8, TEX.wallFace).setDepth(bottomY);
+            if (wallTint !== undefined) face.setTint(wallTint);
           }
         } else {
           // Deterministic variation: hash of the tile coordinate (not RNG),
           // so the same level always dresses identically.
           const hash = (((tx * 73856093) ^ (ty * 19349663)) >>> 0) % FLOOR_VARIANTS;
-          this.add.image(tx * ts + ts / 2, ty * ts + ts / 2, floorVariant(hash)).setDepth(0);
+          const floorImg = this.add.image(tx * ts + ts / 2, ty * ts + ts / 2, floorVariant(hash)).setDepth(0);
+          if (floorTint !== undefined) floorImg.setTint(floorTint);
         }
       }
     });
@@ -296,7 +310,8 @@ export class MissionScene extends Phaser.Scene {
         emitting: false
       })
       .setDepth(DEPTH_FX);
-    // Continuous cyan drift around the opened exit portal.
+    // Continuous drift around the opened exit portal, in the realm's accent.
+    const exitAccent = this.sim.config.level.theme?.accent ?? 0x64e6ff;
     this.moteFx = this.add
       .particles(0, 0, TEX.mote, {
         speed: { min: 5, max: 22 },
@@ -305,7 +320,7 @@ export class MissionScene extends Phaser.Scene {
         scale: { start: 1, end: 0.2 },
         gravityY: -14,
         frequency: 90,
-        tint: 0x64e6ff,
+        tint: exitAccent,
         emitZone: { type: 'random', source: new Phaser.Geom.Circle(0, 0, 16), quantity: 1 },
         emitting: false
       })
@@ -561,8 +576,9 @@ export class MissionScene extends Phaser.Scene {
   private endMission(victory: boolean): void {
     this.ended = true;
     const hud = this.scene.get('hud') as HudScene;
-    hud.herald(victory ? 'THE WARRENS ARE CLEANSED' : 'THE PARTY HAS FALLEN', victory ? '#9fe06a' : '#ff5a4d');
-    hud.banner(victory ? 'WARRENS CLEARED' : 'THE HIVE PREVAILS', victory ? '#ffd75e' : '#ff5a4d');
+    const levelName = this.sim.config.level.name;
+    hud.herald(victory ? `${levelName.toUpperCase()} CLEANSED` : 'THE PARTY HAS FALLEN', victory ? '#9fe06a' : '#ff5a4d');
+    hud.banner(victory ? 'REALM CLEARED' : 'THE HIVE PREVAILS', victory ? '#ffd75e' : '#ff5a4d');
     const p = this.sim.state.players[0]!;
     this.time.delayedCall(1400, () => {
       audio.stopMusic();
@@ -572,7 +588,8 @@ export class MissionScene extends Phaser.Scene {
         gold: p.gold,
         kills: p.kills,
         ticks: this.sim.state.tick,
-        heroId: this.heroId
+        heroId: this.heroId,
+        levelId: this.levelId
       });
     });
   }

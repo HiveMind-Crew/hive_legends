@@ -312,11 +312,26 @@ Covered in `tests/sim/weapons.test.ts` (same-seed outcome shift + per-config
 determinism), plus weapon-validity checks in `tests/content.test.ts` and
 ownership/purchase/resolution in `tests/meta.test.ts`.
 
+#24 landed: Realm 2 — **The Resin Galleries**, the second authored mission and
+the start of realm progression. A larger (40×28) winding gallery in warm amber
+resin, versus the Warrens' violet: three spawners (two Brood Nodes + a Husk
+Mound), heavier prop/decor density, and two optional south vaults — one behind a
+key-locked gate, one behind a breakable secret wall (#17) — each machine-verified
+sealed so its treasure is reachable only through the mechanic. Realms reskin via
+a new data-only `LevelDef.theme` (wall/floor/accent tints over the shared
+textures — no new art). A content registry (`LEVELS` + `MISSION_ORDER` in
+`src/content`) drives a hero-select **mission panel** (↑↓ to pick, first entry
+stays The Brood Warrens so the e2e Enter-default is untouched), gated by
+`Profile.clearedLevels` (`isLevelUnlocked`/`markLevelCleared`/`nextLevelId` in
+`src/meta/save.ts`); the Results screen offers **N — next realm** on victory and
+`levelId` threads hero-select → mission → results → replay. Covered by
+reachability + vault-seal checks in `tests/sim/level.test.ts`, a determinism +
+scripted-completion pass in `tests/sim/resinGalleries.test.ts`, and progression
+gating in `tests/meta.test.ts`.
+
 ## Next recommended task
 
-Phase 1 (#16/#17), the hero roster (#21) and weapon tiers (#22) have all landed,
-so Phase 2/3 is open: **Realm 2 "The Resin Galleries" (#24)**, now fully
-unblocked (it needs #17's keys/gates plus the enemy families, all landed) and
-pairing with the Broodmother boss (#25) — whose ranged hazards reuse the
-Spitter's hostile-projectile plumbing. #27/#28 (original art packs) remain open
-for parallel pickup.
+The **Broodmother "Mireveil" boss (#25)** — the Realm 1 finale, whose ranged
+hazards reuse the Spitter's hostile-projectile plumbing and which now has a
+second realm to anchor the realm arc. Original art packs (#27/#28) remain open
+for parallel pickup; a third realm (#24's pattern) is now pure content work.

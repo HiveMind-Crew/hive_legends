@@ -1,11 +1,13 @@
 import Phaser from 'phaser';
-import { CONTENT } from '../../content';
+import { CONTENT, LEVELS, MISSION_ORDER } from '../../content';
 import {
   buyUpgrade,
   buyWeapon,
   equipWeapon,
   equippedWeaponId,
   loadProfile,
+  markLevelCleared,
+  nextLevelId,
   ownedWeapons,
   saveProfile,
   upgradeCost,
@@ -24,6 +26,8 @@ interface ResultsData {
   ticks: number;
   /** Hero played this run; kept so replay and hero-select return to it. */
   heroId: string;
+  /** Level played this run; kept so replay/next-mission target the right realm. */
+  levelId: string;
 }
 
 /** Mission results + the between-mission upgrade shop. */
@@ -42,6 +46,8 @@ export class ResultsScene extends Phaser.Scene {
   create(data: ResultsData): void {
     const { width, height } = this.scale;
     this.heroId = CONTENT.heroes[data.heroId] ? data.heroId : 'vanguard';
+    const levelId = LEVELS[data.levelId] ? data.levelId : MISSION_ORDER[0]!;
+    const realmName = LEVELS[levelId]?.name ?? 'The Brood Warrens';
 
     // Bank the run's gold exactly once, on scene entry.
     this.profile = loadProfile();
@@ -51,8 +57,14 @@ export class ResultsScene extends Phaser.Scene {
       if (this.profile.bestClearTicks === null || data.ticks < this.profile.bestClearTicks) {
         this.profile.bestClearTicks = data.ticks;
       }
+      markLevelCleared(this.profile, levelId); // unlocks the next realm
     }
     saveProfile(this.profile);
+
+    // Next realm to offer on victory (only once it's unlocked, which a clear
+    // of this realm guarantees).
+    const nextId = data.victory ? nextLevelId(levelId, MISSION_ORDER) : null;
+    const nextName = nextId ? LEVELS[nextId]?.name : undefined;
 
     // Banner treatment: colored band + glow behind the verdict, title pops in.
     const bannerColor = data.victory ? 0x9fe06a : 0xe0524d;
@@ -67,7 +79,7 @@ export class ResultsScene extends Phaser.Scene {
       .setAlpha(0.2);
     const seconds = (data.ticks / 60).toFixed(1);
     const banner = this.add
-      .text(width / 2, 90, data.victory ? 'WARRENS CLEANSED' : 'THE HIVE PREVAILS', {
+      .text(width / 2, 90, data.victory ? 'REALM CLEANSED' : 'THE HIVE PREVAILS', {
         fontFamily: 'monospace',
         fontSize: '42px',
         color: data.victory ? '#9fe06a' : '#e0524d',
@@ -79,6 +91,14 @@ export class ResultsScene extends Phaser.Scene {
       .setScale(0.6)
       .setAlpha(0);
     this.tweens.add({ targets: banner, scale: 1, alpha: 1, duration: 350, ease: 'Back.Out' });
+
+    this.add
+      .text(width / 2, 138, realmName, {
+        fontFamily: 'monospace',
+        fontSize: '15px',
+        color: '#a89bb8'
+      })
+      .setOrigin(0.5);
 
     this.add
       .text(
@@ -111,10 +131,13 @@ export class ResultsScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    const nav = nextName
+      ? `N — next: ${nextName}      R — replay      H — hero select`
+      : 'R — replay mission      H — hero select';
     this.add
-      .text(width / 2, height - 80, 'R — replay mission      H — hero select', {
+      .text(width / 2, height - 80, nav, {
         fontFamily: 'monospace',
-        fontSize: '20px',
+        fontSize: nextName ? '17px' : '20px',
         color: '#64e6ff'
       })
       .setOrigin(0.5);
@@ -151,12 +174,18 @@ export class ResultsScene extends Phaser.Scene {
     kb.on('keydown-M', () => audio.toggleMute());
     kb.once('keydown-R', () => {
       audio.uiConfirm();
-      this.scene.start('mission', { heroId: data.heroId });
+      this.scene.start('mission', { heroId: this.heroId, levelId });
     });
     kb.once('keydown-H', () => {
       audio.uiConfirm();
-      this.scene.start('hero-select', { heroId: data.heroId });
+      this.scene.start('hero-select', { heroId: this.heroId });
     });
+    if (nextId) {
+      kb.once('keydown-N', () => {
+        audio.uiConfirm();
+        this.scene.start('mission', { heroId: this.heroId, levelId: nextId });
+      });
+    }
   }
 
   private tryBuy(upgradeId: string): void {
