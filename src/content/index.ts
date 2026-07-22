@@ -1,6 +1,7 @@
 import type { ContentDb } from '../sim/types';
 import { ENEMIES, GENERATORS } from './enemies';
 import { HEROES } from './heroes';
+import { POWERUPS } from './powerups';
 import { PROPS } from './props';
 import { WEAPONS } from './weapons';
 
@@ -9,7 +10,8 @@ export const CONTENT: ContentDb = {
   enemies: ENEMIES,
   generators: GENERATORS,
   props: PROPS,
-  weapons: WEAPONS
+  weapons: WEAPONS,
+  powerups: POWERUPS
 };
 
 export { BROOD_WARRENS } from './levels/broodWarrens';

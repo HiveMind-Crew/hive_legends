@@ -28,7 +28,7 @@ describe('collision', () => {
   });
 
   it('blocks movement into walls and allows sliding', () => {
-    const pos = tileCenter(BROOD_WARRENS, 1, 3); // adjacent to the west border
+    const pos = tileCenter(BROOD_WARRENS, 1, 7); // adjacent to the west border, open above/below
     const startY = pos.y;
     moveCircle(BROOD_WARRENS, pos, 12, -100, 10);
     expect(pos.x).toBeGreaterThanOrEqual(32 + 12); // never inside the border wall

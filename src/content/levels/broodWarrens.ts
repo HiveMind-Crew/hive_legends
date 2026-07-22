@@ -16,9 +16,9 @@ export const BROOD_WARRENS: LevelDef = {
   walls: [
     '################################',
     '#..............#...............#',
+    '###............#...............#',
     '#..............#...............#',
-    '#..............#...............#',
-    '#..............#...............#',
+    '###............#...............#',
     '#..............................#',
     '#..............................#',
     '#..............#...............#',
@@ -60,8 +60,20 @@ export const BROOD_WARRENS: LevelDef = {
     { kind: 'gold', amount: 10, tx: 3, ty: 12 },
     { kind: 'health', amount: 30, tx: 28, ty: 2 },
     { kind: 'health', amount: 30, tx: 10, ty: 20 },
-    { kind: 'health', amount: 30, tx: 16, ty: 6 }
+    { kind: 'health', amount: 30, tx: 16, ty: 6 },
+    // Temporary power-up relics (issue #16), one of each buff.
+    { kind: 'powerup', amount: 0, power: 'swiftness', tx: 10, ty: 10 },
+    { kind: 'powerup', amount: 0, power: 'frenzy', tx: 20, ty: 10 },
+    { kind: 'powerup', amount: 0, power: 'ward', tx: 26, ty: 16 },
+    // A key on the beaten path, opening the gated NW vault (issue #17).
+    { kind: 'key', amount: 1, tx: 12, ty: 2 },
+    // Treasure sealed in the two NW corner vaults.
+    { kind: 'gold', amount: 50, tx: 1, ty: 1 }, // behind a secret wall
+    { kind: 'gold', amount: 40, tx: 1, ty: 3 } // behind a key-locked gate
   ],
+  // Optional NW vaults, off the critical path: a secret wall and a key gate.
+  gates: [{ tx: 2, ty: 3 }],
+  secrets: [{ tx: 2, ty: 1 }],
   props: [
     { typeId: 'resin-husk', tx: 10, ty: 5 },
     { typeId: 'resin-husk', tx: 13, ty: 17 },
