@@ -2,9 +2,11 @@ import Phaser from 'phaser';
 import { CONTENT } from '../../content';
 import {
   buyHeroUnlock,
+  equippedWeapon,
   heroLockState,
   loadProfile,
   profileModifiers,
+  resolveWeaponAttack,
   upgradeLevel,
   UPGRADES,
   type HeroLockState
@@ -272,11 +274,25 @@ export class HeroSelectScene extends Phaser.Scene {
       this.drawRequirement(cardX, `RECRUIT — ${lock.cost} gold  ${hint}`, color, textColor);
     }
 
+    // Equipped weapon: its resolved attack drives the POWER bar, and its name
+    // shows on the card so upgrades read at a glance.
+    const weapon = equippedWeapon(loadProfile(), hero.id);
+    const weaponAttack = resolveWeaponAttack(hero, weapon);
+    if (unlocked) {
+      this.add
+        .text(cardX, 310, `⚔ ${weapon?.name ?? '—'}`, {
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          color: '#ffd75e'
+        })
+        .setOrigin(0.5);
+    }
+
     // Stat bars instead of raw numbers (modifier-adjusted). Control folds
     // knockback, crowd-binding, or dash reach into one score (see helper).
     const control = abilityControl(hero.ability);
     const stats: { label: string; value: number; max: number }[] = [
-      { label: 'POWER', value: hero.attack.damage + mods.damageBonus, max: STAT_CEILING.power },
+      { label: 'POWER', value: weaponAttack.damage + mods.damageBonus, max: STAT_CEILING.power },
       { label: 'SPEED', value: hero.moveSpeed, max: STAT_CEILING.speed },
       { label: 'TOUGHNESS', value: hero.maxHp + mods.maxHpBonus, max: STAT_CEILING.toughness },
       { label: 'CONTROL', value: control, max: STAT_CEILING.control }

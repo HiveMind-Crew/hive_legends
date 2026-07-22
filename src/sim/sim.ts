@@ -5,6 +5,7 @@ import {
   NO_MODIFIERS,
   POWERUP_KINDS,
   TICK_DT,
+  type AttackDef,
   type PowerUpKind,
   type BlastAbilityDef,
   type DashVolleyAbilityDef,
@@ -197,9 +198,10 @@ function updatePlayers(sim: Sim, inputs: readonly InputCommand[], events: SimEve
     }
 
     if (input.attack && p.attackCooldown === 0) {
-      p.attackCooldown = hero.attack.cooldownTicks;
-      if (hero.attack.kind === 'projectile') fireProjectile(sim, p, hero.attack, events);
-      else performMeleeAttack(sim, p, events);
+      const atk = playerAttack(sim, p);
+      p.attackCooldown = atk.cooldownTicks;
+      if (atk.kind === 'projectile') fireProjectile(sim, p, atk, events);
+      else performMeleeAttack(sim, p, atk, events);
     }
 
     if (input.ability && p.abilityCooldown === 0) {
@@ -209,11 +211,9 @@ function updatePlayers(sim: Sim, inputs: readonly InputCommand[], events: SimEve
   });
 }
 
-function performMeleeAttack(sim: Sim, p: PlayerState, events: SimEvent[]): void {
+function performMeleeAttack(sim: Sim, p: PlayerState, atk: AttackDef, events: SimEvent[]): void {
   const { content } = sim.config;
-  const hero = content.heroes[p.heroId];
-  if (!hero || hero.attack.kind !== 'melee') return;
-  const atk = hero.attack;
+  if (atk.kind !== 'melee') return;
   const damage = heroDamage(sim, p, atk.damage);
   const cosHalfArc = Math.cos(((atk.arcDeg / 2) * Math.PI) / 180);
   events.push({ type: 'attack', playerId: p.id, pos: { ...p.pos }, facing: { ...p.facing } });
@@ -290,15 +290,17 @@ function performDashVolley(sim: Sim, p: PlayerState, ab: DashVolleyAbilityDef, e
   resolveStaticCircles(sim, p.pos, hero.radius);
   events.push({ type: 'ability-dash', playerId: p.id, from, to: { ...p.pos } });
 
-  // Spray darts backward along the dash. Reuses the hero's projectile attack
-  // so the volley IS the same thorn dart (piercing, ranged) as the basic shot.
-  if (hero.attack.kind !== 'projectile') return;
+  // Spray darts backward along the dash. Reuses the hero's equipped projectile
+  // attack so the volley IS the same thorn dart (piercing, ranged) as the basic
+  // shot — a weapon upgrade to the dart carries into the volley too.
+  const atk = playerAttack(sim, p);
+  if (atk.kind !== 'projectile') return;
   const baseAngle = Math.atan2(-dir.y, -dir.x);
   const spread = (ab.spreadDeg * Math.PI) / 180;
   for (let i = 0; i < ab.dartCount; i++) {
     const frac = ab.dartCount > 1 ? i / (ab.dartCount - 1) : 0.5;
     const angle = baseAngle + (frac - 0.5) * spread;
-    spawnProjectile(sim, p, hero.attack, { x: Math.cos(angle), y: Math.sin(angle) }, events);
+    spawnProjectile(sim, p, atk, { x: Math.cos(angle), y: Math.sin(angle) }, events);
   }
 }
 
@@ -349,6 +351,18 @@ function performBlast(sim: Sim, p: PlayerState, ab: BlastAbilityDef, events: Sim
 function heroDamageBonus(sim: Sim, p: PlayerState): number {
   const idx = sim.state.players.indexOf(p);
   return sim.config.players[idx]?.modifiers?.damageBonus ?? 0;
+}
+
+/**
+ * The player's effective attack: the equipped weapon's resolved AttackDef from
+ * config if present, otherwise the hero's built-in attack. The override is
+ * baked in at createSim (src/meta resolves it), so the sim stays profile-free.
+ */
+function playerAttack(sim: Sim, p: PlayerState): AttackDef {
+  const idx = sim.state.players.indexOf(p);
+  const override = sim.config.players[idx]?.attack;
+  if (override) return override;
+  return sim.config.content.heroes[p.heroId]!.attack;
 }
 
 /** The active guard-stance def for a player, or null when not guarding. */

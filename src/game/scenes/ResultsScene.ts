@@ -1,11 +1,17 @@
 import Phaser from 'phaser';
+import { CONTENT } from '../../content';
 import {
   buyUpgrade,
+  buyWeapon,
+  equipWeapon,
+  equippedWeaponId,
   loadProfile,
+  ownedWeapons,
   saveProfile,
   upgradeCost,
   upgradeLevel,
   UPGRADES,
+  weaponsForHero,
   type Profile
 } from '../../meta/save';
 import { audio } from '../audio';
@@ -27,6 +33,7 @@ export class ResultsScene extends Phaser.Scene {
   private bankText!: Phaser.GameObjects.Text;
   private shownBank = 0;
   private bankTween: Phaser.Tweens.Tween | null = null;
+  private heroId = 'vanguard';
 
   constructor() {
     super('results');
@@ -34,6 +41,7 @@ export class ResultsScene extends Phaser.Scene {
 
   create(data: ResultsData): void {
     const { width, height } = this.scale;
+    this.heroId = CONTENT.heroes[data.heroId] ? data.heroId : 'vanguard';
 
     // Bank the run's gold exactly once, on scene entry.
     this.profile = loadProfile();
@@ -94,7 +102,7 @@ export class ResultsScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.shopText = this.add
-      .text(width / 2, 340, '', {
+      .text(width / 2, 355, '', {
         fontFamily: 'monospace',
         fontSize: '16px',
         color: '#f4e3b2',
@@ -138,6 +146,8 @@ export class ResultsScene extends Phaser.Scene {
     const kb = this.input.keyboard!;
     kb.on('keydown-ONE', () => this.tryBuy('vitality'));
     kb.on('keydown-TWO', () => this.tryBuy('might'));
+    kb.on('keydown-THREE', () => this.tryBuyWeapon());
+    kb.on('keydown-FOUR', () => this.cycleWeapon());
     kb.on('keydown-M', () => audio.toggleMute());
     kb.once('keydown-R', () => {
       audio.uiConfirm();
@@ -162,6 +172,45 @@ export class ResultsScene extends Phaser.Scene {
     this.refreshTexts();
   }
 
+  /** The cheapest tier this hero doesn't own yet, or null if fully equipped. */
+  private nextWeaponToBuy(): { id: string; name: string; cost: number } | null {
+    const owned = new Set(ownedWeapons(this.profile, this.heroId));
+    const next = weaponsForHero(this.heroId).find((w) => !owned.has(w.id));
+    return next ? { id: next.id, name: next.name, cost: next.cost } : null;
+  }
+
+  private tryBuyWeapon(): void {
+    const next = this.nextWeaponToBuy();
+    if (next && buyWeapon(this.profile, next.id)) {
+      this.cameras.main.flash(150, 100, 230, 255);
+      audio.uiConfirm();
+    } else {
+      audio.uiTick(220);
+    }
+    this.settleBank();
+  }
+
+  /** Cycle the equipped weapon among the owned tiers for this hero. */
+  private cycleWeapon(): void {
+    const owned = ownedWeapons(this.profile, this.heroId);
+    if (owned.length <= 1) {
+      audio.uiTick(220);
+      return;
+    }
+    const current = equippedWeaponId(this.profile, this.heroId);
+    const idx = owned.indexOf(current);
+    const nextId = owned[(idx + 1) % owned.length]!;
+    if (equipWeapon(this.profile, nextId)) audio.uiTick(680);
+    this.settleBank();
+  }
+
+  private settleBank(): void {
+    this.bankTween?.stop();
+    this.bankTween = null;
+    this.shownBank = this.profile.bank;
+    this.refreshTexts();
+  }
+
   private refreshTexts(): void {
     this.bankText.setText(`Bank: ${Math.round(this.shownBank)} gold`);
     const lines = Object.values(UPGRADES).map((def, i) => {
@@ -170,6 +219,18 @@ export class ResultsScene extends Phaser.Scene {
       const price = cost === null ? 'MAXED' : `${cost}g`;
       return `[${i + 1}] ${def.name}  (rank ${level}/${def.maxLevel})  ${def.description}  — ${price}`;
     });
+
+    // Weapon track for the hero this run was played with.
+    const heroName = CONTENT.heroes[this.heroId]?.name ?? this.heroId;
+    const equippedId = equippedWeaponId(this.profile, this.heroId);
+    const equippedName = CONTENT.weapons[equippedId]?.name ?? '—';
+    const next = this.nextWeaponToBuy();
+    const buyLine = next
+      ? `[3] Buy ${next.name} — ${next.cost}g`
+      : '[3] Buy weapon — all owned';
+    lines.push('');
+    lines.push(`${heroName}'s weapon: ${equippedName}   ${buyLine}   [4] Swap equipped`);
+
     this.shopText.setText(lines.join('\n'));
   }
 }

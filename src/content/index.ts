@@ -3,12 +3,14 @@ import { ENEMIES, GENERATORS } from './enemies';
 import { HEROES } from './heroes';
 import { POWERUPS } from './powerups';
 import { PROPS } from './props';
+import { WEAPONS } from './weapons';
 
 export const CONTENT: ContentDb = {
   heroes: HEROES,
   enemies: ENEMIES,
   generators: GENERATORS,
   props: PROPS,
+  weapons: WEAPONS,
   powerups: POWERUPS
 };
 

@@ -56,4 +56,37 @@ describe('content validity', () => {
     for (let v = 0; v < 4; v++) expect(TEXTURE_SPECS[`tile-floor-${v}`]).toBeDefined();
     for (const id of Object.keys(CONTENT.props)) expect(TEXTURE_SPECS[`prop-${id}`]).toBeDefined();
   });
+
+  it('every weapon references a real hero and is well-formed', () => {
+    const weapons = Object.values(CONTENT.weapons);
+    expect(weapons.length).toBeGreaterThan(0);
+    const meleeFields = new Set(['damage', 'range', 'arcDeg', 'knockback', 'cooldownTicks']);
+    const projFields = new Set(['damage', 'speed', 'radius', 'range', 'cooldownTicks', 'pierce', 'knockback']);
+    for (const [id, w] of Object.entries(CONTENT.weapons)) {
+      expect(id, 'map key matches def id').toBe(w.id);
+      const hero = CONTENT.heroes[w.heroId];
+      expect(hero, `${id} references a real hero`).toBeDefined();
+      expect([1, 2, 3], `${id} tier`).toContain(w.tier);
+      expect(w.cost, `${id} cost`).toBeGreaterThanOrEqual(0);
+      // Overrides may only touch fields of the hero's own attack kind, and
+      // never change the `kind` itself.
+      const allowed = hero!.attack.kind === 'melee' ? meleeFields : projFields;
+      for (const key of Object.keys(w.attackOverrides)) {
+        expect(allowed, `${id} overrides ${key} for a ${hero!.attack.kind} attack`).toContain(key);
+      }
+    }
+  });
+
+  it('every hero has exactly one tier-1 (free base kit) weapon', () => {
+    for (const heroId of Object.keys(CONTENT.heroes)) {
+      const tiers = Object.values(CONTENT.weapons)
+        .filter((w) => w.heroId === heroId)
+        .map((w) => w.tier);
+      const tier1 = Object.values(CONTENT.weapons).filter((w) => w.heroId === heroId && w.tier === 1);
+      expect(tier1.length, `${heroId} tier-1 count`).toBe(1);
+      expect(tier1[0]!.cost, `${heroId} base kit is free`).toBe(0);
+      // No duplicate tiers within a hero's track.
+      expect(new Set(tiers).size, `${heroId} unique tiers`).toBe(tiers.length);
+    }
+  });
 });
