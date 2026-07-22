@@ -62,7 +62,9 @@ export const HEROES: Record<string, HeroDef> = {
       offsetPx: 140,
       slowTicks: 120, // 2 s near-root
       slowMult: 0.1
-    }
+    },
+    // Available from the first run, but recruited with banked gold.
+    unlock: { goldCost: 120 }
   },
   ranger: {
     id: 'ranger',
@@ -91,7 +93,9 @@ export const HEROES: Record<string, HeroDef> = {
       dashPx: 120,
       dartCount: 5,
       spreadDeg: 70
-    }
+    },
+    // Revealed after a first clear, then recruited with gold.
+    unlock: { missionsCompleted: 1, goldCost: 160 }
   },
   sentinel: {
     id: 'sentinel',
@@ -119,6 +123,8 @@ export const HEROES: Record<string, HeroDef> = {
       damageMult: 0.25, // soak 75% of incoming damage
       moveMult: 0.5, // rooted-heavy while braced
       reflectKnockback: 200 // shove blocked attackers off
-    }
+    },
+    // The deepest recruit: two clears to reveal, then the largest gold cost.
+    unlock: { missionsCompleted: 2, goldCost: 220 }
   }
 };

@@ -277,9 +277,27 @@ secret wall, one behind a key gate — authored off the critical path so the e2e
 bot is unaffected. HUD shows a key tally; audio adds a key chime, gate clank, and
 crumble rumble. Covered in `tests/sim/levelMechanics.test.ts`.
 
+#21 landed: hero select is now a real roster with data-authored recruitment.
+`HeroDef` gains an optional `unlock: { missionsCompleted?, goldCost? }`, so the
+gate for every hero is content data — the screen already iterated
+`CONTENT.heroes` for the card, cycling, stats and ability demo (issue #9
+groundwork), and now reads its lock state from the profile with zero per-hero
+code. Two gates compose: a mission gate reveals a hero after N clears, and a
+one-time gold purchase (spent from the meta bank, persisted in
+`Profile.unlockedHeroes`) recruits it — pressed with **B** on the card. The
+Vanguard keeps no `unlock` and stays first, so the e2e Enter-default still
+starts a Vanguard mission. The chosen `heroId` already flowed into the mission;
+the Results screen now carries it too, so **R** replays the same hero and **H**
+returns to hero select on that hero. Unlock evaluation and purchase live in
+`src/meta/save.ts` (`heroLockState`/`isHeroUnlocked`/`buyHeroUnlock`) and are
+covered in `tests/meta.test.ts`, including the always-available Vanguard
+invariant.
+
 ## Next recommended task
 
-Phase 1 is done, so Phase 2/3 opens up: multi-hero roster/unlock data (#21) or
-weapon tiers (#22); **Realm 2 "The Resin Galleries" (#24)** is now unblocked (it
-needs #17 + the enemy families, both landed) and pairs with the Broodmother boss
-(#25). #27/#28 (original art packs) remain open in parallel.
+Phase 1 is complete (#16/#17) and the hero roster (#21) has landed, so Phase 2/3
+is open: weapon tiers (#22, independent) or **Realm 2 "The Resin Galleries"
+(#24)**, now unblocked (it needs #17's keys/gates plus the enemy families, all
+landed) and pairing with the Broodmother boss (#25) — whose ranged hazards reuse
+the Spitter's hostile-projectile plumbing. #27/#28 (original art packs) remain
+open for parallel pickup.
