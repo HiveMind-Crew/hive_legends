@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { BROOD_WARRENS, CONTENT } from '../../content';
-import { loadProfile, profileModifiers } from '../../meta/save';
+import { equippedAttack, loadProfile, profileModifiers } from '../../meta/save';
 import { levelHeightPx, levelWidthPx } from '../../sim/level';
 import { createSim, simTick, type Sim } from '../../sim/sim';
 import { TICK_DT, type EntityId, type PlayerState, type SimEvent, type Vec2 } from '../../sim/types';
@@ -115,10 +115,17 @@ export class MissionScene extends Phaser.Scene {
     // Hero choice flows in from hero select (and results replay); anything
     // unknown falls back to the default hero so the e2e Enter-flow is safe.
     this.heroId = data?.heroId && CONTENT.heroes[data.heroId] ? data.heroId : 'vanguard';
+    const hero = CONTENT.heroes[this.heroId]!;
     this.sim = createSim({
       seed: (Date.now() ^ 0x5eed) >>> 0,
       level: BROOD_WARRENS,
-      players: [{ heroId: this.heroId, modifiers: profileModifiers(profile) }],
+      players: [
+        {
+          heroId: this.heroId,
+          modifiers: profileModifiers(profile),
+          attack: equippedAttack(profile, hero)
+        }
+      ],
       content: CONTENT
     });
     this.accumulator = 0;

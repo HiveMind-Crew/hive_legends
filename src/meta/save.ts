@@ -1,4 +1,5 @@
-import type { HeroDef, HeroModifiers } from '../sim/types';
+import { WEAPONS } from '../content/weapons';
+import type { AttackDef, HeroDef, HeroModifiers, WeaponDef } from '../sim/types';
 
 /**
  * Persistent meta-progression, stored in localStorage. Mission gold is
@@ -40,6 +41,12 @@ export interface Profile {
   bestClearTicks: number | null;
   /** Ids of heroes recruited with gold (mission-gated heroes still need the clears). */
   unlockedHeroes: string[];
+  /**
+   * Per-hero weapon ownership and equipped tier, keyed by hero id. Tier 1 is
+   * always owned implicitly; only purchased tiers are stored. An absent hero
+   * entry (or an unset `equipped`) means the base weapon is equipped.
+   */
+  weapons: Record<string, { owned: string[]; equipped?: string }>;
   /** Master audio volume 0..1. */
   volume: number;
   muted: boolean;
@@ -54,6 +61,7 @@ export function defaultProfile(): Profile {
     missionsCompleted: 0,
     bestClearTicks: null,
     unlockedHeroes: [],
+    weapons: {},
     volume: 0.7,
     muted: false
   };
@@ -68,7 +76,8 @@ export function loadProfile(): Profile {
       ...defaultProfile(),
       ...parsed,
       upgrades: { ...(parsed.upgrades ?? {}) },
-      unlockedHeroes: [...(parsed.unlockedHeroes ?? [])]
+      unlockedHeroes: [...(parsed.unlockedHeroes ?? [])],
+      weapons: { ...(parsed.weapons ?? {}) }
     };
   } catch {
     return defaultProfile();
@@ -152,6 +161,105 @@ export function buyHeroUnlock(profile: Profile, hero: HeroDef): boolean {
   if (!profile.unlockedHeroes.includes(hero.id)) profile.unlockedHeroes.push(hero.id);
   saveProfile(profile);
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// Weapon tiers (issue #22)
+// ---------------------------------------------------------------------------
+
+/** Every weapon for a hero, ordered by tier (tier 1 = built-in kit first). */
+export function weaponsForHero(heroId: string): WeaponDef[] {
+  return Object.values(WEAPONS)
+    .filter((w) => w.heroId === heroId)
+    .sort((a, b) => a.tier - b.tier);
+}
+
+/** The hero's tier-1 (base kit) weapon, which is always owned. */
+export function baseWeapon(heroId: string): WeaponDef | undefined {
+  return weaponsForHero(heroId).find((w) => w.tier === 1);
+}
+
+/** Ids of weapons the profile owns for a hero (tier 1 is always included). */
+export function ownedWeapons(profile: Profile, heroId: string): string[] {
+  const base = baseWeapon(heroId);
+  const stored = profile.weapons[heroId]?.owned ?? [];
+  const ids = new Set<string>(stored.filter((id) => WEAPONS[id]?.heroId === heroId));
+  if (base) ids.add(base.id);
+  // Preserve tier order for stable display.
+  return weaponsForHero(heroId)
+    .filter((w) => ids.has(w.id))
+    .map((w) => w.id);
+}
+
+export function isWeaponOwned(profile: Profile, weaponId: string): boolean {
+  const def = WEAPONS[weaponId];
+  if (!def) return false;
+  return ownedWeapons(profile, def.heroId).includes(weaponId);
+}
+
+/** The equipped weapon id for a hero, defaulting to the base kit. */
+export function equippedWeaponId(profile: Profile, heroId: string): string {
+  const equipped = profile.weapons[heroId]?.equipped;
+  if (equipped && isWeaponOwned(profile, equipped)) return equipped;
+  return baseWeapon(heroId)?.id ?? '';
+}
+
+export function equippedWeapon(profile: Profile, heroId: string): WeaponDef | undefined {
+  return WEAPONS[equippedWeaponId(profile, heroId)];
+}
+
+function ensureWeaponEntry(profile: Profile, heroId: string): { owned: string[]; equipped?: string } {
+  const entry = profile.weapons[heroId] ?? { owned: [] };
+  profile.weapons[heroId] = entry;
+  return entry;
+}
+
+/**
+ * Buys a weapon tier for its hero, spending from the bank and persisting.
+ * Returns false when the weapon is unknown, already owned, or unaffordable.
+ * Weapons are hero-gated by construction (a WeaponDef names its hero), so a
+ * purchase can only ever add to that hero's own track.
+ */
+export function buyWeapon(profile: Profile, weaponId: string): boolean {
+  const def = WEAPONS[weaponId];
+  if (!def) return false;
+  if (isWeaponOwned(profile, weaponId)) return false;
+  if (profile.bank < def.cost) return false;
+  profile.bank -= def.cost;
+  const entry = ensureWeaponEntry(profile, def.heroId);
+  if (!entry.owned.includes(weaponId)) entry.owned.push(weaponId);
+  entry.equipped = weaponId; // auto-equip a fresh purchase
+  saveProfile(profile);
+  return true;
+}
+
+/** Equips an owned weapon for its hero. Returns false if not owned. */
+export function equipWeapon(profile: Profile, weaponId: string): boolean {
+  const def = WEAPONS[weaponId];
+  if (!def || !isWeaponOwned(profile, weaponId)) return false;
+  ensureWeaponEntry(profile, def.heroId).equipped = weaponId;
+  saveProfile(profile);
+  return true;
+}
+
+/**
+ * Resolves the hero's base attack merged with a weapon's tier overrides into a
+ * concrete AttackDef. The weapon's `kind` never changes (overrides omit it),
+ * so the merged shape stays a valid AttackDef for the hero's attack kind.
+ */
+export function resolveWeaponAttack(hero: HeroDef, weapon: WeaponDef | undefined): AttackDef {
+  if (!weapon) return hero.attack;
+  return { ...hero.attack, ...weapon.attackOverrides } as AttackDef;
+}
+
+/**
+ * The equipped-weapon attack to hand to `createSim` for a hero, or undefined
+ * when the base kit is equipped (so the sim just uses `hero.attack`).
+ */
+export function equippedAttack(profile: Profile, hero: HeroDef): AttackDef | undefined {
+  const weapon = equippedWeapon(profile, hero.id);
+  if (!weapon || weapon.tier === 1) return undefined;
+  return resolveWeaponAttack(hero, weapon);
 }
 
 /** Persists audio preferences without disturbing progression fields. */

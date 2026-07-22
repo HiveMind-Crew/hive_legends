@@ -2,12 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { CONTENT } from '../src/content';
 import {
   buyHeroUnlock,
+  buyWeapon,
   defaultProfile,
+  equipWeapon,
+  equippedAttack,
+  equippedWeaponId,
   heroLockState,
   isHeroUnlocked,
   loadProfile,
+  ownedWeapons,
+  resolveWeaponAttack,
+  weaponsForHero,
   type Profile
 } from '../src/meta/save';
+import { WEAPONS } from '../src/content/weapons';
 
 /**
  * Hero recruitment gates (issue #21). Unlock rules live in hero data
@@ -85,5 +93,78 @@ describe('hero unlocks', () => {
     // No localStorage in the node test env, so loadProfile returns a default;
     // the important guarantee is the field always exists as an array.
     expect(loadProfile().unlockedHeroes).toEqual([]);
+    expect(loadProfile().weapons).toEqual({});
+  });
+});
+
+/**
+ * Weapon tiers (issue #22). Ownership and the equipped tier persist in the
+ * profile; purchases are hero-gated and respect the bank; the equipped tier
+ * resolves to an AttackDef for createSim without the sim ever reading meta.
+ */
+describe('weapon tiers', () => {
+  it('the base kit is owned and equipped by default, with no attack override', () => {
+    const profile = defaultProfile();
+    const hero = CONTENT.heroes['vanguard']!;
+    const base = weaponsForHero('vanguard').find((w) => w.tier === 1)!;
+    expect(ownedWeapons(profile, 'vanguard')).toEqual([base.id]);
+    expect(equippedWeaponId(profile, 'vanguard')).toBe(base.id);
+    // Base tier ⇒ no override, so the sim just uses hero.attack.
+    expect(equippedAttack(profile, hero)).toBeUndefined();
+  });
+
+  it('buying a tier respects the bank, auto-equips, and is hero-gated', () => {
+    const profile = defaultProfile();
+    const t2 = WEAPONS['vanguard-t2']!;
+
+    // Broke: purchase fails and nothing is owned/spent.
+    profile.bank = t2.cost - 1;
+    expect(buyWeapon(profile, 'vanguard-t2')).toBe(false);
+    expect(ownedWeapons(profile, 'vanguard')).not.toContain('vanguard-t2');
+
+    // Funded: purchase spends, adds ownership, and auto-equips the new tier.
+    profile.bank = t2.cost + 10;
+    expect(buyWeapon(profile, 'vanguard-t2')).toBe(true);
+    expect(profile.bank).toBe(10);
+    expect(ownedWeapons(profile, 'vanguard')).toContain('vanguard-t2');
+    expect(equippedWeaponId(profile, 'vanguard')).toBe('vanguard-t2');
+
+    // Idempotent: an owned tier can't be re-bought.
+    expect(buyWeapon(profile, 'vanguard-t2')).toBe(false);
+    expect(profile.bank).toBe(10);
+  });
+
+  it('resolves the equipped tier into the hero attack merged with overrides', () => {
+    const profile = defaultProfile();
+    const hero = CONTENT.heroes['vanguard']!;
+    profile.bank = 10_000;
+    buyWeapon(profile, 'vanguard-t3');
+
+    const attack = equippedAttack(profile, hero)!;
+    expect(attack).toBeDefined();
+    expect(attack.kind).toBe(hero.attack.kind); // stays melee
+    // Overridden fields take the weapon value; untouched fields keep the base.
+    expect(attack.kind === 'melee' && attack.damage).toBe(WEAPONS['vanguard-t3']!.attackOverrides.damage);
+    expect(attack.kind === 'melee' && attack.range).toBe(
+      hero.attack.kind === 'melee' ? hero.attack.range : undefined
+    );
+  });
+
+  it('equip only accepts owned weapons and never changes the attack kind', () => {
+    const profile = defaultProfile();
+    const hero = CONTENT.heroes['arcanist']!;
+    // Can't equip a tier you don't own.
+    expect(equipWeapon(profile, 'arcanist-t3')).toBe(false);
+
+    profile.bank = 10_000;
+    expect(buyWeapon(profile, 'arcanist-t2')).toBe(true);
+    expect(equipWeapon(profile, 'arcanist-t2')).toBe(true);
+    const attack = resolveWeaponAttack(hero, WEAPONS['arcanist-t2']);
+    expect(attack.kind).toBe(hero.attack.kind); // projectile stays projectile
+
+    // A weapon is bound to its hero: buying it never touches another hero.
+    expect(ownedWeapons(profile, 'vanguard')).toEqual([
+      weaponsForHero('vanguard').find((w) => w.tier === 1)!.id
+    ]);
   });
 });

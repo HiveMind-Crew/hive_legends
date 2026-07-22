@@ -264,9 +264,27 @@ returns to hero select on that hero. Unlock evaluation and purchase live in
 covered in `tests/meta.test.ts`, including the always-available Vanguard
 invariant.
 
+#22 landed: data-driven weapon tiers per hero. A new `WeaponDef { id, name,
+heroId, tier: 1|2|3, cost, attackOverrides }` in `src/content/weapons.ts`
+(registered in `ContentDb.weapons`) gives each hero a three-tier track: tier 1
+is the built-in kit (cost 0, no overrides), tiers 2–3 are shop-purchasable and
+override the attack numbers that fit the class fantasy (Vanguard *Warden's Edge*
+→ wider arc, *Sunreaver Maul* → +damage +knockback; Arcanist/Ranger get pierce
+and speed; Sentinel gets broader sweeps). Ownership and the equipped tier
+persist per-hero in `Profile.weapons`; purchases are hero-gated by construction
+and respect the bank (`buyWeapon`/`equipWeapon` in `src/meta/save.ts`). The
+equipped weapon enters the sim **only at `createSim` time** as a resolved
+`AttackDef` on `SimPlayerConfig.attack` — exactly like stat modifiers, so the
+sim never reads the profile; a new `playerAttack()` resolver folds it into the
+basic swing/bolt and the Ranger's Volley Step darts. The Results shop buys the
+next tier (**3**) and swaps the equipped weapon (**4**); the hero-select card
+shows the equipped weapon and drives its POWER bar off the resolved attack.
+Covered in `tests/sim/weapons.test.ts` (same-seed outcome shift + per-config
+determinism), plus weapon-validity checks in `tests/content.test.ts` and
+ownership/purchase/resolution in `tests/meta.test.ts`.
+
 ## Next recommended task
 
-Weapon tiers (#22, independent) or Realm 2 "The Resin Galleries" (#24, needs
-#17's keys/gates). The Spitter's hostile-projectile plumbing also unblocks
-ranged hazards and the Broodmother boss (#25). #16/#17/#22/#24/#25/#27/#28
-remain open for parallel pickup.
+Realm 2 "The Resin Galleries" (#24, needs #17's keys/gates) once PR #34 lands,
+or the Broodmother boss (#25) — its ranged hazards reuse the Spitter's
+hostile-projectile plumbing. #24/#25/#27/#28 remain open for parallel pickup.

@@ -61,6 +61,33 @@ export interface ProjectileAttackDef {
 
 export type AttackDef = MeleeAttackDef | ProjectileAttackDef;
 
+/**
+ * A weapon tier's stat overrides: a partial of either attack shape's numeric
+ * fields (the `kind` is fixed by the hero and never overridden). Authored
+ * overrides only ever touch fields of the hero's own attack kind.
+ */
+export type AttackOverrides = Partial<Omit<MeleeAttackDef, 'kind'>> &
+  Partial<Omit<ProjectileAttackDef, 'kind'>>;
+
+/**
+ * A purchasable weapon tier for one hero. Tier 1 is the hero's built-in kit
+ * (cost 0, empty overrides); tiers 2–3 override specific attack numbers. The
+ * equipped weapon enters the sim only at createSim time, as a resolved
+ * AttackDef on SimPlayerConfig — the sim never reads the profile.
+ */
+export interface WeaponDef {
+  id: string;
+  name: string;
+  /** The hero this weapon belongs to; weapons are hero-gated. */
+  heroId: string;
+  tier: 1 | 2 | 3;
+  description: string;
+  /** Gold cost from the meta bank; tier 1 is 0 (owned by default). */
+  cost: number;
+  /** Fields merged over the hero's base attack def (matching its kind). */
+  attackOverrides: AttackOverrides;
+}
+
 interface AbilityBase {
   id: string;
   name: string;
@@ -268,6 +295,7 @@ export interface ContentDb {
   enemies: Record<string, EnemyDef>;
   generators: Record<string, GeneratorDef>;
   props: Record<string, PropDef>;
+  weapons: Record<string, WeaponDef>;
 }
 
 // ---------------------------------------------------------------------------
@@ -410,6 +438,12 @@ export const NO_MODIFIERS: HeroModifiers = Object.freeze({ maxHpBonus: 0, damage
 export interface SimPlayerConfig {
   heroId: string;
   modifiers?: HeroModifiers;
+  /**
+   * Resolved attack for the equipped weapon tier (hero base attack merged with
+   * the weapon's overrides). Omit to use the hero's built-in attack. This is
+   * how a purchased weapon enters the sim — like modifiers, only at createSim.
+   */
+  attack?: AttackDef;
 }
 
 export interface SimConfig {
