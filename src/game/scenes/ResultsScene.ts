@@ -16,6 +16,8 @@ interface ResultsData {
   gold: number;
   kills: number;
   ticks: number;
+  /** Hero played this run; kept so replay and hero-select return to it. */
+  heroId: string;
 }
 
 /** Mission results + the between-mission upgrade shop. */
@@ -139,11 +141,11 @@ export class ResultsScene extends Phaser.Scene {
     kb.on('keydown-M', () => audio.toggleMute());
     kb.once('keydown-R', () => {
       audio.uiConfirm();
-      this.scene.start('mission');
+      this.scene.start('mission', { heroId: data.heroId });
     });
     kb.once('keydown-H', () => {
       audio.uiConfirm();
-      this.scene.start('hero-select');
+      this.scene.start('hero-select', { heroId: data.heroId });
     });
   }
 

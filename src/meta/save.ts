@@ -1,4 +1,4 @@
-import type { HeroModifiers } from '../sim/types';
+import type { HeroDef, HeroModifiers } from '../sim/types';
 
 /**
  * Persistent meta-progression, stored in localStorage. Mission gold is
@@ -38,6 +38,8 @@ export interface Profile {
   upgrades: Record<string, number>;
   missionsCompleted: number;
   bestClearTicks: number | null;
+  /** Ids of heroes recruited with gold (mission-gated heroes still need the clears). */
+  unlockedHeroes: string[];
   /** Master audio volume 0..1. */
   volume: number;
   muted: boolean;
@@ -46,7 +48,15 @@ export interface Profile {
 const STORAGE_KEY = 'hive-legends-profile-v1';
 
 export function defaultProfile(): Profile {
-  return { bank: 0, upgrades: {}, missionsCompleted: 0, bestClearTicks: null, volume: 0.7, muted: false };
+  return {
+    bank: 0,
+    upgrades: {},
+    missionsCompleted: 0,
+    bestClearTicks: null,
+    unlockedHeroes: [],
+    volume: 0.7,
+    muted: false
+  };
 }
 
 export function loadProfile(): Profile {
@@ -54,7 +64,12 @@ export function loadProfile(): Profile {
     const raw = globalThis.localStorage?.getItem(STORAGE_KEY);
     if (!raw) return defaultProfile();
     const parsed = JSON.parse(raw) as Partial<Profile>;
-    return { ...defaultProfile(), ...parsed, upgrades: { ...(parsed.upgrades ?? {}) } };
+    return {
+      ...defaultProfile(),
+      ...parsed,
+      upgrades: { ...(parsed.upgrades ?? {}) },
+      unlockedHeroes: [...(parsed.unlockedHeroes ?? [])]
+    };
   } catch {
     return defaultProfile();
   }
@@ -87,6 +102,54 @@ export function buyUpgrade(profile: Profile, upgradeId: string): boolean {
   if (cost === null || profile.bank < cost) return false;
   profile.bank -= cost;
   profile.upgrades[upgradeId] = upgradeLevel(profile, upgradeId) + 1;
+  saveProfile(profile);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Hero recruitment (hero-select unlocks)
+// ---------------------------------------------------------------------------
+
+/** Recruitment status of a hero for a given profile. */
+export type HeroLockState =
+  | { state: 'unlocked' }
+  | { state: 'mission-locked'; missionsNeeded: number }
+  | { state: 'purchasable'; cost: number; affordable: boolean };
+
+/** Whether the hero's mission gate (if any) has been satisfied. */
+function missionGateMet(profile: Profile, hero: HeroDef): boolean {
+  return profile.missionsCompleted >= (hero.unlock?.missionsCompleted ?? 0);
+}
+
+/** True once a hero is fully recruited and can be taken into a mission. */
+export function isHeroUnlocked(profile: Profile, hero: HeroDef): boolean {
+  if (!hero.unlock) return true; // always-available heroes (the default Vanguard)
+  if (!missionGateMet(profile, hero)) return false;
+  if (hero.unlock.goldCost && !profile.unlockedHeroes.includes(hero.id)) return false;
+  return true;
+}
+
+/** Full lock state for rendering the hero-select card and its requirement text. */
+export function heroLockState(profile: Profile, hero: HeroDef): HeroLockState {
+  if (isHeroUnlocked(profile, hero)) return { state: 'unlocked' };
+  if (!missionGateMet(profile, hero)) {
+    const missionsNeeded = (hero.unlock?.missionsCompleted ?? 0) - profile.missionsCompleted;
+    return { state: 'mission-locked', missionsNeeded };
+  }
+  // Mission gate met, so the remaining gate is the gold purchase.
+  const cost = hero.unlock?.goldCost ?? 0;
+  return { state: 'purchasable', cost, affordable: profile.bank >= cost };
+}
+
+/**
+ * Attempts to recruit a purchasable hero, spending from the bank and
+ * persisting. Returns false if the hero isn't purchasable or gold is short.
+ */
+export function buyHeroUnlock(profile: Profile, hero: HeroDef): boolean {
+  const lock = heroLockState(profile, hero);
+  if (lock.state !== 'purchasable' || !lock.affordable) return false;
+  profile.bank -= lock.cost;
+  if (!profile.unlockedHeroes.includes(hero.id)) profile.unlockedHeroes.push(hero.id);
   saveProfile(profile);
   return true;
 }
