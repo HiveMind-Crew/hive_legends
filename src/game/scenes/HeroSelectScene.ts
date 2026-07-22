@@ -1,6 +1,14 @@
 import Phaser from 'phaser';
 import { CONTENT } from '../../content';
-import { loadProfile, profileModifiers, upgradeLevel, UPGRADES } from '../../meta/save';
+import {
+  buyHeroUnlock,
+  heroLockState,
+  loadProfile,
+  profileModifiers,
+  upgradeLevel,
+  UPGRADES,
+  type HeroLockState
+} from '../../meta/save';
 import type { HeroDef, HeroModifiers } from '../../sim/types';
 import { audio } from '../audio';
 import { TEX, enemyFrame, heroFrame } from '../textures';
@@ -18,13 +26,6 @@ const LOCKED_ROLES: string[] = [];
 
 // Stat bars normalize hero data against these slice-era ceilings.
 const STAT_CEILING = { power: 50, speed: 260, toughness: 220, control: 600 };
-
-/** Missions that must be cleared before a hero can be recruited. */
-const HERO_UNLOCK_MISSIONS: Record<string, number> = { vanguard: 0, arcanist: 1, ranger: 2, sentinel: 3 };
-
-function heroUnlocked(heroId: string, missionsCompleted: number): boolean {
-  return missionsCompleted >= (HERO_UNLOCK_MISSIONS[heroId] ?? 0);
-}
 
 /**
  * A single "crowd control" score for the stat bar, however the ability
@@ -48,19 +49,23 @@ export class HeroSelectScene extends Phaser.Scene {
     super('hero-select');
   }
 
-  create(data?: { heroIndex?: number }): void {
+  create(data?: { heroIndex?: number; heroId?: string }): void {
     const { width, height } = this.scale;
     const profile = loadProfile();
     const roster = Object.values(CONTENT.heroes);
-    this.heroIndex = Math.min(Math.max(data?.heroIndex ?? 0, 0), roster.length - 1);
+    // Prefer an explicit heroId (returning from Results) over a raw index.
+    const byId = data?.heroId ? roster.findIndex((h) => h.id === data.heroId) : -1;
+    const startIndex = byId >= 0 ? byId : (data?.heroIndex ?? 0);
+    this.heroIndex = Math.min(Math.max(startIndex, 0), roster.length - 1);
     const hero = roster[this.heroIndex]!;
-    const unlocked = heroUnlocked(hero.id, profile.missionsCompleted);
+    const lock = heroLockState(profile, hero);
+    const unlocked = lock.state === 'unlocked';
     const mods = profileModifiers(profile);
     this.parade = [];
 
     this.drawAmbient(width, height);
     this.drawTitle(width);
-    this.drawHeroCard(width, hero, mods, unlocked, roster.length);
+    this.drawHeroCard(width, hero, mods, lock, roster.length);
     this.drawLockedSlots(width);
 
     // Profile summary.
@@ -90,9 +95,9 @@ export class HeroSelectScene extends Phaser.Scene {
       .setOrigin(0.5);
     this.tweens.add({ targets: prompt, alpha: 0.35, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
 
-    this.add.rectangle(width / 2, height - 62, 700, 42, 0x120c1a, 0.8).setStrokeStyle(1, 0x3a2f4a);
+    this.add.rectangle(width / 2, height - 62, 720, 42, 0x120c1a, 0.8).setStrokeStyle(1, 0x3a2f4a);
     this.add
-      .text(width / 2, height - 62, '←→ switch hero   Move WASD   Attack Space/J   Ability Shift/K   Mute M', {
+      .text(width / 2, height - 62, '←→ switch hero   B recruit   Move WASD   Attack Space   Ability Shift   Mute M', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#a89bb8'
@@ -110,6 +115,18 @@ export class HeroSelectScene extends Phaser.Scene {
     kb?.on('keydown-RIGHT', () => cycle(1));
     kb?.on('keydown-A', () => cycle(-1));
     kb?.on('keydown-D', () => cycle(1));
+    kb?.on('keydown-B', () => {
+      // Recruit a gold-locked hero from the bank, then re-enter on the same
+      // hero so its now-unlocked card renders. Any other state just buzzes.
+      audio.unlock();
+      if (lock.state !== 'purchasable') return;
+      if (buyHeroUnlock(profile, hero)) {
+        audio.uiConfirm();
+        this.scene.restart({ heroId: hero.id });
+      } else {
+        audio.uiTick(200); // can't afford it — low buzz
+      }
+    });
     kb?.on('keydown-ENTER', () => {
       // First user gesture: unlock the audio context here so the mission's
       // music can start without tripping the browser autoplay policy.
@@ -208,7 +225,8 @@ export class HeroSelectScene extends Phaser.Scene {
       .setOrigin(0.5);
   }
 
-  private drawHeroCard(width: number, hero: HeroDef, mods: HeroModifiers, unlocked: boolean, rosterSize: number): void {
+  private drawHeroCard(width: number, hero: HeroDef, mods: HeroModifiers, lock: HeroLockState, rosterSize: number): void {
+    const unlocked = lock.state === 'unlocked';
     // Sit left of centre when teaser slots share the row; centre when alone.
     const cardX = LOCKED_ROLES.length > 0 ? width / 2 - 240 : width / 2;
     this.add.rectangle(cardX, 320, 300, 320, 0x231a30).setStrokeStyle(2, unlocked ? 0xd9a441 : 0x544868);
@@ -243,15 +261,15 @@ export class HeroSelectScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    if (!unlocked) {
-      this.add.rectangle(cardX, 460, 260, 24, 0x120c1a).setStrokeStyle(1, 0xff5a4d);
-      this.add
-        .text(cardX, 460, 'LOCKED — clear a mission to recruit', {
-          fontFamily: 'monospace',
-          fontSize: '11px',
-          color: '#ff8a7a'
-        })
-        .setOrigin(0.5);
+    if (lock.state === 'mission-locked') {
+      const n = lock.missionsNeeded;
+      this.drawRequirement(cardX, `LOCKED — clear ${n} more mission${n === 1 ? '' : 's'}`, 0xff5a4d, '#ff8a7a');
+    } else if (lock.state === 'purchasable') {
+      // Recruitable now if the bank can cover it; the border/text signal which.
+      const color = lock.affordable ? 0xffd75e : 0xff5a4d;
+      const textColor = lock.affordable ? '#ffd75e' : '#ff8a7a';
+      const hint = lock.affordable ? '(press B)' : '(need more gold)';
+      this.drawRequirement(cardX, `RECRUIT — ${lock.cost} gold  ${hint}`, color, textColor);
     }
 
     // Stat bars instead of raw numbers (modifier-adjusted). Control folds
@@ -291,6 +309,14 @@ export class HeroSelectScene extends Phaser.Scene {
         });
       }
     });
+  }
+
+  /** The bordered requirement pill under a locked/purchasable hero card. */
+  private drawRequirement(cardX: number, text: string, border: number, textColor: string): void {
+    this.add.rectangle(cardX, 460, 264, 24, 0x120c1a).setStrokeStyle(1, border);
+    this.add
+      .text(cardX, 460, text, { fontFamily: 'monospace', fontSize: '11px', color: textColor })
+      .setOrigin(0.5);
   }
 
   private drawLockedSlots(width: number): void {

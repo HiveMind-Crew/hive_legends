@@ -115,6 +115,19 @@ export interface GuardAbilityDef extends AbilityBase {
 
 export type AbilityDef = BlastAbilityDef | DashVolleyAbilityDef | GuardAbilityDef;
 
+/**
+ * How a hero is recruited on the hero-select screen. A hero with no `unlock`
+ * is available from the very first run (the default Vanguard must stay this
+ * way so the e2e Enter-flow starts a Vanguard mission). Both gates may apply:
+ * a hero can require missions cleared *and* a one-time gold purchase.
+ */
+export interface HeroUnlockDef {
+  /** Missions that must be cleared before the hero can be recruited at all. */
+  missionsCompleted?: number;
+  /** One-time gold cost, spent from the meta bank, to permanently recruit. */
+  goldCost?: number;
+}
+
 export interface HeroDef {
   id: string;
   name: string;
@@ -125,6 +138,8 @@ export interface HeroDef {
   radius: number;
   attack: AttackDef;
   ability: AbilityDef;
+  /** Recruitment gate; omit for a hero that is always available. */
+  unlock?: HeroUnlockDef;
 }
 
 /**
