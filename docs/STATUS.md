@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-07-19 (content expansion: #15, #26, #18, #19, #20, #23 landed; four heroes, three enemy families)
+Updated: 2026-07-20 (content expansion: Phase 1 complete — #15/#16/#17 + heroes #18-#20, enemies #23, art pipeline #26)
 
 ## Milestones
 
@@ -182,7 +182,8 @@ the content expansion, orchestrated for parallel contributors and tracked in
 issue #29:
 
 - **Phase 1 — sim foundations**: projectiles/typed kits (#15 — DONE),
-  temporary power-ups (#16), keys/gates/secret walls (#17).
+  temporary power-ups (#16 — DONE), keys/gates/secret walls (#17 — DONE).
+  **Phase 1 is complete.**
 - **Phase 2 — classes & combat**: Arcanist (#18 — DONE), Ranger (#19 — DONE),
   Sentinel (#20 — DONE), multi-hero roster (#21), weapon tiers (#22),
   Husk/Spitter/elite enemies (#23 — DONE). All four core classes are now
@@ -248,6 +249,34 @@ hostile bile bolts sickly-green and plays a distinct spit SFX; the family×tier
 art grammar (#7) drew every new silhouette with zero new texture code. Covered
 in `tests/sim/enemies.test.ts`.
 
+#16 landed: temporary power-ups — floor relics that grant a short, stacking
+timed buff. Three ship: **Emberheart** (frenzy, +damage), **Windstep Sigil**
+(swiftness, +move speed), and **Aegis Bloom** (ward, −damage taken). Buff
+magnitudes are data (`src/content/powerups.ts`); each def carries all three
+multipliers (unused ones at 1) so the sim multiplies uniformly with no per-kind
+branching. `PlayerState.power` holds per-buff tick timers that decrement each
+tick; the pickup model gained a `'powerup'` kind so relics flow through the
+existing collection path (grabbing one refreshes its full duration). The
+renderer draws a spinning gem per buff, a colored player aura while active, and
+a Herald call-out on pickup; audio adds a rising chime. Buffs stack with the
+Sentinel's guard multiplicatively. Covered in `tests/sim/powerups.test.ts`; the
+Brood Warrens seeds one relic of each.
+
+#17 landed: the level-mechanics toolkit — **keys**, **key-locked gates**, and
+breakable **secret walls** — completing Phase 1. Movement collision now consults
+a sim-side blocked-tile overlay (`Blockage`) on top of the static wall grid, so
+opening a gate or crumbling a secret makes its tile passable with zero level-data
+mutation; the overlay rides the hot path as a tiny tile-index array (no Sets, so
+`hashState` stays stable). A `key` pickup kind fills `PlayerState.keys`; standing
+against a locked gate with a key in hand spends it and opens the gate
+permanently (`gate-opened`). Secret walls are damageable entities on floor tiles
+that render as ordinary wall tops until melee/ability/bolt damage crumbles them
+into a passage (`secret-revealed`); enemy fire leaves them be, and gates stop
+bolts. The Brood Warrens gains two optional NW-corner vaults — one behind a
+secret wall, one behind a key gate — authored off the critical path so the e2e
+bot is unaffected. HUD shows a key tally; audio adds a key chime, gate clank, and
+crumble rumble. Covered in `tests/sim/levelMechanics.test.ts`.
+
 #21 landed: hero select is now a real roster with data-authored recruitment.
 `HeroDef` gains an optional `unlock: { missionsCompleted?, goldCost? }`, so the
 gate for every hero is content data — the screen already iterated
@@ -266,7 +295,9 @@ invariant.
 
 ## Next recommended task
 
-Weapon tiers (#22, independent) or Realm 2 "The Resin Galleries" (#24, needs
-#17's keys/gates). The Spitter's hostile-projectile plumbing also unblocks
-ranged hazards and the Broodmother boss (#25). #16/#17/#22/#24/#25/#27/#28
-remain open for parallel pickup.
+Phase 1 is complete (#16/#17) and the hero roster (#21) has landed, so Phase 2/3
+is open: weapon tiers (#22, independent) or **Realm 2 "The Resin Galleries"
+(#24)**, now unblocked (it needs #17's keys/gates plus the enemy families, all
+landed) and pairing with the Broodmother boss (#25) — whose ranged hazards reuse
+the Spitter's hostile-projectile plumbing. #27/#28 (original art packs) remain
+open for parallel pickup.

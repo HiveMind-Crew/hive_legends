@@ -3,19 +3,21 @@ import { BROOD_WARRENS, CONTENT } from '../../content';
 import { loadProfile, profileModifiers } from '../../meta/save';
 import { levelHeightPx, levelWidthPx } from '../../sim/level';
 import { createSim, simTick, type Sim } from '../../sim/sim';
-import { TICK_DT, type EntityId, type PlayerState, type SimEvent, type Vec2 } from '../../sim/types';
+import { POWERUP_KINDS, TICK_DT, type EntityId, type PlayerState, type SimEvent, type Vec2 } from '../../sim/types';
 import { audio } from '../audio';
 import { playerAccent } from '../colors';
 import { KeyboardCommander } from '../input';
 import type { HudScene } from './HudScene';
 import {
   FLOOR_VARIANTS,
+  POWERUP_COLORS,
   TEX,
   broodNodeFrame,
   enemyFrame,
   facingDirIndex,
   floorVariant,
   heroFrame,
+  powerupTexture,
   propTexture,
   type EnemyAnimFrame,
   type HeroPose
@@ -35,6 +37,7 @@ export interface HudPlayerInfo {
   /** Guard-stance ticks remaining and the stance's full duration (0 if none). */
   guardTicks: number;
   guardMax: number;
+  keys: number;
   alive: boolean;
 }
 
@@ -93,6 +96,7 @@ export class MissionScene extends Phaser.Scene {
   private heroId = 'vanguard';
   private slowedIds = new Set<EntityId>();
   private guardGlow = new Map<EntityId, Phaser.GameObjects.Image>();
+  private powerAura = new Map<EntityId, Phaser.GameObjects.Image>();
   private ended = false;
   private hitStopMs = 0;
   private camFollow = { x: 0, y: 0 };
@@ -134,6 +138,7 @@ export class MissionScene extends Phaser.Scene {
     this.hatchAtTick.clear();
     this.slowedIds.clear();
     this.guardGlow.clear();
+    this.powerAura.clear();
     this.hitStopMs = 0;
     this.camKick = { x: 0, y: 0 };
     this.trailCount = 0;
@@ -318,6 +323,7 @@ export class MissionScene extends Phaser.Scene {
           abilityMax: hero?.ability.cooldownTicks ?? 1,
           guardTicks: p.guardTicks,
           guardMax: hero?.ability.kind === 'guard' ? hero.ability.durationTicks : 0,
+          keys: p.keys,
           alive: p.alive
         };
       }),
@@ -471,16 +477,45 @@ export class MissionScene extends Phaser.Scene {
           this.tweens.add({ targets: scorch, alpha: 0, duration: 2500, onComplete: () => scorch.destroy() });
           break;
         }
-        case 'pickup-collected':
-          this.floatText(ev.pos, ev.kind === 'gold' ? `+${ev.amount}` : `+${ev.amount} HP`, ev.kind === 'gold' ? '#ffd75e' : '#e0524d');
-          this.burst(ev.kind === 'gold' ? this.sparkFx : this.heartFx, ev.kind === 'gold' ? 6 : 5, ev.pos);
+        case 'pickup-collected': {
+          const label = ev.kind === 'gold' ? `+${ev.amount}` : ev.kind === 'key' ? 'KEY' : `+${ev.amount} HP`;
+          const color = ev.kind === 'gold' ? '#ffd75e' : ev.kind === 'key' ? '#e6c34a' : '#e0524d';
+          this.floatText(ev.pos, label, color);
+          this.burst(ev.kind === 'health' ? this.heartFx : this.sparkFx, ev.kind === 'health' ? 5 : 6, ev.pos);
+          if (ev.kind === 'key') hud.herald('YOU FOUND A KEY', '#e6c34a');
           break;
+        }
+        case 'powerup-gained': {
+          const name = CONTENT.powerups[ev.power].name;
+          const color = POWERUP_COLORS[ev.power] ?? 0xffffff;
+          const hex = `#${color.toString(16).padStart(6, '0')}`;
+          this.floatText(ev.pos, name.toUpperCase(), hex);
+          this.flashRing(ev.pos, 34, color);
+          this.burst(this.sparkFx, 8, ev.pos);
+          hud.herald(`${name.toUpperCase()} EMPOWERED`, hex);
+          break;
+        }
         case 'player-hit':
           this.cameras.main.shake(80, 0.004);
           break;
         case 'prop-destroyed':
           this.deathPuff(ev.pos, 0xd9b26a, 0.8);
           this.burst(this.sparkFx, 4, ev.pos);
+          break;
+        case 'gate-opened':
+          this.burst(this.dustFx, 10, ev.pos);
+          this.flashRing(ev.pos, 30, 0xe6c34a);
+          hud.herald('THE GATE SWINGS OPEN', '#e6c34a');
+          break;
+        case 'secret-hit':
+          this.tintFlash(this.spriteFor({ enemyId: ev.secretId }), 0xffffff);
+          this.burst(this.dustFx, 3, ev.pos);
+          break;
+        case 'secret-revealed':
+          this.deathPuff(ev.pos, 0x8a8298, 1.6);
+          this.burst(this.dustFx, 14, ev.pos);
+          this.cameras.main.shake(180, 0.006);
+          hud.herald('A HIDDEN PASSAGE!', '#bdf4ff');
           break;
         case 'projectile-fired':
           this.burst(this.sparkFx, 2, ev.pos); // muzzle flick
@@ -562,6 +597,19 @@ export class MissionScene extends Phaser.Scene {
       }
       gg.setVisible(guarding).setPosition(p.pos.x, p.pos.y).setDepth(p.pos.y - 1);
       if (guarding) gg.setScale(1.7).setAlpha(0.35 + 0.18 * Math.sin(this.time.now / 110));
+
+      // Power-up aura: a soft glow tinted by whichever relic buff is active.
+      const activeBuff = POWERUP_KINDS.find((k) => p.power[k] > 0);
+      let aura = this.powerAura.get(p.id);
+      if (!aura) {
+        aura = this.add.image(0, 0, TEX.glow).setBlendMode(Phaser.BlendModes.ADD);
+        this.powerAura.set(p.id, aura);
+      }
+      aura.setVisible(activeBuff !== undefined).setPosition(p.pos.x, p.pos.y).setDepth(p.pos.y - 1);
+      if (activeBuff) {
+        aura.setTint(POWERUP_COLORS[activeBuff] ?? 0xffffff);
+        aura.setScale(1.4).setAlpha(0.3 + 0.14 * Math.sin(this.time.now / 130));
+      }
 
       const accent = playerAccent(index);
       let ring = this.rings.get(p.id);
@@ -708,15 +756,39 @@ export class MissionScene extends Phaser.Scene {
 
     for (const pk of s.pickups) {
       seen.add(pk.id);
-      const spr = this.ensureSprite(pk.id, pk.kind === 'gold' ? TEX.gold : TEX.health);
+      const key =
+        pk.kind === 'gold'
+          ? TEX.gold
+          : pk.kind === 'health'
+            ? TEX.health
+            : pk.kind === 'key'
+              ? TEX.key
+              : powerupTexture(pk.power ?? 'frenzy');
+      const spr = this.ensureSprite(pk.id, key);
       const bob = Math.sin(this.time.now / 280 + pk.id) * 2.5;
       spr.setPosition(pk.pos.x, pk.pos.y - 3 + bob).setDepth(pk.pos.y);
+      // Relics spin gently so they read as special.
+      if (pk.kind === 'powerup') spr.setRotation(Math.sin(this.time.now / 600 + pk.id) * 0.4);
       this.ensureShadow(pk.id, 0.5).setPosition(pk.pos.x, pk.pos.y + 7);
     }
 
     for (const pr of s.props) {
       seen.add(pr.id);
       this.ensureSprite(pr.id, propTexture(pr.typeId)).setPosition(pr.pos.x, pr.pos.y).setDepth(pr.pos.y);
+    }
+
+    // Locked gates render as barred doors; unlocking drops them from `seen` so
+    // the sprite is torn down. Secret walls masquerade as ordinary wall tops
+    // until broken (then removed from state → sprite cleaned up).
+    const ts = s ? this.sim.config.level.tileSize : 32;
+    for (const gate of s.gates) {
+      if (!gate.locked) continue;
+      seen.add(gate.id);
+      this.ensureSprite(gate.id, TEX.gate).setPosition(gate.pos.x, gate.pos.y).setDepth((gate.ty + 1) * ts);
+    }
+    for (const sw of s.secrets) {
+      seen.add(sw.id);
+      this.ensureSprite(sw.id, TEX.wall).setPosition(sw.pos.x, sw.pos.y).setDepth((sw.ty + 1) * ts);
     }
 
     for (const bolt of s.projectiles) {
@@ -740,7 +812,7 @@ export class MissionScene extends Phaser.Scene {
         this.genPopAt.delete(id);
         this.hatchAtTick.delete(id);
         this.slowedIds.delete(id);
-        for (const map of [this.shadows, this.rings, this.chevrons, this.guardGlow]) {
+        for (const map of [this.shadows, this.rings, this.chevrons, this.guardGlow, this.powerAura]) {
           map.get(id)?.destroy();
           map.delete(id);
         }
