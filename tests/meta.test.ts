@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONTENT } from '../src/content';
+import { CONTENT, MISSION_ORDER } from '../src/content';
 import {
   buyHeroUnlock,
   buyWeapon,
@@ -9,7 +9,11 @@ import {
   equippedWeaponId,
   heroLockState,
   isHeroUnlocked,
+  isLevelCleared,
+  isLevelUnlocked,
   loadProfile,
+  markLevelCleared,
+  nextLevelId,
   ownedWeapons,
   resolveWeaponAttack,
   weaponsForHero,
@@ -166,5 +170,48 @@ describe('weapon tiers', () => {
     expect(ownedWeapons(profile, 'vanguard')).toEqual([
       weaponsForHero('vanguard').find((w) => w.tier === 1)!.id
     ]);
+  });
+});
+
+/**
+ * Mission progression (issue #24). The first realm is always open (the e2e
+ * Enter-default); later realms unlock as the one before them is cleared, so a
+ * second authored mission needs no per-mission code.
+ */
+describe('mission progression', () => {
+  const first = MISSION_ORDER[0]!;
+  const second = MISSION_ORDER[1];
+
+  it('the first mission is always unlocked, even on a fresh profile', () => {
+    const profile = defaultProfile();
+    expect(profile.clearedLevels).toEqual([]);
+    expect(isLevelUnlocked(profile, first, MISSION_ORDER)).toBe(true);
+  });
+
+  it('a later mission is locked until the previous one is cleared', () => {
+    if (!second) return; // single-mission builds have nothing to gate
+    const profile = defaultProfile();
+    expect(isLevelUnlocked(profile, second, MISSION_ORDER)).toBe(false);
+
+    markLevelCleared(profile, first);
+    expect(isLevelCleared(profile, first)).toBe(true);
+    expect(isLevelUnlocked(profile, second, MISSION_ORDER)).toBe(true);
+  });
+
+  it('markLevelCleared is idempotent', () => {
+    const profile = defaultProfile();
+    markLevelCleared(profile, first);
+    markLevelCleared(profile, first);
+    expect(profile.clearedLevels.filter((id) => id === first)).toHaveLength(1);
+  });
+
+  it('nextLevelId walks the order and stops at the end', () => {
+    expect(nextLevelId(first, MISSION_ORDER)).toBe(second ?? null);
+    expect(nextLevelId(MISSION_ORDER[MISSION_ORDER.length - 1]!, MISSION_ORDER)).toBeNull();
+    expect(nextLevelId('does-not-exist', MISSION_ORDER)).toBeNull();
+  });
+
+  it('loadProfile backfills clearedLevels for older saves', () => {
+    expect(loadProfile().clearedLevels).toEqual([]);
   });
 });

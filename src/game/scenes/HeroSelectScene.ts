@@ -1,15 +1,18 @@
 import Phaser from 'phaser';
-import { CONTENT } from '../../content';
+import { CONTENT, LEVELS, MISSION_ORDER } from '../../content';
 import {
   buyHeroUnlock,
   equippedWeapon,
   heroLockState,
+  isLevelCleared,
+  isLevelUnlocked,
   loadProfile,
   profileModifiers,
   resolveWeaponAttack,
   upgradeLevel,
   UPGRADES,
-  type HeroLockState
+  type HeroLockState,
+  type Profile
 } from '../../meta/save';
 import type { HeroDef, HeroModifiers } from '../../sim/types';
 import { audio } from '../audio';
@@ -46,12 +49,13 @@ export class HeroSelectScene extends Phaser.Scene {
   private heroSprite!: Phaser.GameObjects.Image;
   private heroFrameOn = false;
   private heroIndex = 0;
+  private missionIndex = 0;
 
   constructor() {
     super('hero-select');
   }
 
-  create(data?: { heroIndex?: number; heroId?: string }): void {
+  create(data?: { heroIndex?: number; heroId?: string; missionIndex?: number }): void {
     const { width, height } = this.scale;
     const profile = loadProfile();
     const roster = Object.values(CONTENT.heroes);
@@ -59,6 +63,11 @@ export class HeroSelectScene extends Phaser.Scene {
     const byId = data?.heroId ? roster.findIndex((h) => h.id === data.heroId) : -1;
     const startIndex = byId >= 0 ? byId : (data?.heroIndex ?? 0);
     this.heroIndex = Math.min(Math.max(startIndex, 0), roster.length - 1);
+    // Mission selection defaults to the first mission (The Brood Warrens) so
+    // the e2e Enter-flow always launches it.
+    this.missionIndex = Math.min(Math.max(data?.missionIndex ?? 0, 0), MISSION_ORDER.length - 1);
+    const selectedLevelId = MISSION_ORDER[this.missionIndex]!;
+    const missionUnlocked = isLevelUnlocked(profile, selectedLevelId, MISSION_ORDER);
     const hero = roster[this.heroIndex]!;
     const lock = heroLockState(profile, hero);
     const unlocked = lock.state === 'unlocked';
@@ -68,6 +77,7 @@ export class HeroSelectScene extends Phaser.Scene {
     this.drawAmbient(width, height);
     this.drawTitle(width);
     this.drawHeroCard(width, hero, mods, lock, roster.length);
+    this.drawMissionSelect(width, profile);
     this.drawLockedSlots(width);
 
     // Profile summary.
@@ -97,11 +107,15 @@ export class HeroSelectScene extends Phaser.Scene {
       .setOrigin(0.5);
     this.tweens.add({ targets: prompt, alpha: 0.35, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
 
-    this.add.rectangle(width / 2, height - 62, 720, 42, 0x120c1a, 0.8).setStrokeStyle(1, 0x3a2f4a);
+    this.add.rectangle(width / 2, height - 62, 760, 42, 0x120c1a, 0.8).setStrokeStyle(1, 0x3a2f4a);
+    const footer =
+      MISSION_ORDER.length > 1
+        ? '←→ hero   ↑↓ mission   B recruit   Enter deploy   Attack Space   Ability Shift'
+        : '←→ switch hero   B recruit   Move WASD   Attack Space   Ability Shift   Mute M';
     this.add
-      .text(width / 2, height - 62, '←→ switch hero   B recruit   Move WASD   Attack Space   Ability Shift   Mute M', {
+      .text(width / 2, height - 62, footer, {
         fontFamily: 'monospace',
-        fontSize: '14px',
+        fontSize: '13px',
         color: '#a89bb8'
       })
       .setOrigin(0.5);
@@ -111,12 +125,25 @@ export class HeroSelectScene extends Phaser.Scene {
       const next = (this.heroIndex + delta + roster.length) % roster.length;
       audio.unlock();
       audio.uiTick();
-      this.scene.restart({ heroIndex: next });
+      this.scene.restart({ heroIndex: next, missionIndex: this.missionIndex });
+    };
+    const cycleMission = (delta: number): void => {
+      const next = (this.missionIndex + delta + MISSION_ORDER.length) % MISSION_ORDER.length;
+      audio.unlock();
+      audio.uiTick(next > this.missionIndex ? 620 : 520);
+      this.scene.restart({ heroIndex: this.heroIndex, missionIndex: next });
     };
     kb?.on('keydown-LEFT', () => cycle(-1));
     kb?.on('keydown-RIGHT', () => cycle(1));
     kb?.on('keydown-A', () => cycle(-1));
     kb?.on('keydown-D', () => cycle(1));
+    // Up/Down pick the mission (only meaningful once a second realm exists).
+    if (MISSION_ORDER.length > 1) {
+      kb?.on('keydown-UP', () => cycleMission(-1));
+      kb?.on('keydown-DOWN', () => cycleMission(1));
+      kb?.on('keydown-W', () => cycleMission(-1));
+      kb?.on('keydown-S', () => cycleMission(1));
+    }
     kb?.on('keydown-B', () => {
       // Recruit a gold-locked hero from the bank, then re-enter on the same
       // hero so its now-unlocked card renders. Any other state just buzzes.
@@ -133,12 +160,12 @@ export class HeroSelectScene extends Phaser.Scene {
       // First user gesture: unlock the audio context here so the mission's
       // music can start without tripping the browser autoplay policy.
       audio.unlock();
-      if (!unlocked) {
-        audio.uiTick(200); // locked: low buzz, stay on the roster
+      if (!unlocked || !missionUnlocked) {
+        audio.uiTick(200); // hero or mission locked: low buzz, stay put
         return;
       }
       audio.uiConfirm();
-      this.scene.start('mission', { heroId: hero.id });
+      this.scene.start('mission', { heroId: hero.id, levelId: selectedLevelId });
     });
   }
 
@@ -229,8 +256,9 @@ export class HeroSelectScene extends Phaser.Scene {
 
   private drawHeroCard(width: number, hero: HeroDef, mods: HeroModifiers, lock: HeroLockState, rosterSize: number): void {
     const unlocked = lock.state === 'unlocked';
-    // Sit left of centre when teaser slots share the row; centre when alone.
-    const cardX = LOCKED_ROLES.length > 0 ? width / 2 - 240 : width / 2;
+    // Sit left of centre when teaser slots or the mission panel share the row;
+    // centre when the card is alone.
+    const cardX = LOCKED_ROLES.length > 0 || MISSION_ORDER.length > 1 ? width / 2 - 200 : width / 2;
     this.add.rectangle(cardX, 320, 300, 320, 0x231a30).setStrokeStyle(2, unlocked ? 0xd9a441 : 0x544868);
 
     // Roster position indicator.
@@ -333,6 +361,63 @@ export class HeroSelectScene extends Phaser.Scene {
     this.add
       .text(cardX, 460, text, { fontFamily: 'monospace', fontSize: '11px', color: textColor })
       .setOrigin(0.5);
+  }
+
+  /**
+   * Mission-select panel (issue #24): a simple list of the authored realms with
+   * their unlock/clear state. The selected row (↑↓) is what Enter deploys into.
+   * Only drawn once there's more than one realm, so realm 1 keeps its clean
+   * single-card layout and the e2e Enter-default is untouched.
+   */
+  private drawMissionSelect(width: number, profile: Profile): void {
+    if (MISSION_ORDER.length <= 1) return;
+    const panelX = width / 2 + 210;
+    const topY = 236;
+    this.add
+      .text(panelX, topY - 40, 'SELECT MISSION', {
+        fontFamily: 'monospace',
+        fontSize: '13px',
+        color: '#a89bb8'
+      })
+      .setOrigin(0.5);
+
+    MISSION_ORDER.forEach((levelId, i) => {
+      const level = LEVELS[levelId]!;
+      const unlockedM = isLevelUnlocked(profile, levelId, MISSION_ORDER);
+      const cleared = isLevelCleared(profile, levelId);
+      const selected = i === this.missionIndex;
+      const y = topY + i * 64;
+      const border = selected ? 0xffd75e : 0x544868;
+      this.add.rectangle(panelX, y, 260, 54, 0x231a30, 0.95).setStrokeStyle(selected ? 2 : 1, border);
+
+      const nameColor = !unlockedM ? '#7a6f92' : selected ? '#ffd75e' : '#f4e3b2';
+      this.add
+        .text(panelX, y - 10, `${i + 1}. ${level.name}`, {
+          fontFamily: 'monospace',
+          fontSize: '14px',
+          color: nameColor
+        })
+        .setOrigin(0.5);
+
+      let status = 'READY';
+      let statusColor = '#64e6ff';
+      if (!unlockedM) {
+        status = 'LOCKED — clear the previous realm';
+        statusColor = '#ff8a7a';
+      } else if (cleared) {
+        status = '✓ CLEARED';
+        statusColor = '#9fe06a';
+      }
+      this.add
+        .text(panelX, y + 12, status, { fontFamily: 'monospace', fontSize: '10px', color: statusColor })
+        .setOrigin(0.5);
+
+      if (selected) {
+        this.add
+          .text(panelX - 142, y, '▶', { fontFamily: 'monospace', fontSize: '14px', color: '#ffd75e' })
+          .setOrigin(0.5);
+      }
+    });
   }
 
   private drawLockedSlots(width: number): void {

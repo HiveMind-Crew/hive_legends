@@ -41,6 +41,8 @@ export interface Profile {
   bestClearTicks: number | null;
   /** Ids of heroes recruited with gold (mission-gated heroes still need the clears). */
   unlockedHeroes: string[];
+  /** Ids of levels the player has cleared at least once (mission unlock gate). */
+  clearedLevels: string[];
   /**
    * Per-hero weapon ownership and equipped tier, keyed by hero id. Tier 1 is
    * always owned implicitly; only purchased tiers are stored. An absent hero
@@ -61,6 +63,7 @@ export function defaultProfile(): Profile {
     missionsCompleted: 0,
     bestClearTicks: null,
     unlockedHeroes: [],
+    clearedLevels: [],
     weapons: {},
     volume: 0.7,
     muted: false
@@ -77,6 +80,7 @@ export function loadProfile(): Profile {
       ...parsed,
       upgrades: { ...(parsed.upgrades ?? {}) },
       unlockedHeroes: [...(parsed.unlockedHeroes ?? [])],
+      clearedLevels: [...(parsed.clearedLevels ?? [])],
       weapons: { ...(parsed.weapons ?? {}) }
     };
   } catch {
@@ -161,6 +165,41 @@ export function buyHeroUnlock(profile: Profile, hero: HeroDef): boolean {
   if (!profile.unlockedHeroes.includes(hero.id)) profile.unlockedHeroes.push(hero.id);
   saveProfile(profile);
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// Mission progression (issue #24)
+// ---------------------------------------------------------------------------
+
+/** Whether a level has been cleared at least once. */
+export function isLevelCleared(profile: Profile, levelId: string): boolean {
+  return profile.clearedLevels.includes(levelId);
+}
+
+/**
+ * Whether a mission is available to play. The first mission in `order` is
+ * always open (the e2e Enter-default); every later one unlocks once the
+ * mission before it in the order has been cleared.
+ */
+export function isLevelUnlocked(profile: Profile, levelId: string, order: readonly string[]): boolean {
+  const idx = order.indexOf(levelId);
+  if (idx <= 0) return true; // first mission (or an unknown id) is always open
+  return isLevelCleared(profile, order[idx - 1]!);
+}
+
+/** Records a level clear (idempotent) and persists. */
+export function markLevelCleared(profile: Profile, levelId: string): void {
+  if (!profile.clearedLevels.includes(levelId)) {
+    profile.clearedLevels.push(levelId);
+    saveProfile(profile);
+  }
+}
+
+/** The next mission after `levelId` in `order`, or null if it's the last. */
+export function nextLevelId(levelId: string, order: readonly string[]): string | null {
+  const idx = order.indexOf(levelId);
+  if (idx < 0 || idx + 1 >= order.length) return null;
+  return order[idx + 1]!;
 }
 
 // ---------------------------------------------------------------------------
