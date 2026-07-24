@@ -38,6 +38,7 @@ export interface HudPlayerInfo {
   guardTicks: number;
   guardMax: number;
   keys: number;
+  potions: number;
   alive: boolean;
 }
 
@@ -345,6 +346,7 @@ export class MissionScene extends Phaser.Scene {
           guardTicks: p.guardTicks,
           guardMax: hero?.ability.kind === 'guard' ? hero.ability.durationTicks : 0,
           keys: p.keys,
+          potions: p.potions,
           alive: p.alive
         };
       }),
@@ -435,6 +437,10 @@ export class MissionScene extends Phaser.Scene {
         case 'ability-dash':
           this.dashTrail(ev.playerId, ev.from, ev.to);
           break;
+        case 'potion-used':
+          this.potionBurst(ev.pos, ev.radius);
+          hud.herald('HIVE-FIRE UNLEASHED', '#9fe06a');
+          break;
         case 'ability-guard':
           this.cameras.main.flash(60, 150, 175, 210);
           this.flashRing(ev.pos, 40, 0xc2c8d2);
@@ -499,11 +505,14 @@ export class MissionScene extends Phaser.Scene {
           break;
         }
         case 'pickup-collected': {
-          const label = ev.kind === 'gold' ? `+${ev.amount}` : ev.kind === 'key' ? 'KEY' : `+${ev.amount} HP`;
-          const color = ev.kind === 'gold' ? '#ffd75e' : ev.kind === 'key' ? '#e6c34a' : '#e0524d';
+          const label =
+            ev.kind === 'gold' ? `+${ev.amount}` : ev.kind === 'key' ? 'KEY' : ev.kind === 'potion' ? 'POTION' : `+${ev.amount} HP`;
+          const color =
+            ev.kind === 'gold' ? '#ffd75e' : ev.kind === 'key' ? '#e6c34a' : ev.kind === 'potion' ? '#7be08a' : '#e0524d';
           this.floatText(ev.pos, label, color);
           this.burst(ev.kind === 'health' ? this.heartFx : this.sparkFx, ev.kind === 'health' ? 5 : 6, ev.pos);
           if (ev.kind === 'key') hud.herald('YOU FOUND A KEY', '#e6c34a');
+          if (ev.kind === 'potion') hud.herald('HIVE-FIRE DRAUGHT — [Q] TO QUAFF', '#7be08a');
           break;
         }
         case 'powerup-gained': {
@@ -784,7 +793,9 @@ export class MissionScene extends Phaser.Scene {
             ? TEX.health
             : pk.kind === 'key'
               ? TEX.key
-              : powerupTexture(pk.power ?? 'frenzy');
+              : pk.kind === 'potion'
+                ? TEX.potion
+                : powerupTexture(pk.power ?? 'frenzy');
       const spr = this.ensureSprite(pk.id, key);
       const bob = Math.sin(this.time.now / 280 + pk.id) * 2.5;
       spr.setPosition(pk.pos.x, pk.pos.y - 3 + bob).setDepth(pk.pos.y);
@@ -986,6 +997,21 @@ export class MissionScene extends Phaser.Scene {
     const scorch = this.add.circle(pos.x, pos.y, radius * 0.55, 0x000000, 0.18).setDepth(DEPTH_DECAL + 1);
     this.tweens.add({ targets: scorch, alpha: 0, duration: 1200, onComplete: () => scorch.destroy() });
     this.burst(this.dustFx, 12, pos);
+  }
+
+  /** Potion (#41): a big green hive-fire detonation — flash, shockwave, scorch. */
+  private potionBurst(pos: Vec2, radius: number): void {
+    this.cameras.main.flash(90, 150, 224, 138);
+    this.cameras.main.shake(220, 0.016);
+    this.hitStop(60);
+    this.flashRing(pos, radius, 0x9fe06a);
+    const ring = this.add.circle(pos.x, pos.y, 16).setStrokeStyle(4, 0xd6ffd0, 0.9).setDepth(DEPTH_FX);
+    this.tweens.add({ targets: ring, radius: radius * 1.05, alpha: 0, duration: 420, ease: 'Quad.Out', onComplete: () => ring.destroy() });
+    const scorch = this.add.circle(pos.x, pos.y, radius * 0.5, 0x1c3a22, 0.22).setDepth(DEPTH_DECAL + 1);
+    this.tweens.add({ targets: scorch, alpha: 0, duration: 1600, onComplete: () => scorch.destroy() });
+    this.burst(this.sparkFx, 16, pos);
+    this.burst(this.dustFx, 14, pos);
+    this.burst(this.shardFx, 8, pos);
   }
 
   private flashArc(pos: { x: number; y: number }, facing: { x: number; y: number }): void {

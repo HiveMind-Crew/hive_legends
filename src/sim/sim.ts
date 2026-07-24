@@ -68,6 +68,7 @@ export function createSim(config: SimConfig): Sim {
       guardTicks: 0,
       power: emptyPowerTimers(),
       keys: 0,
+      potions: 0,
       alive: true
     };
   });
@@ -209,6 +210,10 @@ function updatePlayers(sim: Sim, inputs: readonly InputCommand[], events: SimEve
       p.abilityCooldown = hero.ability.cooldownTicks;
       performAbility(sim, p, events);
     }
+
+    // Screen-clear potion (#41): a carried consumable, spent on a rising-edge
+    // input. No cooldown — scarcity is the limiter (the input is edge-gated).
+    if (input.usePotion && p.potions > 0) usePotion(sim, p, events);
   });
 }
 
@@ -346,6 +351,50 @@ function performBlast(sim: Sim, p: PlayerState, ab: BlastAbilityDef, events: Sim
     const dist = Math.hypot(sw.pos.x - center.x, sw.pos.y - center.y);
     if (dist > ab.radius + SECRET_RADIUS) continue;
     damageSecret(sim, sw, damage, events);
+  }
+}
+
+/**
+ * Spend one carried potion (#41): a self-centered screen-clear burst that
+ * damages every enemy, generator, prop, and secret wall in its radius, with
+ * heavy knockback on enemies. Unlike hero abilities it costs a consumable, not
+ * a cooldown — the scarcity is the cost. Deals no self/ally harm.
+ */
+function usePotion(sim: Sim, p: PlayerState, events: SimEvent[]): void {
+  const { content } = sim.config;
+  const potion = content.potion;
+  p.potions -= 1;
+  const center = { ...p.pos };
+  events.push({ type: 'potion-used', playerId: p.id, pos: center, radius: potion.radius });
+
+  // Iterate over copies: damageEnemy/damageGenerator/damageProp mutate the
+  // live arrays as things die.
+  for (const e of [...sim.state.enemies]) {
+    if (e.hp <= 0) continue;
+    const def = content.enemies[e.typeId];
+    if (!def) continue;
+    const d = sub(e.pos, center);
+    const dist = Math.hypot(d.x, d.y);
+    if (dist > potion.radius + def.radius) continue;
+    const dir = dist > 1e-6 ? { x: d.x / dist, y: d.y / dist } : { x: 0, y: -1 };
+    damageEnemy(sim, e, potion.damage, dir, potion.knockback, p.id, events);
+  }
+  for (const g of [...sim.state.generators]) {
+    if (g.hp <= 0) continue;
+    const gdef = content.generators[g.typeId];
+    if (!gdef) continue;
+    if (Math.hypot(g.pos.x - center.x, g.pos.y - center.y) > potion.radius + gdef.radius) continue;
+    damageGenerator(sim, g, potion.damage, events);
+  }
+  for (const pr of [...sim.state.props]) {
+    const pdef = content.props[pr.typeId];
+    if (!pdef) continue;
+    if (Math.hypot(pr.pos.x - center.x, pr.pos.y - center.y) > potion.radius + pdef.radius) continue;
+    damageProp(sim, pr, potion.damage, events);
+  }
+  for (const sw of [...sim.state.secrets]) {
+    if (Math.hypot(sw.pos.x - center.x, sw.pos.y - center.y) > potion.radius + SECRET_RADIUS) continue;
+    damageSecret(sim, sw, potion.damage, events);
   }
 }
 
@@ -880,6 +929,9 @@ function collectPickups(sim: Sim, events: SimEvent[]): void {
         events.push({ type: 'powerup-gained', playerId: p.id, power: pk.power, pos: { ...pk.pos } });
       } else if (pk.kind === 'key') {
         p.keys += pk.amount;
+        events.push({ type: 'pickup-collected', playerId: p.id, kind: pk.kind, amount: pk.amount, pos: { ...pk.pos } });
+      } else if (pk.kind === 'potion') {
+        p.potions += pk.amount;
         events.push({ type: 'pickup-collected', playerId: p.id, kind: pk.kind, amount: pk.amount, pos: { ...pk.pos } });
       } else {
         p.gold += pk.amount;
