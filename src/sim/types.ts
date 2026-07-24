@@ -20,13 +20,16 @@ export interface InputCommand {
   moveY: number; // -1..1
   attack: boolean;
   ability: boolean;
+  /** Rising-edge: consume one carried potion this tick (screen-clear burst). */
+  usePotion: boolean;
 }
 
 export const EMPTY_INPUT: InputCommand = Object.freeze({
   moveX: 0,
   moveY: 0,
   attack: false,
-  ability: false
+  ability: false,
+  usePotion: false
 });
 
 export type EntityId = number;
@@ -349,6 +352,18 @@ export interface PowerUpDef {
   damageTakenMult: number;
 }
 
+/**
+ * The screen-clear consumable (issue #41): a scarce, hoarded potion the player
+ * carries and spends at will for a big self-centered burst. Numbers are data;
+ * the sim reads them when a `usePotion` input fires with a potion in hand.
+ */
+export interface PotionDef {
+  name: string;
+  damage: number;
+  radius: number;
+  knockback: number;
+}
+
 export interface ContentDb {
   heroes: Record<string, HeroDef>;
   enemies: Record<string, EnemyDef>;
@@ -356,13 +371,14 @@ export interface ContentDb {
   props: Record<string, PropDef>;
   weapons: Record<string, WeaponDef>;
   powerups: Record<PowerUpKind, PowerUpDef>;
+  potion: PotionDef;
 }
 
 // ---------------------------------------------------------------------------
 // Runtime state
 // ---------------------------------------------------------------------------
 
-export type PickupKind = 'gold' | 'health' | 'powerup' | 'key';
+export type PickupKind = 'gold' | 'health' | 'powerup' | 'key' | 'potion';
 
 export interface PlayerState {
   id: EntityId;
@@ -382,6 +398,8 @@ export interface PlayerState {
   power: Record<PowerUpKind, number>;
   /** Keys held (spent to open gates). Party-shared semantics in solo. */
   keys: number;
+  /** Potions carried (spent for a screen-clear burst). See #41. */
+  potions: number;
   alive: boolean;
 }
 
@@ -507,6 +525,7 @@ export type SimEvent =
   | { type: 'secret-revealed'; secretId: EntityId; pos: Vec2 }
   | { type: 'pickup-collected'; playerId: EntityId; kind: PickupKind; amount: number; pos: Vec2 }
   | { type: 'powerup-gained'; playerId: EntityId; power: PowerUpKind; pos: Vec2 }
+  | { type: 'potion-used'; playerId: EntityId; pos: Vec2; radius: number }
   | { type: 'player-hit'; playerId: EntityId; damage: number; pos: Vec2 }
   | { type: 'player-died'; playerId: EntityId; pos: Vec2 }
   | { type: 'exit-opened'; pos: Vec2 }

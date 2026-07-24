@@ -3,6 +3,7 @@ import { ENEMIES, GENERATORS } from './enemies';
 import { HEROES } from './heroes';
 import { BROOD_WARRENS } from './levels/broodWarrens';
 import { RESIN_GALLERIES } from './levels/resinGalleries';
+import { POTION } from './potions';
 import { POWERUPS } from './powerups';
 import { PROPS } from './props';
 import { WEAPONS } from './weapons';
@@ -13,7 +14,8 @@ export const CONTENT: ContentDb = {
   generators: GENERATORS,
   props: PROPS,
   weapons: WEAPONS,
-  powerups: POWERUPS
+  powerups: POWERUPS,
+  potion: POTION
 };
 
 /** Every authored mission, keyed by level id. */

@@ -3,7 +3,7 @@ import type { InputCommand } from '../sim/types';
 
 /**
  * Keyboard → per-tick InputCommand. WASD or arrows to move,
- * Space/J to attack, Shift/K for the hero ability.
+ * Space/J to attack, Shift/K for the hero ability, Q to quaff a potion.
  */
 export class KeyboardCommander {
   private keys: Record<string, Phaser.Input.Keyboard.Key>;
@@ -23,7 +23,8 @@ export class KeyboardCommander {
       space: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
       j: kb.addKey(Phaser.Input.Keyboard.KeyCodes.J),
       shift: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT),
-      k: kb.addKey(Phaser.Input.Keyboard.KeyCodes.K)
+      k: kb.addKey(Phaser.Input.Keyboard.KeyCodes.K),
+      potion: kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q)
     };
   }
 
@@ -37,7 +38,10 @@ export class KeyboardCommander {
       moveX: (right ? 1 : 0) - (left ? 1 : 0),
       moveY: (down ? 1 : 0) - (up ? 1 : 0),
       attack: k.space!.isDown || k.j!.isDown,
-      ability: k.shift!.isDown || k.k!.isDown
+      ability: k.shift!.isDown || k.k!.isDown,
+      // Rising-edge so one press spends exactly one potion, even across the
+      // several sim ticks a single render frame may step.
+      usePotion: Phaser.Input.Keyboard.JustDown(k.potion!)
     };
   }
 }

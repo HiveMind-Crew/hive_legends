@@ -63,6 +63,7 @@ function buildSpecs(): Record<string, TextureSpec> {
   add('pickup-swiftness', 18, 18);
   add('pickup-ward', 18, 18);
   add('pickup-key', 18, 18);
+  add('pickup-potion', 18, 18);
   add('level-gate', 32, 32);
   add('exit-portal', 48, 48);
 
