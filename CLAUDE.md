@@ -10,10 +10,14 @@
   Rendering, audio, and UI react to `SimEvent`s and read `SimState`; they
   never mutate it. This is the contract that makes online co-op (lockstep)
   and headless testing possible — treat any violation as a defect.
-- Gameplay numbers (hero kits, enemy stats, generator behavior, levels) are
-  data in `src/content`, not constants in engine code.
-- Meta-progression (gold bank, permanent upgrades) lives in `src/meta/save.ts`
-  and enters the sim only as `HeroModifiers` at `createSim` time.
+- Gameplay numbers (hero kits, enemy stats, generator behavior, boss phases,
+  the XP curve, levels) are data in `src/content`, not constants in engine
+  code.
+- Meta-progression (gold bank, permanent upgrades, banked XP, owned weapons)
+  lives in `src/meta/save.ts` and enters the sim **only at `createSim` time**,
+  through `SimPlayerConfig`: `modifiers` (upgrades), `attack` (the resolved
+  equipped-weapon `AttackDef`), and `startXp` (banked XP, from which the sim
+  derives the starting level). The sim never reads the profile.
 
 ## Layout
 
@@ -21,6 +25,8 @@
 - `src/content` — data-authored heroes, enemies, generators, levels
 - `src/game` — Phaser scenes and rendering (presentation only)
 - `src/meta` — persistent profile/upgrades (localStorage)
+- `public/art/` — optional drop-in PNG overrides for generated textures,
+  listed in `public/art/manifest.json` (see `docs/ART.md`)
 - `tests/` — vitest unit tests for the sim
 - `e2e/` — Playwright gameplay playthrough (bot plays the real build)
 - `docs/adr/` — architecture decision records; `docs/STATUS.md` — milestone log

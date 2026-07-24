@@ -17,8 +17,10 @@ npm run dev        # hot-reload dev server → http://localhost:5173
 ```
 
 Controls: **WASD/Arrows** move · **Space/J** attack · **Shift/K** ability ·
-**Enter** confirm · **M** mute audio · in the results shop, **1/2** buy
-upgrades, **R** replay, **H** hero select.
+**Q** quaff a potion · **Enter** confirm · **M** mute audio. On hero select,
+**←→** pick a hero, **↑↓** pick a mission, **B** recruit. In the results shop,
+**1/2** buy upgrades, **3/4** weapons, **N** next realm, **R** replay,
+**H** hero select.
 
 To play the exact build that ships:
 
@@ -31,8 +33,8 @@ npm run build && npm run preview   # production build → http://localhost:4173
 | Layer | Command | What it proves |
 | --- | --- | --- |
 | Static | `npm run lint && npm run typecheck` | Style + types, **and the sim-purity rules** (no Phaser/`Math.random`/`Date.now` inside `src/sim` or `src/content` — see ADR 0002) |
-| Unit (vitest) | `npm test` (watch: `npm run test:watch`) | The whole gameplay sim, headlessly: movement, combat, generators, enrage, pickups, objectives, and a determinism regression (same seed + inputs ⇒ byte-identical state) |
-| End-to-end (Playwright) | `npm run build && npm run test:e2e` | A bot plays the real production build through the browser keyboard path: BFS-pathfinds the level, destroys both Brood Nodes, exits, banks gold, buys an upgrade, and replays with the upgrade applied |
+| Unit (vitest) | `npm test` (watch: `npm run test:watch`) | The whole gameplay sim, headlessly: movement, combat, attack windups, generators and enrage, pickups and power-ups, keys/gates/secrets, the boss phase script, XP and levelling, and a determinism regression (same seed + inputs ⇒ byte-identical state) |
+| End-to-end (Playwright) | `npm run build && npm run test:e2e` | A bot plays the real production build through the browser keyboard path: BFS-pathfinds The Brood Warrens, destroys all three spawners, exits, banks gold and XP, buys an upgrade, and replays with both the upgrade and the earned level applied |
 
 The full pre-commit gate (identical to CI, `.github/workflows/ci.yml`):
 

@@ -1,6 +1,12 @@
 # Visual & feel direction
 
-Updated: 2026-07-16 · Owner: game direction · Tracking issue: [#10](https://github.com/MeanGreen256/hive_legends/issues/10)
+Updated: 2026-07-24 · Owner: game direction · Tracking issue:
+[#10](https://github.com/MeanGreen256/hive_legends/issues/10) (closed — the
+nine-issue look & feel track is complete)
+
+**Status:** the systems described here are all built. This document now serves
+as the *style contract* for new content and for the original-art track
+(#27, #28), not as a work plan.
 
 ## Benchmark and gap
 
@@ -28,6 +34,11 @@ What the benchmark does that we must match *in spirit*:
 5. **Generators are the show.** Enemies visibly pour out; structures degrade
    and explode spectacularly. Our answer: damage states, spawn telegraphs,
    multi-stage destruction, optional below-50% enrage.
+6. **The finale is a set piece.** A boss must read as a different class of
+   threat. Our answer (#25): a 96px silhouette using the same damage-tier
+   language at larger scale, a swelling red telegraph before every damaging
+   action, named on-screen tells, a HUD finale bar that recolours per phase,
+   and a multi-stage collapse.
 
 ## Style pillars
 
@@ -36,7 +47,10 @@ What the benchmark does that we must match *in spirit*:
   reference game; never its names, maps, characters, or sounds.
 - **Generated-first art**: programmer art is produced by code
   (`src/game/textures.ts`) so iteration is a parameter change; real drawn art
-  can replace texture keys later without touching game code.
+  replaces texture keys without touching game code. That path is now proven —
+  the Vanguard pack (#44) shipped as PNGs in `public/art/` with no code change.
+  New content should still land as generated art first, so it is playable and
+  testable before any art exists.
 - **Readability beats richness**: silhouette-per-family, palette-per-tier
   (issue #7). If a screenshot with 15+ enemies can't be parsed at a glance,
   the art is wrong, however pretty.
