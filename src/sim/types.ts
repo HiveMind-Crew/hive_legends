@@ -204,6 +204,13 @@ export interface EnemyDef {
   touchDamage: number;
   attackRange: number;
   attackCooldownTicks: number;
+  /**
+   * Telegraph before a strike lands, in ticks. On entering attack range the
+   * enemy commits (holds position) and winds up for this long; the hit resolves
+   * only when it elapses, so every attack — including the first contact — is
+   * dodgeable. Author longer for heavy hitters (readability rule, #39).
+   */
+  attackWindupTicks: number;
   goldMin: number;
   goldMax: number;
   /** If present, the enemy fires hostile bolts at attackRange instead of meleeing. */
@@ -231,6 +238,17 @@ export interface GeneratorDef {
   goldDrop: number;
   /** Optional enrage behavior; omit for generators that never enrage. */
   enrage?: GeneratorEnrageDef;
+  /**
+   * Optional one-shot spawn when this generator is destroyed — e.g. an elite
+   * bursts from the wreckage. Fires once, at the generator's position, on death.
+   */
+  onDeathSpawn?: GeneratorDeathSpawnDef;
+}
+
+/** A single enemy birthed when a generator is destroyed. */
+export interface GeneratorDeathSpawnDef {
+  /** Enemy type id to spawn (must exist in the content enemy table). */
+  enemyId: string;
 }
 
 /** Small breakable prop: any damage destroys it; drops loot via seeded RNG. */
@@ -391,6 +409,8 @@ export interface EnemyState {
   pos: Vec2;
   hp: number;
   attackCooldown: number;
+  /** Ticks left in a committed attack windup (0 = not winding up). See #39. */
+  windupTicksLeft: number;
   hitstunTicks: number;
   knockback: Vec2;
   /** Ticks of movement slow remaining (0 = unslowed) and its multiplier. */
@@ -495,6 +515,7 @@ export type SimEvent =
   | { type: 'ability-dash'; playerId: EntityId; from: Vec2; to: Vec2 }
   | { type: 'ability-guard'; playerId: EntityId; pos: Vec2; durationTicks: number }
   | { type: 'guard-block'; playerId: EntityId; enemyId: EntityId; pos: Vec2 }
+  | { type: 'enemy-windup'; enemyId: EntityId; pos: Vec2; durationTicks: number }
   | { type: 'enemy-hit'; enemyId: EntityId; pos: Vec2; damage: number }
   | { type: 'enemy-died'; enemyId: EntityId; typeId: string; pos: Vec2; byPlayer: EntityId; damage: number }
   | { type: 'enemy-spawned'; enemyId: EntityId; typeId: string; pos: Vec2 }
