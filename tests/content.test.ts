@@ -53,6 +53,10 @@ describe('content validity', () => {
     }
     // Damage-tier and variant sets, plus every prop in content.
     for (let t = 0; t < 3; t++) expect(TEXTURE_SPECS[`generator-brood-node-${t}`]).toBeDefined();
+    // Every boss needs its own damage-tier frames (issue #25).
+    for (const id of Object.keys(CONTENT.bosses)) {
+      for (let t = 0; t < 3; t++) expect(TEXTURE_SPECS[`boss-${id}-${t}`], `boss-${id}-${t}`).toBeDefined();
+    }
     for (let v = 0; v < 4; v++) expect(TEXTURE_SPECS[`tile-floor-${v}`]).toBeDefined();
     for (const id of Object.keys(CONTENT.props)) expect(TEXTURE_SPECS[`prop-${id}`]).toBeDefined();
   });

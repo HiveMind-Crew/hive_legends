@@ -55,6 +55,8 @@ function buildSpecs(): Record<string, TextureSpec> {
 
   // Generators (damage tiers), props, pickups, exit.
   for (let t = 0; t < 3; t++) add(`generator-brood-node-${t}`, 44, 44);
+  // Boss (issue #25): damage tiers like the Brood Nodes, at finale scale.
+  for (let t = 0; t < 3; t++) add(`boss-mireveil-${t}`, 96, 96);
   add('prop-resin-husk', 20, 20);
   add('prop-amber-clutch', 20, 20);
   add('pickup-gold', 16, 16);

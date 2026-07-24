@@ -170,6 +170,11 @@ export function propTexture(typeId: string): string {
 }
 
 /** Pickup sprite key for a power-up buff. */
+/** Boss damage-tier frame: 0 intact, 1 cracked, 2 crumbling (issue #25). */
+export function bossFrame(bossId: string, tier: number): string {
+  return `boss-${bossId}-${tier}`;
+}
+
 export function powerupTexture(power: string): string {
   return `pickup-${power}`;
 }
@@ -299,6 +304,12 @@ export function generateTextures(scene: Phaser.Scene): void {
   drawBroodNode(g, 0);
   drawBroodNode(g, 1);
   drawBroodNode(g, 2);
+
+  // Mireveil, Mother of the Brood (issue #25) — same damage-tier language,
+  // scaled up to a finale silhouette.
+  drawMireveil(g, 0);
+  drawMireveil(g, 1);
+  drawMireveil(g, 2);
 
   // Gold coin.
   g.clear();
@@ -634,6 +645,89 @@ function drawRelic(
 }
 
 /** Egg mound in three damage states so hurt nodes read at a glance. */
+/**
+ * Mireveil, Mother of the Brood: a 96px layered brood-queen — swollen egg
+ * abdomen, plated thorax, crowned head with mandibles. Drawn facing south (the
+ * renderer rotates her). Damage tiers mirror the Brood Node language: intact →
+ * fissured and leaking → carapace broken open around a burning core.
+ */
+function drawMireveil(g: Phaser.GameObjects.Graphics, tier: number): void {
+  const c = 48; // canvas centre
+  g.clear();
+
+  // Egg-swollen abdomen: the bulk of the silhouette, sagging behind her.
+  g.fillStyle(tier === 2 ? 0x5f2e70 : 0x6d3380);
+  g.fillEllipse(c, c + 16, 74, 60);
+  g.fillStyle(tier === 2 ? 0x7a3b8f : 0x8d45a6);
+  g.fillEllipse(c, c + 14, 56, 44);
+  // Brood sacs glowing through the shell — brighter as she is opened up.
+  g.fillStyle(tier === 0 ? 0xc07fd8 : 0xe1a6f0);
+  g.fillCircle(c - 16, c + 18, 7);
+  g.fillCircle(c + 16, c + 18, 7);
+  g.fillCircle(c, c + 28, 8);
+  if (tier > 0) {
+    g.fillStyle(0xfbe3ff);
+    g.fillCircle(c - 16, c + 18, 3);
+    g.fillCircle(c + 16, c + 18, 3);
+    g.fillCircle(c, c + 28, 3.5);
+  }
+
+  // Plated thorax.
+  g.fillStyle(0x4d2359);
+  g.fillEllipse(c, c - 8, 46, 36);
+  g.fillStyle(0x7a3b8f);
+  g.fillEllipse(c, c - 10, 34, 26);
+
+  // Legs braced either side (simple angled plates read at game scale).
+  g.lineStyle(4, 0x3d1d49);
+  g.lineBetween(c - 20, c - 6, c - 38, c + 6);
+  g.lineBetween(c + 20, c - 6, c + 38, c + 6);
+  g.lineBetween(c - 18, c + 8, c - 34, c + 26);
+  g.lineBetween(c + 18, c + 8, c + 34, c + 26);
+
+  // Crowned head and mandibles.
+  g.fillStyle(0x8d45a6);
+  g.fillEllipse(c, c - 28, 30, 24);
+  g.fillStyle(0x2a1433);
+  g.fillCircle(c - 7, c - 30, 3.5); // eyes
+  g.fillCircle(c + 7, c - 30, 3.5);
+  g.lineStyle(3, 0x3d1d49);
+  g.lineBetween(c - 11, c - 18, c - 17, c - 6); // mandibles
+  g.lineBetween(c + 11, c - 18, c + 17, c - 6);
+  // Crown spines.
+  g.lineStyle(3, 0x5f2e70);
+  g.lineBetween(c - 10, c - 38, c - 14, c - 47);
+  g.lineBetween(c, c - 41, c, c - 51);
+  g.lineBetween(c + 10, c - 38, c + 14, c - 47);
+
+  if (tier === 1) {
+    // Fissures across the abdomen, weeping ichor.
+    g.lineStyle(3, 0x2a1433);
+    g.lineBetween(c - 24, c + 4, c - 10, c + 18);
+    g.lineBetween(c - 10, c + 18, c - 18, c + 34);
+    g.lineBetween(c + 22, c + 2, c + 12, c + 20);
+    g.fillStyle(0xcf8fe0);
+    g.fillCircle(c - 20, c + 40, 4);
+    g.fillCircle(c + 16, c + 38, 3);
+  } else if (tier === 2) {
+    // Carapace broken open around a burning core; shell fragments shed.
+    g.lineStyle(4, 0x1e0f26);
+    g.lineBetween(c - 30, c - 2, c - 8, c + 16);
+    g.lineBetween(c - 8, c + 16, c - 20, c + 38);
+    g.lineBetween(c + 28, c - 4, c + 10, c + 18);
+    g.lineBetween(c + 10, c + 18, c + 24, c + 36);
+    g.fillStyle(0xe1a6f0);
+    g.fillCircle(c, c + 12, 13);
+    g.fillStyle(0xfbe3ff);
+    g.fillCircle(c, c + 12, 6);
+    g.fillStyle(0x3d1d49);
+    g.fillCircle(c - 36, c + 40, 4);
+    g.fillCircle(c + 34, c + 42, 3);
+    g.fillCircle(c + 42, c + 30, 2.5);
+  }
+  gen(bossFrame('mireveil', tier));
+}
+
 function drawBroodNode(g: Phaser.GameObjects.Graphics, tier: number): void {
   g.clear();
   if (tier < 2) {

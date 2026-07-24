@@ -233,6 +233,86 @@ export interface GeneratorDef {
   enrage?: GeneratorEnrageDef;
 }
 
+// ---------------------------------------------------------------------------
+// Boss (issue #25)
+// ---------------------------------------------------------------------------
+
+/** The damaging things a boss can do. Each is telegraphed before it lands. */
+export const BOSS_ACTIONS = ['brood-call', 'lunge', 'glob'] as const;
+export type BossAction = (typeof BOSS_ACTIONS)[number];
+
+/**
+ * One stage of the fight, entered when the boss's HP fraction drops to
+ * `hpFraction`. Phases are authored strongest-first (the first entry must use
+ * 1 so it covers a full-health boss) and own their pace and move set.
+ */
+export interface BossPhaseDef {
+  name: string;
+  /** HP fraction at or below which this phase is active. */
+  hpFraction: number;
+  moveSpeed: number;
+  /** Ticks between the end of one action and the start of the next. */
+  actionIntervalTicks: number;
+  /** Actions cycled, in order, while this phase is active. */
+  actions: readonly BossAction[];
+}
+
+export interface BossDef {
+  id: string;
+  name: string;
+  /** Flavour line announced when the fight opens. */
+  title: string;
+  maxHp: number;
+  radius: number;
+  /** Contact damage from the boss body, and its per-player rate limit. */
+  touchDamage: number;
+  touchCooldownTicks: number;
+  /**
+   * Telegraph held before every damaging action. The look & feel readability
+   * rule requires >= 45 ticks; a content test enforces it.
+   */
+  telegraphTicks: number;
+  phases: readonly BossPhaseDef[];
+  /** Brood Call: births a clutch of these around the boss. */
+  broodCall: { enemyId: string; count: number };
+  /** Lunge: a fast, wall-stopped charge along a locked-in direction. */
+  lunge: { speed: number; durationTicks: number; damage: number };
+  /** Glob: a fan of hostile bolts. */
+  glob: { count: number; spreadDeg: number } & EnemyRangedDef;
+  goldDrop: number;
+}
+
+/** Runtime boss state. At most one per level. */
+export interface BossState {
+  id: EntityId;
+  typeId: string;
+  pos: Vec2;
+  facing: Vec2;
+  hp: number;
+  maxHp: number;
+  /** Index into the def's phase list. */
+  phaseIndex: number;
+  /** Ticks until the next action is chosen. */
+  actionCooldown: number;
+  /** Ticks left in the current telegraph (0 = not telegraphing). */
+  telegraphTicksLeft: number;
+  /** The action being telegraphed, released when the telegraph elapses. */
+  pendingAction: BossAction | null;
+  /** Rotating cursor into the active phase's action list. */
+  actionCursor: number;
+  /** Ticks left in an active lunge (0 = not lunging) and its locked heading. */
+  lungeTicksLeft: number;
+  lungeDir: Vec2;
+  touchCooldown: number;
+}
+
+/** Where a level plants its boss. */
+export interface LevelBossDef {
+  typeId: string;
+  tx: number;
+  ty: number;
+}
+
 /** Small breakable prop: any damage destroys it; drops loot via seeded RNG. */
 export interface PropDef {
   id: string;
@@ -326,6 +406,8 @@ export interface LevelDef {
   secrets?: readonly LevelSecretDef[];
   /** Visual set dressing (render-only). */
   decor?: readonly LevelDecorDef[];
+  /** Optional boss; while it lives the exit stays shut (issue #25). */
+  boss?: LevelBossDef;
   exit: { tx: number; ty: number };
 }
 
@@ -356,6 +438,7 @@ export interface ContentDb {
   props: Record<string, PropDef>;
   weapons: Record<string, WeaponDef>;
   powerups: Record<PowerUpKind, PowerUpDef>;
+  bosses: Record<string, BossDef>;
 }
 
 // ---------------------------------------------------------------------------
@@ -478,6 +561,8 @@ export interface SimState {
   gates: GateState[];
   secrets: SecretWallState[];
   projectiles: ProjectileState[];
+  /** The level's boss, or null on a boss-less mission. Dead bosses stay at hp 0. */
+  boss: BossState | null;
   exitPos: Vec2;
 }
 
@@ -498,6 +583,10 @@ export type SimEvent =
   | { type: 'enemy-hit'; enemyId: EntityId; pos: Vec2; damage: number }
   | { type: 'enemy-died'; enemyId: EntityId; typeId: string; pos: Vec2; byPlayer: EntityId; damage: number }
   | { type: 'enemy-spawned'; enemyId: EntityId; typeId: string; pos: Vec2 }
+  | { type: 'boss-telegraph'; bossId: EntityId; action: BossAction; pos: Vec2; durationTicks: number }
+  | { type: 'boss-phase'; bossId: EntityId; phaseIndex: number; name: string; pos: Vec2 }
+  | { type: 'boss-hit'; bossId: EntityId; pos: Vec2; damage: number }
+  | { type: 'boss-died'; bossId: EntityId; pos: Vec2 }
   | { type: 'generator-hit'; generatorId: EntityId; pos: Vec2; damage: number }
   | { type: 'generator-enraged'; generatorId: EntityId; pos: Vec2 }
   | { type: 'generator-destroyed'; generatorId: EntityId; pos: Vec2 }

@@ -34,7 +34,11 @@ Remaining for the full slice:
 - [ ] Two more standard enemy types + one elite enemy
 - [ ] Key-controlled gate and a hidden treasure area
 - [ ] Temporary power-up
-- [ ] Boss encounter
+- [x] Boss encounter — Mireveil, Mother of the Brood, in realm 3 "The Hollow
+      Throne" (#25): data-driven three-phase script (Brood Call → Lunge →
+      spat globs), a >= 1 s telegraph before every damaging action, a HUD
+      finale bar, and a multi-stage death spectacle. The exit stays sealed
+      while she lives.
 - [ ] Hub polish (hero select → mission select flow)
 - [ ] Audio (original SFX/music)
 - [ ] XP/level progression in addition to gold upgrades

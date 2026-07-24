@@ -1,7 +1,9 @@
 import type { ContentDb, LevelDef } from '../sim/types';
+import { BOSSES } from './bosses';
 import { ENEMIES, GENERATORS } from './enemies';
 import { HEROES } from './heroes';
 import { BROOD_WARRENS } from './levels/broodWarrens';
+import { HOLLOW_THRONE } from './levels/hollowThrone';
 import { RESIN_GALLERIES } from './levels/resinGalleries';
 import { POWERUPS } from './powerups';
 import { PROPS } from './props';
@@ -13,20 +15,24 @@ export const CONTENT: ContentDb = {
   generators: GENERATORS,
   props: PROPS,
   weapons: WEAPONS,
-  powerups: POWERUPS
+  powerups: POWERUPS,
+  bosses: BOSSES
 };
 
 /** Every authored mission, keyed by level id. */
 export const LEVELS: Record<string, LevelDef> = {
   [BROOD_WARRENS.id]: BROOD_WARRENS,
-  [RESIN_GALLERIES.id]: RESIN_GALLERIES
+  [RESIN_GALLERIES.id]: RESIN_GALLERIES,
+  [HOLLOW_THRONE.id]: HOLLOW_THRONE
 };
 
 /**
  * Mission order for the hub list and "next mission" flow. The first entry is
- * the e2e Enter-default, so it must stay The Brood Warrens.
+ * the e2e Enter-default, so it must stay The Brood Warrens. The finale
+ * (The Hollow Throne) caps the realm.
  */
-export const MISSION_ORDER: readonly string[] = [BROOD_WARRENS.id, RESIN_GALLERIES.id];
+export const MISSION_ORDER: readonly string[] = [BROOD_WARRENS.id, RESIN_GALLERIES.id, HOLLOW_THRONE.id];
 
 export { BROOD_WARRENS } from './levels/broodWarrens';
 export { RESIN_GALLERIES } from './levels/resinGalleries';
+export { HOLLOW_THRONE } from './levels/hollowThrone';
