@@ -56,7 +56,9 @@ export const MIREVEIL: BossDef = {
     projectileDamage: 10,
     projectileRange: 420
   },
-  goldDrop: 150
+  goldDrop: 150,
+  // A finale-sized payout: felling her is worth several levels early on.
+  xp: 600
 };
 
 export const BOSSES: Record<string, BossDef> = {

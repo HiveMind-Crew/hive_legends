@@ -28,20 +28,34 @@ Done in slice 0:
 - [x] Persistent upgrades shop (Hearthstone Vigor, Sharpened Edge)
 - [x] Replay with retained progression
 
-Remaining for the full slice:
+Rest of the slice (this list had drifted badly out of date — audited against
+the code on 2026-07-24 and corrected; everything below is now landed):
 
-- [ ] Second playable hero (Arcanist archetype: area magic / crowd control)
-- [ ] Two more standard enemy types + one elite enemy
-- [ ] Key-controlled gate and a hidden treasure area
-- [ ] Temporary power-up
+- [x] Second playable hero — in fact all four: Arcanist (#18), Ranger (#19),
+      Sentinel (#20), with roster/unlock rules in hero select (#21).
+- [x] Two more standard enemy types + one elite — Carapace Husk and Bile
+      Spitter (#23), plus the elite Gravebound Ravager, which now actually
+      spawns from a destroyed Husk Mound (#40).
+- [x] Key-controlled gate and a hidden treasure area — keys, gates and
+      breakable secret walls (#17), authored into both early realms.
+- [x] Temporary power-up — Emberheart / Windstep Sigil / Aegis Bloom (#16),
+      plus the carried screen-clear potion (#41).
 - [x] Boss encounter — Mireveil, Mother of the Brood, in realm 3 "The Hollow
       Throne" (#25): data-driven three-phase script (Brood Call → Lunge →
       spat globs), a >= 1 s telegraph before every damaging action, a HUD
       finale bar, and a multi-stage death spectacle. The exit stays sealed
       while she lives.
-- [ ] Hub polish (hero select → mission select flow)
-- [ ] Audio (original SFX/music)
-- [ ] XP/level progression in addition to gold upgrades
+- [x] Hub polish (hero select → mission select flow) — attract-mode title and
+      hero cards (#9), plus the mission-select panel and unlock gating (#24).
+- [x] Audio (original SFX/music) — synthesized SFX, a procedural combat loop,
+      and the Herald announcer (#8).
+- [x] XP/level progression in addition to gold upgrades — XP from kills and
+      objectives levels the hero *mid-run* (#46), granting max HP (healing the
+      gain) and damage, announced by the Herald. Banked to the profile, so the
+      next mission starts at that level. Stacks with the bought gold upgrades.
+
+**With this, the M1 vertical slice is content-complete.** Remaining tracked
+work is the original-art track (#27, #28) and the M2 board (#29).
 
 ## Verification state
 
