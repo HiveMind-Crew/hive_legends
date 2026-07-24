@@ -65,6 +65,48 @@ describe('enemy roster', () => {
     expect(families.has('husk')).toBe(true);
     expect(families.has('spitter')).toBe(true);
   });
+
+  it('every generator on-death spawn names a real enemy', () => {
+    for (const gen of Object.values(CONTENT.generators)) {
+      if (gen.onDeathSpawn) expect(CONTENT.enemies[gen.onDeathSpawn.enemyId]).toBeDefined();
+    }
+  });
+});
+
+describe('elite on generator death (#40)', () => {
+  /** Destroys the Husk Mound in isolation and returns the emitted events. */
+  function killHuskMound(seed = 33): { sim: Sim; events: SimEvent[] } {
+    const sim = newSim('vanguard', seed);
+    const mound = sim.state.generators.find((g) => g.typeId === 'husk-mound')!;
+    sim.state.generators = [mound]; // isolate: no other spawners muddy the state
+    sim.state.enemies = [];
+    mound.hp = 20; // one Vanguard swing (25 dmg) destroys it before any husk spawns
+    const p = sim.state.players[0]!;
+    p.pos = { x: mound.pos.x - 40, y: mound.pos.y }; // in melee reach, facing the mound
+    p.facing = { x: 1, y: 0 };
+    return { sim, events: runTicks(sim, 5, input({ attack: true })) };
+  }
+
+  it('a Gravebound Ravager bursts from the Husk Mound when it dies', () => {
+    const { sim, events } = killHuskMound();
+    expect(events.some((e) => e.type === 'generator-destroyed')).toBe(true);
+    const elites = sim.state.enemies.filter((e) => e.typeId === 'gravebound-ravager');
+    expect(elites).toHaveLength(1);
+    // Elite tier is what drives the crimson render + the Herald's elite call.
+    expect(CONTENT.enemies['gravebound-ravager']!.tier).toBe('elite');
+    // Unparented (no dead generator to cap it) and given an attack grace so it
+    // can't land an un-telegraphed hit the instant it emerges (#39).
+    expect(elites[0]!.sourceGen).toBeNull();
+    expect(elites[0]!.attackCooldown).toBeGreaterThan(0);
+    // An `enemy-spawned` event fires so the renderer plays the emergence + Herald.
+    expect(events.some((e) => e.type === 'enemy-spawned' && e.typeId === 'gravebound-ravager')).toBe(true);
+  });
+
+  it('the death-spawn is deterministic', () => {
+    const a = killHuskMound(777);
+    const b = killHuskMound(777);
+    expect(hashState(a.sim.state)).toBe(hashState(b.sim.state));
+  });
 });
 
 describe('husk (melee bruiser)', () => {

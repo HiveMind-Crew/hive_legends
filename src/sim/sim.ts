@@ -451,10 +451,38 @@ function damageGenerator(sim: Sim, g: GeneratorState, damage: number, events: Si
         pos: { ...g.pos }
       });
     }
+    spawnOnGeneratorDeath(sim, g, def, events);
     sim.state.generators = sim.state.generators.filter((x) => x !== g);
   } else {
     events.push({ type: 'generator-hit', generatorId: g.id, pos: { ...g.pos }, damage });
   }
+}
+
+/**
+ * One-shot spawn when a generator dies (e.g. an elite bursting from the
+ * wreckage). Data-driven via `GeneratorDef.onDeathSpawn`. The spawned enemy is
+ * unparented (`sourceGen: null` — no dead generator to cap it) and gets an
+ * attack grace so it can't land an un-telegraphed hit on whoever cracked the
+ * generator open (the sim has no windup state yet — see #39).
+ */
+function spawnOnGeneratorDeath(sim: Sim, g: GeneratorState, def: GeneratorDef | undefined, events: SimEvent[]): void {
+  if (!def?.onDeathSpawn) return;
+  const enemyDef = sim.config.content.enemies[def.onDeathSpawn.enemyId];
+  if (!enemyDef) return;
+  const enemy: EnemyState = {
+    id: sim.state.nextEntityId++,
+    typeId: enemyDef.id,
+    pos: { ...g.pos },
+    hp: enemyDef.maxHp,
+    attackCooldown: enemyDef.attackCooldownTicks,
+    hitstunTicks: 0,
+    knockback: { x: 0, y: 0 },
+    slowTicks: 0,
+    slowMult: 1,
+    sourceGen: null
+  };
+  sim.state.enemies.push(enemy);
+  events.push({ type: 'enemy-spawned', enemyId: enemy.id, typeId: enemy.typeId, pos: { ...enemy.pos } });
 }
 
 function fireProjectile(sim: Sim, p: PlayerState, atk: ProjectileAttackDef, events: SimEvent[]): void {

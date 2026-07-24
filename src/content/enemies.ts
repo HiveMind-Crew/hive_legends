@@ -105,7 +105,11 @@ export const GENERATORS: Record<string, GeneratorDef> = {
     spawnsEnemyId: 'carapace-husk',
     spawnIntervalTicks: 165, // husks are tanky, so they come slowly
     maxAlive: 2,
-    goldDrop: 30
+    goldDrop: 30,
+    // Destroying the mound births its elite guardian — a Gravebound Ravager
+    // claws out of the wreckage (#40). One husk mound per realm, so exactly
+    // one elite per realm. It spawns with an attack grace so it can't ambush.
+    onDeathSpawn: { enemyId: 'gravebound-ravager' }
   },
   'spitter-nest': {
     id: 'spitter-nest',

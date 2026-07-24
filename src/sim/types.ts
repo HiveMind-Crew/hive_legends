@@ -231,6 +231,17 @@ export interface GeneratorDef {
   goldDrop: number;
   /** Optional enrage behavior; omit for generators that never enrage. */
   enrage?: GeneratorEnrageDef;
+  /**
+   * Optional one-shot spawn when this generator is destroyed — e.g. an elite
+   * bursts from the wreckage. Fires once, at the generator's position, on death.
+   */
+  onDeathSpawn?: GeneratorDeathSpawnDef;
+}
+
+/** A single enemy birthed when a generator is destroyed. */
+export interface GeneratorDeathSpawnDef {
+  /** Enemy type id to spawn (must exist in the content enemy table). */
+  enemyId: string;
 }
 
 /** Small breakable prop: any damage destroys it; drops loot via seeded RNG. */
