@@ -52,6 +52,9 @@ export const ENEMIES: Record<string, EnemyDef> = {
     attackRange: 200, // holds this distance and spits
     attackCooldownTicks: 105,
     attackWindupTicks: 16, // a visible charge before the glob leaves the sac
+    // Backs off inside 120 px (60% of its 200 px range) so it keeps plinking
+    // from a distance instead of planting itself in your face (#23).
+    keepDistanceFraction: 0.6,
     goldMin: 4,
     goldMax: 9,
     xp: 12,
