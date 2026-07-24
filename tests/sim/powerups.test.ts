@@ -30,6 +30,7 @@ function spawnEnemy(sim: Sim, id: number, x: number, y: number, hp = 5000): Enem
     pos: { x, y },
     hp,
     attackCooldown: 0,
+    windupTicksLeft: 0,
     hitstunTicks: 0,
     knockback: { x: 0, y: 0 },
     slowTicks: 0,
@@ -138,7 +139,7 @@ describe('ward (incoming damage)', () => {
     if (ward) p.power.ward = CONTENT.powerups.ward.durationTicks;
     spawnEnemy(sim, 910, p.pos.x + 20, p.pos.y); // inside attackRange
     const before = p.hp;
-    runTicks(sim, 1);
+    runTicks(sim, CONTENT.enemies['skitterling']!.attackWindupTicks + 2); // let the enemy windup land
     return before - p.hp;
   }
 

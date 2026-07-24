@@ -19,6 +19,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     touchDamage: 7,
     attackRange: 28,
     attackCooldownTicks: 45,
+    attackWindupTicks: 12, // quick nip — telegraphed but hard to punish
     goldMin: 2,
     goldMax: 5
   },
@@ -33,6 +34,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     touchDamage: 16,
     attackRange: 34,
     attackCooldownTicks: 55,
+    attackWindupTicks: 24, // heavy overhead — clearly readable, punishing if it lands
     goldMin: 6,
     goldMax: 12
   },
@@ -47,6 +49,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     touchDamage: 0, // never melees; fights at range
     attackRange: 200, // holds this distance and spits
     attackCooldownTicks: 105,
+    attackWindupTicks: 16, // a visible charge before the glob leaves the sac
     goldMin: 4,
     goldMax: 9,
     ranged: {
@@ -67,6 +70,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     touchDamage: 24,
     attackRange: 42,
     attackCooldownTicks: 58,
+    attackWindupTicks: 30, // the elite's big tell — reactable, in the boss-bar spirit (#25)
     goldMin: 22,
     goldMax: 34
   }

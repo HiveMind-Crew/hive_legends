@@ -59,7 +59,6 @@ const DEPTH_TEXT = 9500;
 const ATTACK_POSE_TICKS = 8; // how long after swinging the attack pose holds
 const WALK_FRAME_TICKS = 8;
 const CRAWL_FRAME_TICKS = 6;
-const WINDUP_TICKS = 12; // enemy cooldown remainder shown as a windup telegraph
 
 // Combat-juice caps and camera feel (issue #3). Hit-stop pauses render
 // stepping only — the sim accumulator holds, no ticks are ever skipped.
@@ -671,13 +670,11 @@ export class MissionScene extends Phaser.Scene {
       }
       this.trackMovement(e.id, e.pos, s.tick);
 
+      // The sim now owns the telegraph (#39): a real windup state drives the
+      // pose, so the very first contact hit is foreshadowed too. Face whoever
+      // it's winding up to strike.
       const target = this.nearestLivingPlayer(e.pos);
-      const windup =
-        def !== undefined &&
-        target !== null &&
-        e.attackCooldown > 0 &&
-        e.attackCooldown <= WINDUP_TICKS &&
-        Math.hypot(target.pos.x - e.pos.x, target.pos.y - e.pos.y) <= def.attackRange * 1.5;
+      const windup = e.windupTicksLeft > 0;
 
       let frame: EnemyAnimFrame;
       if (windup && target) {

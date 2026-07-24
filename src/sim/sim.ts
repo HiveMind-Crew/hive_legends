@@ -9,6 +9,7 @@ import {
   type PowerUpKind,
   type BlastAbilityDef,
   type DashVolleyAbilityDef,
+  type EnemyDef,
   type EnemyRangedDef,
   type EnemyState,
   type GateState,
@@ -461,9 +462,9 @@ function damageGenerator(sim: Sim, g: GeneratorState, damage: number, events: Si
 /**
  * One-shot spawn when a generator dies (e.g. an elite bursting from the
  * wreckage). Data-driven via `GeneratorDef.onDeathSpawn`. The spawned enemy is
- * unparented (`sourceGen: null` — no dead generator to cap it) and gets an
- * attack grace so it can't land an un-telegraphed hit on whoever cracked the
- * generator open (the sim has no windup state yet — see #39).
+ * unparented (`sourceGen: null` — no dead generator to cap it) and starts on
+ * cooldown, so it pauses to menace before its first windup rather than lunging
+ * the instant it claws out on top of whoever cracked the generator open.
  */
 function spawnOnGeneratorDeath(sim: Sim, g: GeneratorState, def: GeneratorDef | undefined, events: SimEvent[]): void {
   if (!def?.onDeathSpawn) return;
@@ -475,6 +476,7 @@ function spawnOnGeneratorDeath(sim: Sim, g: GeneratorState, def: GeneratorDef | 
     pos: { ...g.pos },
     hp: enemyDef.maxHp,
     attackCooldown: enemyDef.attackCooldownTicks,
+    windupTicksLeft: 0,
     hitstunTicks: 0,
     knockback: { x: 0, y: 0 },
     slowTicks: 0,
@@ -709,40 +711,71 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
     }
 
     const target = nearestLivingPlayer(s.players, e.pos);
-    if (!target) continue;
+    if (!target) {
+      e.windupTicksLeft = 0; // no one to strike — drop any pending windup
+      continue;
+    }
     const d = sub(target.pos, e.pos);
     const dist = Math.hypot(d.x, d.y);
+
+    // A committed attack windup: hold position, tick the telegraph down, and
+    // resolve the strike when it lands. A melee swing whiffs if the target
+    // slipped out of reach, so every hit — first contact included — is
+    // dodgeable by reading the windup and stepping away.
+    if (e.windupTicksLeft > 0) {
+      e.windupTicksLeft--;
+      if (e.windupTicksLeft === 0) executeEnemyAttack(sim, e, def, target, events);
+      continue;
+    }
 
     if (dist > def.attackRange) {
       const step = def.moveSpeed * (e.slowTicks > 0 ? e.slowMult : 1) * TICK_DT;
       moveCircle(level, e.pos, def.radius, (d.x / dist) * step, (d.y / dist) * step, blk);
     } else if (e.attackCooldown === 0 && (def.ranged || target.invulnTicks === 0)) {
-      e.attackCooldown = def.attackCooldownTicks;
-      // Ranged families spit a hostile bolt; melee families strike on contact.
-      if (def.ranged) {
-        spawnEnemyProjectile(sim, e, def.ranged, def.radius, target.pos, events);
-        continue;
-      }
-      // Bastion Wall soaks most of the hit and shoves the attacker back; the
-      // Aegis ward stacks a further reduction on top.
-      const guard = guardDefFor(sim, target);
-      const damage = def.touchDamage * (guard ? guard.damageMult : 1) * powerMult(sim, target, 'damageTakenMult');
-      target.hp -= damage;
-      target.invulnTicks = PLAYER_HIT_INVULN_TICKS;
-      events.push({ type: 'player-hit', playerId: target.id, damage, pos: { ...target.pos } });
-      if (guard) {
-        if (guard.reflectKnockback > 0 && dist > 1e-6) {
-          e.knockback.x += (-d.x / dist) * guard.reflectKnockback;
-          e.knockback.y += (-d.y / dist) * guard.reflectKnockback;
-        }
-        events.push({ type: 'guard-block', playerId: target.id, enemyId: e.id, pos: { ...e.pos } });
-      }
-      if (target.hp <= 0) {
-        target.hp = 0;
-        target.alive = false;
-        events.push({ type: 'player-died', playerId: target.id, pos: { ...target.pos } });
+      // Begin the telegraph instead of striking instantly. (No enemy ships a
+      // zero windup, but a 0 would resolve the attack the same tick.)
+      if (def.attackWindupTicks > 0) {
+        e.windupTicksLeft = def.attackWindupTicks;
+        events.push({ type: 'enemy-windup', enemyId: e.id, pos: { ...e.pos }, durationTicks: def.attackWindupTicks });
+      } else {
+        executeEnemyAttack(sim, e, def, target, events);
       }
     }
+  }
+}
+
+/**
+ * Resolves a committed enemy attack (the release of a windup). Ranged families
+ * always launch their glob; melee families connect only if the target is still
+ * in reach and out of i-frames — otherwise the swing whiffs, but it still pays
+ * its cooldown, so a dodged telegraph has real recovery. Mirrors the guard/ward
+ * damage reduction and Bastion Wall knockback-reflect of the old inline strike.
+ */
+function executeEnemyAttack(sim: Sim, e: EnemyState, def: EnemyDef, target: PlayerState, events: SimEvent[]): void {
+  e.attackCooldown = def.attackCooldownTicks;
+  if (def.ranged) {
+    spawnEnemyProjectile(sim, e, def.ranged, def.radius, target.pos, events);
+    return;
+  }
+  const d = sub(target.pos, e.pos);
+  const dist = Math.hypot(d.x, d.y);
+  if (dist > def.attackRange || target.invulnTicks > 0) return; // whiffed, or target immune
+  const guard = guardDefFor(sim, target);
+  const damage = def.touchDamage * (guard ? guard.damageMult : 1) * powerMult(sim, target, 'damageTakenMult');
+  target.hp -= damage;
+  target.invulnTicks = PLAYER_HIT_INVULN_TICKS;
+  events.push({ type: 'player-hit', playerId: target.id, damage, pos: { ...target.pos } });
+  if (guard) {
+    if (guard.reflectKnockback > 0 && dist > 1e-6) {
+      e.knockback.x += (-d.x / dist) * guard.reflectKnockback;
+      e.knockback.y += (-d.y / dist) * guard.reflectKnockback;
+    }
+    events.push({ type: 'guard-block', playerId: target.id, enemyId: e.id, pos: { ...e.pos } });
+  }
+  if (target.hp <= 0) {
+    target.hp = 0;
+    target.alive = false;
+    events.push({ type: 'player-died', playerId: target.id, pos: { ...target.pos } });
   }
 }
 
@@ -804,6 +837,7 @@ function updateGenerators(sim: Sim, events: SimEvent[]): void {
         pos,
         hp: enemyDef.maxHp,
         attackCooldown: 0,
+        windupTicksLeft: 0,
         hitstunTicks: 0,
         knockback: { x: 0, y: 0 },
         slowTicks: 0,

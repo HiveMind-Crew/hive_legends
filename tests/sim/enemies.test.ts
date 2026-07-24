@@ -31,6 +31,7 @@ function spawnEnemy(sim: Sim, typeId: string, id: number, x: number, y: number):
     pos: { x, y },
     hp: CONTENT.enemies[typeId]!.maxHp,
     attackCooldown: 0,
+    windupTicksLeft: 0,
     hitstunTicks: 0,
     knockback: { x: 0, y: 0 },
     slowTicks: 0,
@@ -106,6 +107,58 @@ describe('elite on generator death (#40)', () => {
     const a = killHuskMound(777);
     const b = killHuskMound(777);
     expect(hashState(a.sim.state)).toBe(hashState(b.sim.state));
+  });
+});
+
+describe('attack windup (#39)', () => {
+  const HUSK_WINDUP = CONTENT.enemies['carapace-husk']!.attackWindupTicks;
+
+  it('telegraphs the first strike instead of hitting on contact', () => {
+    const sim = newSim();
+    sim.state.generators = []; // isolate
+    const p = sim.state.players[0]!;
+    const before = p.hp;
+    const husk = spawnEnemy(sim, 'carapace-husk', 900, p.pos.x + 30, p.pos.y); // already in reach
+
+    // First tick: the husk commits to a windup and deals NO damage yet.
+    const first = runTicks(sim, 1);
+    expect(first.some((e) => e.type === 'enemy-windup' && e.enemyId === husk.id)).toBe(true);
+    expect(first.some((e) => e.type === 'player-hit')).toBe(false);
+    expect(husk.windupTicksLeft).toBeGreaterThan(0);
+    expect(p.hp).toBe(before);
+
+    // The blow lands only once the authored windup elapses.
+    const rest = runTicks(sim, HUSK_WINDUP);
+    expect(rest.some((e) => e.type === 'player-hit')).toBe(true);
+    expect(p.hp).toBeLessThan(before);
+  });
+
+  it('a target that leaves reach during the windup is not hit', () => {
+    const sim = newSim();
+    sim.state.generators = [];
+    const p = sim.state.players[0]!;
+    const before = p.hp;
+    const husk = spawnEnemy(sim, 'carapace-husk', 901, p.pos.x + 30, p.pos.y);
+    runTicks(sim, 1); // commit to the windup
+    expect(husk.windupTicksLeft).toBeGreaterThan(0);
+
+    // Step well out of reach before the swing releases: it whiffs.
+    p.pos = { x: p.pos.x + 400, y: p.pos.y };
+    const events = runTicks(sim, HUSK_WINDUP + 2);
+    expect(events.some((e) => e.type === 'player-hit')).toBe(false);
+    expect(p.hp).toBe(before);
+  });
+
+  it('windup combat stays deterministic', () => {
+    const seeds = [909, 909];
+    const sims = seeds.map((seed) => {
+      const sim = newSim('vanguard', seed);
+      sim.state.generators = [];
+      spawnEnemy(sim, 'carapace-husk', 910, sim.state.players[0]!.pos.x + 30, sim.state.players[0]!.pos.y);
+      return sim;
+    });
+    for (let i = 0; i < 200; i++) for (const sim of sims) simTick(sim, [input({ attack: true })]);
+    expect(hashState(sims[0]!.state)).toBe(hashState(sims[1]!.state));
   });
 });
 
