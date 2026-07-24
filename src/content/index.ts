@@ -7,6 +7,7 @@ import { HOLLOW_THRONE } from './levels/hollowThrone';
 import { RESIN_GALLERIES } from './levels/resinGalleries';
 import { POTION } from './potions';
 import { POWERUPS } from './powerups';
+import { PROGRESSION } from './progression';
 import { PROPS } from './props';
 import { WEAPONS } from './weapons';
 
@@ -18,7 +19,8 @@ export const CONTENT: ContentDb = {
   weapons: WEAPONS,
   powerups: POWERUPS,
   potion: POTION,
-  bosses: BOSSES
+  bosses: BOSSES,
+  progression: PROGRESSION
 };
 
 /** Every authored mission, keyed by level id. */

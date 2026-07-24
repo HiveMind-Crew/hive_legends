@@ -12,9 +12,11 @@ import {
   isLevelCleared,
   isLevelUnlocked,
   loadProfile,
+  bankXp,
   markLevelCleared,
   nextLevelId,
   ownedWeapons,
+  profileLevel,
   resolveWeaponAttack,
   weaponsForHero,
   type Profile
@@ -213,5 +215,35 @@ describe('mission progression', () => {
 
   it('loadProfile backfills clearedLevels for older saves', () => {
     expect(loadProfile().clearedLevels).toEqual([]);
+  });
+});
+
+/** Hero levelling persistence (issue #46). */
+describe('banked XP and hero level', () => {
+  it('a fresh profile starts at level 1 with no XP', () => {
+    const profile = defaultProfile();
+    expect(profile.xp).toBe(0);
+    expect(profileLevel(profile)).toBe(1);
+  });
+
+  it('banking XP raises the level once the curve threshold is crossed', () => {
+    const profile = defaultProfile();
+    const toLevel2 = CONTENT.progression.xpToReach[1]!;
+    bankXp(profile, toLevel2 - 1);
+    expect(profileLevel(profile)).toBe(1);
+    bankXp(profile, 1);
+    expect(profile.xp).toBe(toLevel2);
+    expect(profileLevel(profile)).toBe(2);
+  });
+
+  it('banking ignores non-positive amounts', () => {
+    const profile = defaultProfile();
+    bankXp(profile, 0);
+    bankXp(profile, -50);
+    expect(profile.xp).toBe(0);
+  });
+
+  it('loadProfile backfills xp for older saves', () => {
+    expect(loadProfile().xp).toBe(0);
   });
 });

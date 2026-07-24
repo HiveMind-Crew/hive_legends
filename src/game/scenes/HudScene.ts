@@ -34,6 +34,9 @@ interface Panel {
   keyText: Phaser.GameObjects.Text;
   potionIcon: Phaser.GameObjects.Image;
   potionText: Phaser.GameObjects.Text;
+  levelText: Phaser.GameObjects.Text;
+  xpBack: Phaser.GameObjects.Rectangle;
+  xpBar: Phaser.GameObjects.Rectangle;
   abilityBack: Phaser.GameObjects.Rectangle;
   abilityBar: Phaser.GameObjects.Rectangle;
   joinText: Phaser.GameObjects.Text;
@@ -185,6 +188,13 @@ export class HudScene extends Phaser.Scene {
     const potionIcon = this.add.image(x + 110, y + 39, TEX.potion).setScale(0.7).setVisible(false);
     const potionText = mono(117, 33, 12, '#7be08a');
 
+    // Hero level, tucked into the free space left of the ability meter, with
+    // its progress as a thin strip along the panel's bottom edge (issue #46).
+    // Deliberately clear of the gold/kills/key row, which is already crowded.
+    const levelText = mono(112, 1, 11, '#ffd75e', 'bold');
+    const xpBack = this.add.rectangle(x + 3, y + PANEL_H - 3, PANEL_W - 6, 3, 0x2a2438).setOrigin(0, 0.5);
+    const xpBar = this.add.rectangle(x + 3, y + PANEL_H - 3, PANEL_W - 6, 3, 0xffd75e).setOrigin(0, 0.5);
+
     const abilityBack = this.add.rectangle(x + 150, y + 8, 68, 8, 0x2a2438).setOrigin(0, 0);
     const abilityBar = this.add.rectangle(x + 150, y + 8, 68, 8, accent).setOrigin(0, 0);
 
@@ -192,7 +202,7 @@ export class HudScene extends Phaser.Scene {
     joinText.setText('JOIN');
     joinText.setX(x + PANEL_W / 2 - joinText.width / 2);
 
-    return { border, chip, chipText, portrait, hpText, maxHpText, goldIcon, goldText, killsText, keyIcon, keyText, potionIcon, potionText, abilityBack, abilityBar, joinText };
+    return { border, chip, chipText, portrait, hpText, maxHpText, goldIcon, goldText, killsText, keyIcon, keyText, potionIcon, potionText, levelText, xpBack, xpBar, abilityBack, abilityBar, joinText };
   }
 
   override update(): void {
@@ -234,7 +244,7 @@ export class HudScene extends Phaser.Scene {
 
     panel.joinText.setVisible(!active);
     panel.border.setAlpha(active ? 1 : 0.35);
-    for (const obj of [panel.chip, panel.chipText, panel.portrait, panel.hpText, panel.maxHpText, panel.goldIcon, panel.goldText, panel.killsText, panel.keyIcon, panel.keyText, panel.potionIcon, panel.potionText, panel.abilityBack, panel.abilityBar]) {
+    for (const obj of [panel.chip, panel.chipText, panel.portrait, panel.hpText, panel.maxHpText, panel.goldIcon, panel.goldText, panel.killsText, panel.keyIcon, panel.keyText, panel.potionIcon, panel.potionText, panel.levelText, panel.xpBack, panel.xpBar, panel.abilityBack, panel.abilityBar]) {
       obj.setVisible(active);
     }
     if (!p) return;
@@ -248,6 +258,13 @@ export class HudScene extends Phaser.Scene {
     const hasPotions = p.potions > 0;
     panel.potionIcon.setVisible(hasPotions);
     panel.potionText.setVisible(hasPotions).setText(hasPotions ? `x${p.potions}` : '');
+
+    // Hero level and progress toward the next; the bar fills solid at the cap.
+    panel.levelText.setText(`Lv ${p.level}`);
+    const span = p.xpForLevel;
+    const frac = span === null ? 1 : Math.max(0, Math.min(1, p.xpIntoLevel / span));
+    panel.xpBar.width = (PANEL_W - 6) * frac;
+    panel.xpBar.setFillStyle(span === null ? 0x9fe06a : 0xffd75e);
 
     // Large health number with a low-health pulse.
     panel.hpText.setText(String(Math.ceil(p.hp)));

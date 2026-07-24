@@ -26,6 +26,16 @@ import {
 
 const MAX_STEPS_PER_FRAME = 5;
 
+/**
+ * XP needed to span the given level (from its start to the next), or null at
+ * the cap — drives the HUD's XP bar (issue #46).
+ */
+function xpSpanForLevel(level: number): number | null {
+  const curve = CONTENT.progression.xpToReach;
+  if (level >= curve.length) return null;
+  return (curve[level] ?? 0) - (curve[level - 1] ?? 0);
+}
+
 export interface HudPlayerInfo {
   heroId: string;
   heroName: string;
@@ -40,6 +50,11 @@ export interface HudPlayerInfo {
   guardMax: number;
   keys: number;
   potions: number;
+  /** Hero level and progress toward the next (issue #46). */
+  level: number;
+  xp: number;
+  xpIntoLevel: number;
+  xpForLevel: number | null;
   alive: boolean;
 }
 
@@ -105,6 +120,7 @@ export class MissionScene extends Phaser.Scene {
   private exitGlow!: Phaser.GameObjects.Image;
   private moteFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private exitSprite!: Phaser.GameObjects.Image;
+  private startXp = 0; // banked XP at mission start, for the results delta
   private heroId = 'vanguard';
   private levelId = BROOD_WARRENS.id;
   private slowedIds = new Set<EntityId>();
@@ -144,11 +160,13 @@ export class MissionScene extends Phaser.Scene {
         {
           heroId: this.heroId,
           modifiers: profileModifiers(profile),
-          attack: equippedAttack(profile, hero)
+          attack: equippedAttack(profile, hero),
+          startXp: profile.xp
         }
       ],
       content: CONTENT
     });
+    this.startXp = profile.xp;
     this.accumulator = 0;
     this.ended = false;
     this.sprites.clear();
@@ -359,6 +377,10 @@ export class MissionScene extends Phaser.Scene {
           guardMax: hero?.ability.kind === 'guard' ? hero.ability.durationTicks : 0,
           keys: p.keys,
           potions: p.potions,
+          level: p.level,
+          xp: p.xp,
+          xpIntoLevel: p.xp - (CONTENT.progression.xpToReach[p.level - 1] ?? 0),
+          xpForLevel: xpSpanForLevel(p.level),
           alive: p.alive
         };
       }),
@@ -464,6 +486,14 @@ export class MissionScene extends Phaser.Scene {
         }
         case 'ability-dash':
           this.dashTrail(ev.playerId, ev.from, ev.to);
+          break;
+        case 'player-leveled':
+          // The mid-fight reward moment (issue #46): gold burst + announcement.
+          this.floatText(ev.pos, `LEVEL ${ev.level}`, '#ffd75e');
+          this.flashRing(ev.pos, 70, 0xffd75e);
+          this.burst(this.sparkFx, 16, ev.pos);
+          this.cameras.main.flash(90, 255, 215, 94);
+          hud.herald(`LEVEL ${ev.level} — YOU GROW STRONGER`, '#ffd75e');
           break;
         case 'potion-used':
           this.potionBurst(ev.pos, ev.radius);
@@ -669,6 +699,8 @@ export class MissionScene extends Phaser.Scene {
         gold: p.gold,
         kills: p.kills,
         ticks: this.sim.state.tick,
+        xpEarned: Math.max(0, p.xp - this.startXp),
+        heroLevel: p.level,
         heroId: this.heroId,
         levelId: this.levelId
       });

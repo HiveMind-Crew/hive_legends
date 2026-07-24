@@ -24,6 +24,9 @@ interface ResultsData {
   gold: number;
   kills: number;
   ticks: number;
+  /** XP earned this run and the level it left the hero at (issue #46). */
+  xpEarned: number;
+  heroLevel: number;
   /** Hero played this run; kept so replay and hero-select return to it. */
   heroId: string;
   /** Level played this run; kept so replay/next-mission target the right realm. */
@@ -52,6 +55,8 @@ export class ResultsScene extends Phaser.Scene {
     // Bank the run's gold exactly once, on scene entry.
     this.profile = loadProfile();
     this.profile.bank += data.gold;
+    // XP banks whether or not the run was won — you keep what you fought for.
+    this.profile.xp += Math.max(0, data.xpEarned ?? 0);
     if (data.victory) {
       this.profile.missionsCompleted += 1;
       if (this.profile.bestClearTicks === null || data.ticks < this.profile.bestClearTicks) {
@@ -104,8 +109,9 @@ export class ResultsScene extends Phaser.Scene {
       .text(
         width / 2,
         165,
-        `Gold collected: ${data.gold}    Kills: ${data.kills}    Time: ${seconds}s`,
-        { fontFamily: 'monospace', fontSize: '18px', color: '#f4e3b2' }
+        `Gold collected: ${data.gold}    Kills: ${data.kills}    Time: ${seconds}s\n` +
+          `XP earned: ${data.xpEarned ?? 0}    Hero level: ${data.heroLevel ?? 1}`,
+        { fontFamily: 'monospace', fontSize: '18px', color: '#f4e3b2', align: 'center' }
       )
       .setOrigin(0.5);
 

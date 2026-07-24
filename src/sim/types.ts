@@ -216,6 +216,8 @@ export interface EnemyDef {
   attackWindupTicks: number;
   goldMin: number;
   goldMax: number;
+  /** XP awarded to the killer (issue #46). */
+  xp: number;
   /** If present, the enemy fires hostile bolts at attackRange instead of meleeing. */
   ranged?: EnemyRangedDef;
 }
@@ -239,6 +241,8 @@ export interface GeneratorDef {
   /** Max simultaneously-alive enemies originating from one generator. */
   maxAlive: number;
   goldDrop: number;
+  /** XP awarded for destroying it (issue #46). */
+  xp: number;
   /** Optional enrage behavior; omit for generators that never enrage. */
   enrage?: GeneratorEnrageDef;
   /**
@@ -301,6 +305,8 @@ export interface BossDef {
   /** Glob: a fan of hostile bolts. */
   glob: { count: number; spreadDeg: number } & EnemyRangedDef;
   goldDrop: number;
+  /** XP awarded for felling her (issue #46). */
+  xp: number;
 }
 
 /** Runtime boss state. At most one per level. */
@@ -464,6 +470,17 @@ export interface PotionDef {
   knockback: number;
 }
 
+/**
+ * Hero levelling curve (issue #46). `xpToReach[i]` is the *total* XP needed to
+ * be level i + 1, so index 0 is level 1 at 0 XP and the array length is the
+ * level cap. Bonuses are applied per level gained, stacking with gold upgrades.
+ */
+export interface ProgressionDef {
+  xpToReach: readonly number[];
+  maxHpPerLevel: number;
+  damagePerLevel: number;
+}
+
 export interface ContentDb {
   heroes: Record<string, HeroDef>;
   enemies: Record<string, EnemyDef>;
@@ -473,6 +490,7 @@ export interface ContentDb {
   powerups: Record<PowerUpKind, PowerUpDef>;
   potion: PotionDef;
   bosses: Record<string, BossDef>;
+  progression: ProgressionDef;
 }
 
 // ---------------------------------------------------------------------------
@@ -501,6 +519,10 @@ export interface PlayerState {
   keys: number;
   /** Potions carried (spent for a screen-clear burst). See #41. */
   potions: number;
+  /** Total XP carried into and earned during this run (issue #46). */
+  xp: number;
+  /** Level derived from `xp` against the progression curve; 1-based. */
+  level: number;
   alive: boolean;
 }
 
@@ -636,6 +658,7 @@ export type SimEvent =
   | { type: 'pickup-collected'; playerId: EntityId; kind: PickupKind; amount: number; pos: Vec2 }
   | { type: 'powerup-gained'; playerId: EntityId; power: PowerUpKind; pos: Vec2 }
   | { type: 'potion-used'; playerId: EntityId; pos: Vec2; radius: number }
+  | { type: 'player-leveled'; playerId: EntityId; level: number; pos: Vec2 }
   | { type: 'player-hit'; playerId: EntityId; damage: number; pos: Vec2 }
   | { type: 'player-died'; playerId: EntityId; pos: Vec2 }
   | { type: 'exit-opened'; pos: Vec2 }
@@ -662,6 +685,12 @@ export interface SimPlayerConfig {
    * how a purchased weapon enters the sim — like modifiers, only at createSim.
    */
   attack?: AttackDef;
+  /**
+   * Banked XP the hero carries in (issue #46). The sim derives the starting
+   * level from it against the progression curve — meta enters the sim here and
+   * only here, exactly like `modifiers`.
+   */
+  startXp?: number;
 }
 
 export interface SimConfig {

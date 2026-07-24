@@ -25,6 +25,7 @@ import {
   type PickupState,
   type PlayerState,
   type ProjectileAttackDef,
+  type ProgressionDef,
   type ProjectileState,
   type PropState,
   type SimConfig,
@@ -56,7 +57,11 @@ export function createSim(config: SimConfig): Sim {
     const mods = pc.modifiers ?? NO_MODIFIERS;
     const spawn = level.playerSpawns[i % level.playerSpawns.length] ?? level.playerSpawns[0];
     if (!spawn) throw new Error('level has no player spawns');
-    const maxHp = hero.maxHp + mods.maxHpBonus;
+    // Banked XP carries in and sets the starting level (issue #46); its
+    // bonuses stack on top of the bought upgrades.
+    const xp = Math.max(0, pc.startXp ?? 0);
+    const heroLevel = levelForXp(content.progression, xp);
+    const maxHp = hero.maxHp + mods.maxHpBonus + levelMaxHpBonus(content.progression, heroLevel);
     return {
       id: nextEntityId++,
       heroId: hero.id,
@@ -73,6 +78,8 @@ export function createSim(config: SimConfig): Sim {
       power: emptyPowerTimers(),
       keys: 0,
       potions: 0,
+      xp,
+      level: heroLevel,
       alive: true
     };
   });
@@ -454,6 +461,65 @@ function usePotion(sim: Sim, p: PlayerState, events: SimEvent[]): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Hero levelling (issue #46)
+// ---------------------------------------------------------------------------
+
+/** The level a total XP amount buys, clamped to the curve's cap. */
+export function levelForXp(prog: ProgressionDef, xp: number): number {
+  let level = 1;
+  for (let i = 0; i < prog.xpToReach.length; i++) {
+    if (xp >= (prog.xpToReach[i] ?? Infinity)) level = i + 1;
+  }
+  return level;
+}
+
+/** Total XP required to reach the next level, or null at the cap. */
+export function xpForNextLevel(prog: ProgressionDef, level: number): number | null {
+  return level >= prog.xpToReach.length ? null : (prog.xpToReach[level] ?? null);
+}
+
+function levelMaxHpBonus(prog: ProgressionDef, level: number): number {
+  return (level - 1) * prog.maxHpPerLevel;
+}
+
+function levelDamageBonus(prog: ProgressionDef, level: number): number {
+  return (level - 1) * prog.damagePerLevel;
+}
+
+/**
+ * Credits XP to a player and levels them up if it crosses a threshold. A level
+ * grants max HP *and heals by the gain*, so it reads as a reward mid-fight;
+ * damage rises through `heroDamage`. Multiple levels can land at once (a boss
+ * kill early on), each announced.
+ */
+function awardXp(sim: Sim, p: PlayerState, amount: number, events: SimEvent[]): void {
+  if (amount <= 0 || !p.alive) return;
+  const prog = sim.config.content.progression;
+  p.xp += amount;
+  const earned = levelForXp(prog, p.xp);
+  while (p.level < earned) {
+    p.level++;
+    p.maxHp += prog.maxHpPerLevel;
+    p.hp = Math.min(p.maxHp, p.hp + prog.maxHpPerLevel); // the level-up heal
+    events.push({ type: 'player-leveled', playerId: p.id, level: p.level, pos: { ...p.pos } });
+  }
+}
+
+/** Credits XP to a player by id (kills carry the killer's id). */
+function awardXpTo(sim: Sim, playerId: EntityId, amount: number, events: SimEvent[]): void {
+  const p = sim.state.players.find((x) => x.id === playerId);
+  if (p) awardXp(sim, p, amount, events);
+}
+
+/**
+ * Objective XP (generators, the boss) goes to every living hero, so a co-op
+ * party levels together rather than racing for last hits.
+ */
+function awardObjectiveXp(sim: Sim, amount: number, events: SimEvent[]): void {
+  for (const p of sim.state.players) awardXp(sim, p, amount, events);
+}
+
 function heroDamageBonus(sim: Sim, p: PlayerState): number {
   const idx = sim.state.players.indexOf(p);
   return sim.config.players[idx]?.modifiers?.damageBonus ?? 0;
@@ -495,7 +561,8 @@ function powerMult(sim: Sim, p: PlayerState, field: 'damageMult' | 'speedMult' |
 
 /** Outgoing attack/ability damage after flat modifiers and the frenzy buff. */
 function heroDamage(sim: Sim, p: PlayerState, base: number): number {
-  return (base + heroDamageBonus(sim, p)) * powerMult(sim, p, 'damageMult');
+  const levelBonus = levelDamageBonus(sim.config.content.progression, p.level);
+  return (base + heroDamageBonus(sim, p) + levelBonus) * powerMult(sim, p, 'damageMult');
 }
 
 function damageEnemy(
@@ -515,6 +582,8 @@ function damageEnemy(
     events.push({ type: 'enemy-died', enemyId: e.id, typeId: e.typeId, pos: { ...e.pos }, byPlayer, damage });
     const killer = sim.state.players.find((p) => p.id === byPlayer);
     if (killer) killer.kills++;
+    // XP goes to whoever landed the killing blow (issue #46).
+    awardXpTo(sim, byPlayer, sim.config.content.enemies[e.typeId]?.xp ?? 0, events);
     dropEnemyGold(sim, e);
     sim.state.enemies = sim.state.enemies.filter((x) => x !== e);
   } else {
@@ -549,6 +618,7 @@ function damageGenerator(sim: Sim, g: GeneratorState, damage: number, events: Si
   if (g.hp <= 0) {
     g.hp = 0;
     events.push({ type: 'generator-destroyed', generatorId: g.id, pos: { ...g.pos } });
+    awardObjectiveXp(sim, def?.xp ?? 0, events); // objective XP is shared
     if (def && def.goldDrop > 0) {
       sim.state.pickups.push({
         id: sim.state.nextEntityId++,
@@ -1113,6 +1183,7 @@ function damageBoss(sim: Sim, boss: BossState, damage: number, events: SimEvent[
     boss.telegraphTicksLeft = 0;
     boss.pendingAction = null;
     events.push({ type: 'boss-died', bossId: boss.id, pos: { ...boss.pos } });
+    awardObjectiveXp(sim, def?.xp ?? 0, events); // the finale payout, shared
     if (def && def.goldDrop > 0) {
       sim.state.pickups.push({
         id: sim.state.nextEntityId++,

@@ -1,4 +1,6 @@
+import { PROGRESSION } from '../content/progression';
 import { WEAPONS } from '../content/weapons';
+import { levelForXp } from '../sim/sim';
 import type { AttackDef, HeroDef, HeroModifiers, WeaponDef } from '../sim/types';
 
 /**
@@ -49,6 +51,8 @@ export interface Profile {
    * entry (or an unset `equipped`) means the base weapon is equipped.
    */
   weapons: Record<string, { owned: string[]; equipped?: string }>;
+  /** Total XP banked across runs; drives the hero's starting level (#46). */
+  xp: number;
   /** Master audio volume 0..1. */
   volume: number;
   muted: boolean;
@@ -65,6 +69,7 @@ export function defaultProfile(): Profile {
     unlockedHeroes: [],
     clearedLevels: [],
     weapons: {},
+    xp: 0,
     volume: 0.7,
     muted: false
   };
@@ -306,6 +311,22 @@ export function saveAudioPrefs(volume: number, muted: boolean): void {
   const profile = loadProfile();
   profile.volume = volume;
   profile.muted = muted;
+  saveProfile(profile);
+}
+
+// ---------------------------------------------------------------------------
+// Hero levelling (issue #46)
+// ---------------------------------------------------------------------------
+
+/** The hero level the banked XP currently buys. */
+export function profileLevel(profile: Profile): number {
+  return levelForXp(PROGRESSION, profile.xp);
+}
+
+/** Banks XP earned in a mission (idempotent per call) and persists. */
+export function bankXp(profile: Profile, earned: number): void {
+  if (earned <= 0) return;
+  profile.xp += earned;
   saveProfile(profile);
 }
 
