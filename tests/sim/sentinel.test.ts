@@ -39,6 +39,7 @@ function spawnEnemy(sim: Sim, id: number, x: number, y: number): EnemyState {
     pos: { x, y },
     hp: CONTENT.enemies['skitterling']!.maxHp,
     attackCooldown: 0,
+    windupTicksLeft: 0,
     hitstunTicks: 0,
     knockback: { x: 0, y: 0 },
     slowTicks: 0,
@@ -64,10 +65,12 @@ describe('bastion wall', () => {
   /** One adjacent enemy strike; returns the HP the Sentinel lost that tick. */
   function hitLoss(guard: boolean): number {
     const sim = newSentinelSim();
+    sim.state.generators = []; // isolate from the horde
     const p = sim.state.players[0]!;
     spawnEnemy(sim, 900, p.pos.x + 20, p.pos.y); // inside attackRange (28)
     const before = p.hp;
-    simTick(sim, [guard ? input({ ability: true }) : EMPTY_INPUT]);
+    simTick(sim, [guard ? input({ ability: true }) : EMPTY_INPUT]); // raise the stance on the first tick
+    runTicks(sim, CONTENT.enemies['skitterling']!.attackWindupTicks + 2); // let the enemy's windup land
     return before - p.hp;
   }
 
@@ -98,7 +101,8 @@ describe('bastion wall', () => {
     const p = sim.state.players[0]!;
     p.facing = { x: 1, y: 0 };
     const e = spawnEnemy(sim, 901, p.pos.x + 20, p.pos.y);
-    const events = simTick(sim, [input({ ability: true })]);
+    simTick(sim, [input({ ability: true })]); // raise the stance
+    const events = runTicks(sim, CONTENT.enemies['skitterling']!.attackWindupTicks + 2); // block lands as the windup resolves
     expect(events.some((ev) => ev.type === 'guard-block')).toBe(true);
     // The enemy sits at +x, so the reflected impulse pushes it further +x.
     expect(e.knockback.x).toBeGreaterThan(100);
@@ -119,7 +123,7 @@ describe('bastion wall', () => {
     const before = p.hp;
     spawnEnemy(sim, 902, p.pos.x + 20, p.pos.y);
     p.invulnTicks = 0;
-    simTick(sim, [EMPTY_INPUT]);
+    runTicks(sim, CONTENT.enemies['skitterling']!.attackWindupTicks + 2); // unguarded windup lands at full strength
     expect(before - p.hp).toBeCloseTo(CONTENT.enemies['skitterling']!.touchDamage, 5);
   });
 

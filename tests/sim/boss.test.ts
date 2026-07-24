@@ -186,6 +186,24 @@ describe('the fight', () => {
     expect(sim.state.pickups.some((pk) => pk.kind === 'gold' && pk.amount === MIREVEIL.goldDrop)).toBe(true);
   });
 
+  it('a hoarded potion bites her and clears her brood (#41 x #25)', () => {
+    const sim = newSim();
+    const boss = sim.state.boss!;
+    const p = sim.state.players[0]!;
+    p.potions = 1;
+    p.pos = { x: boss.pos.x - 40, y: boss.pos.y }; // inside the burst radius
+    const before = boss.hp;
+    const events = simTick(sim, [input({ usePotion: true })]);
+    expect(events.some((e) => e.type === 'potion-used')).toBe(true);
+    expect(boss.hp).toBeLessThan(before);
+    expect(p.potions).toBe(0);
+  });
+
+  it('the finale arena stocks exactly one potion', () => {
+    const potions = HOLLOW_THRONE.pickups.filter((pk) => pk.kind === 'potion');
+    expect(potions).toHaveLength(1);
+  });
+
   it('the fight stays deterministic', () => {
     const a = newSim('vanguard', 4242);
     const b = newSim('vanguard', 4242);

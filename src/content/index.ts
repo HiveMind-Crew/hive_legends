@@ -5,6 +5,7 @@ import { HEROES } from './heroes';
 import { BROOD_WARRENS } from './levels/broodWarrens';
 import { HOLLOW_THRONE } from './levels/hollowThrone';
 import { RESIN_GALLERIES } from './levels/resinGalleries';
+import { POTION } from './potions';
 import { POWERUPS } from './powerups';
 import { PROPS } from './props';
 import { WEAPONS } from './weapons';
@@ -16,6 +17,7 @@ export const CONTENT: ContentDb = {
   props: PROPS,
   weapons: WEAPONS,
   powerups: POWERUPS,
+  potion: POTION,
   bosses: BOSSES
 };
 

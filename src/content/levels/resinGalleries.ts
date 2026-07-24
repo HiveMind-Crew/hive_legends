@@ -76,6 +76,8 @@ export const RESIN_GALLERIES: LevelDef = {
     { kind: 'powerup', amount: 0, power: 'frenzy', tx: 18, ty: 4 },
     { kind: 'powerup', amount: 0, power: 'swiftness', tx: 4, ty: 14 },
     { kind: 'powerup', amount: 0, power: 'ward', tx: 33, ty: 15 },
+    // A single screen-clear potion (issue #41), scarce by design.
+    { kind: 'potion', amount: 1, tx: 6, ty: 14 },
     // A key on the central hall, opening the gated south vault (issue #17).
     { kind: 'key', amount: 1, tx: 19, ty: 15 },
     // Treasure sealed in the two south vaults.

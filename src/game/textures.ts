@@ -28,6 +28,7 @@ export const TEX = {
   gold: 'pickup-gold',
   health: 'pickup-health',
   key: 'pickup-key',
+  potion: 'pickup-potion',
   gate: 'level-gate',
   exit: 'exit-portal',
   shadow: 'fx-shadow',
@@ -344,6 +345,19 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.fillRect(13, 8, 2, 3); // teeth
   g.fillRect(15, 8, 2, 2); // teeth
   gen(TEX.key);
+
+  // Potion (issue #41): a round-bottomed flask of glowing hive-fire, corked.
+  g.clear();
+  g.fillStyle(0x2a5b3a); // dark glass base
+  g.fillCircle(9, 12, 6); // bulb
+  g.fillRect(6, 4, 6, 6); // neck
+  g.fillStyle(0x7be08a); // luminous draught
+  g.fillCircle(9, 12, 4);
+  g.fillStyle(0xd6ffd0); // highlight glint
+  g.fillCircle(7, 10, 1.4);
+  g.fillStyle(0x8a5a2e); // cork
+  g.fillRect(6, 2, 6, 3);
+  gen(TEX.potion);
 
   // Key-locked gate (issue #17): heavy barred door filling a tile.
   g.clear();

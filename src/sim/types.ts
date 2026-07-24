@@ -20,13 +20,16 @@ export interface InputCommand {
   moveY: number; // -1..1
   attack: boolean;
   ability: boolean;
+  /** Rising-edge: consume one carried potion this tick (screen-clear burst). */
+  usePotion: boolean;
 }
 
 export const EMPTY_INPUT: InputCommand = Object.freeze({
   moveX: 0,
   moveY: 0,
   attack: false,
-  ability: false
+  ability: false,
+  usePotion: false
 });
 
 export type EntityId = number;
@@ -204,6 +207,13 @@ export interface EnemyDef {
   touchDamage: number;
   attackRange: number;
   attackCooldownTicks: number;
+  /**
+   * Telegraph before a strike lands, in ticks. On entering attack range the
+   * enemy commits (holds position) and winds up for this long; the hit resolves
+   * only when it elapses, so every attack — including the first contact — is
+   * dodgeable. Author longer for heavy hitters (readability rule, #39).
+   */
+  attackWindupTicks: number;
   goldMin: number;
   goldMax: number;
   /** If present, the enemy fires hostile bolts at attackRange instead of meleeing. */
@@ -231,6 +241,17 @@ export interface GeneratorDef {
   goldDrop: number;
   /** Optional enrage behavior; omit for generators that never enrage. */
   enrage?: GeneratorEnrageDef;
+  /**
+   * Optional one-shot spawn when this generator is destroyed — e.g. an elite
+   * bursts from the wreckage. Fires once, at the generator's position, on death.
+   */
+  onDeathSpawn?: GeneratorDeathSpawnDef;
+}
+
+/** A single enemy birthed when a generator is destroyed. */
+export interface GeneratorDeathSpawnDef {
+  /** Enemy type id to spawn (must exist in the content enemy table). */
+  enemyId: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -431,6 +452,18 @@ export interface PowerUpDef {
   damageTakenMult: number;
 }
 
+/**
+ * The screen-clear consumable (issue #41): a scarce, hoarded potion the player
+ * carries and spends at will for a big self-centered burst. Numbers are data;
+ * the sim reads them when a `usePotion` input fires with a potion in hand.
+ */
+export interface PotionDef {
+  name: string;
+  damage: number;
+  radius: number;
+  knockback: number;
+}
+
 export interface ContentDb {
   heroes: Record<string, HeroDef>;
   enemies: Record<string, EnemyDef>;
@@ -438,6 +471,7 @@ export interface ContentDb {
   props: Record<string, PropDef>;
   weapons: Record<string, WeaponDef>;
   powerups: Record<PowerUpKind, PowerUpDef>;
+  potion: PotionDef;
   bosses: Record<string, BossDef>;
 }
 
@@ -445,7 +479,7 @@ export interface ContentDb {
 // Runtime state
 // ---------------------------------------------------------------------------
 
-export type PickupKind = 'gold' | 'health' | 'powerup' | 'key';
+export type PickupKind = 'gold' | 'health' | 'powerup' | 'key' | 'potion';
 
 export interface PlayerState {
   id: EntityId;
@@ -465,6 +499,8 @@ export interface PlayerState {
   power: Record<PowerUpKind, number>;
   /** Keys held (spent to open gates). Party-shared semantics in solo. */
   keys: number;
+  /** Potions carried (spent for a screen-clear burst). See #41. */
+  potions: number;
   alive: boolean;
 }
 
@@ -474,6 +510,8 @@ export interface EnemyState {
   pos: Vec2;
   hp: number;
   attackCooldown: number;
+  /** Ticks left in a committed attack windup (0 = not winding up). See #39. */
+  windupTicksLeft: number;
   hitstunTicks: number;
   knockback: Vec2;
   /** Ticks of movement slow remaining (0 = unslowed) and its multiplier. */
@@ -580,6 +618,7 @@ export type SimEvent =
   | { type: 'ability-dash'; playerId: EntityId; from: Vec2; to: Vec2 }
   | { type: 'ability-guard'; playerId: EntityId; pos: Vec2; durationTicks: number }
   | { type: 'guard-block'; playerId: EntityId; enemyId: EntityId; pos: Vec2 }
+  | { type: 'enemy-windup'; enemyId: EntityId; pos: Vec2; durationTicks: number }
   | { type: 'enemy-hit'; enemyId: EntityId; pos: Vec2; damage: number }
   | { type: 'enemy-died'; enemyId: EntityId; typeId: string; pos: Vec2; byPlayer: EntityId; damage: number }
   | { type: 'enemy-spawned'; enemyId: EntityId; typeId: string; pos: Vec2 }
@@ -596,6 +635,7 @@ export type SimEvent =
   | { type: 'secret-revealed'; secretId: EntityId; pos: Vec2 }
   | { type: 'pickup-collected'; playerId: EntityId; kind: PickupKind; amount: number; pos: Vec2 }
   | { type: 'powerup-gained'; playerId: EntityId; power: PowerUpKind; pos: Vec2 }
+  | { type: 'potion-used'; playerId: EntityId; pos: Vec2; radius: number }
   | { type: 'player-hit'; playerId: EntityId; damage: number; pos: Vec2 }
   | { type: 'player-died'; playerId: EntityId; pos: Vec2 }
   | { type: 'exit-opened'; pos: Vec2 }

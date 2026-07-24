@@ -32,6 +32,8 @@ interface Panel {
   killsText: Phaser.GameObjects.Text;
   keyIcon: Phaser.GameObjects.Image;
   keyText: Phaser.GameObjects.Text;
+  potionIcon: Phaser.GameObjects.Image;
+  potionText: Phaser.GameObjects.Text;
   abilityBack: Phaser.GameObjects.Rectangle;
   abilityBar: Phaser.GameObjects.Rectangle;
   joinText: Phaser.GameObjects.Text;
@@ -179,6 +181,10 @@ export class HudScene extends Phaser.Scene {
     const keyIcon = this.add.image(x + 196, y + 39, TEX.key).setScale(0.7).setVisible(false);
     const keyText = mono(203, 33, 12, '#e6c34a');
 
+    // Potion tally (bottom-centre), shown only while carrying potions.
+    const potionIcon = this.add.image(x + 110, y + 39, TEX.potion).setScale(0.7).setVisible(false);
+    const potionText = mono(117, 33, 12, '#7be08a');
+
     const abilityBack = this.add.rectangle(x + 150, y + 8, 68, 8, 0x2a2438).setOrigin(0, 0);
     const abilityBar = this.add.rectangle(x + 150, y + 8, 68, 8, accent).setOrigin(0, 0);
 
@@ -186,7 +192,7 @@ export class HudScene extends Phaser.Scene {
     joinText.setText('JOIN');
     joinText.setX(x + PANEL_W / 2 - joinText.width / 2);
 
-    return { border, chip, chipText, portrait, hpText, maxHpText, goldIcon, goldText, killsText, keyIcon, keyText, abilityBack, abilityBar, joinText };
+    return { border, chip, chipText, portrait, hpText, maxHpText, goldIcon, goldText, killsText, keyIcon, keyText, potionIcon, potionText, abilityBack, abilityBar, joinText };
   }
 
   override update(): void {
@@ -228,7 +234,7 @@ export class HudScene extends Phaser.Scene {
 
     panel.joinText.setVisible(!active);
     panel.border.setAlpha(active ? 1 : 0.35);
-    for (const obj of [panel.chip, panel.chipText, panel.portrait, panel.hpText, panel.maxHpText, panel.goldIcon, panel.goldText, panel.killsText, panel.keyIcon, panel.keyText, panel.abilityBack, panel.abilityBar]) {
+    for (const obj of [panel.chip, panel.chipText, panel.portrait, panel.hpText, panel.maxHpText, panel.goldIcon, panel.goldText, panel.killsText, panel.keyIcon, panel.keyText, panel.potionIcon, panel.potionText, panel.abilityBack, panel.abilityBar]) {
       obj.setVisible(active);
     }
     if (!p) return;
@@ -237,6 +243,11 @@ export class HudScene extends Phaser.Scene {
     const hasKeys = p.keys > 0;
     panel.keyIcon.setVisible(hasKeys);
     panel.keyText.setVisible(hasKeys).setText(hasKeys ? `x${p.keys}` : '');
+
+    // Potions likewise appear only while carried.
+    const hasPotions = p.potions > 0;
+    panel.potionIcon.setVisible(hasPotions);
+    panel.potionText.setVisible(hasPotions).setText(hasPotions ? `x${p.potions}` : '');
 
     // Large health number with a low-health pulse.
     panel.hpText.setText(String(Math.ceil(p.hp)));

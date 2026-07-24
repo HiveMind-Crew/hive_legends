@@ -63,7 +63,10 @@ export const HOLLOW_THRONE: LevelDef = {
     // One relic of each buff, spread so grabbing one is a real detour.
     { kind: 'powerup', amount: 0, power: 'frenzy', tx: 4, ty: 10 },
     { kind: 'powerup', amount: 0, power: 'ward', tx: 25, ty: 10 },
-    { kind: 'powerup', amount: 0, power: 'swiftness', tx: 15, ty: 20 }
+    { kind: 'powerup', amount: 0, power: 'swiftness', tx: 15, ty: 20 },
+    // A single Hive-Fire Draught (#41): the finale is exactly the fight worth
+    // hoarding a screen-clear for — it clears her brood, or bites her directly.
+    { kind: 'potion', amount: 1, tx: 15, ty: 17 }
   ],
   props: [
     { typeId: 'amber-clutch', tx: 8, ty: 17 },
