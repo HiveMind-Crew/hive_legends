@@ -80,10 +80,14 @@ export const GENERATORS: Record<string, GeneratorDef> = {
     maxHp: 120,
     radius: 20,
     spawnsEnemyId: 'skitterling',
-    spawnIntervalTicks: 90,
-    // 5 per node = 10 concurrent chasers max: tuned for the solo slice.
+    // ~2.5/s cadence: fast enough to outpace a sweeping hero's kills so the
+    // swarm stays near its cap under fire, not just on approach (#38). A slower
+    // 1/s trickle leaves ~3-4 alive against the Vanguard; this holds ~7-8.
+    spawnIntervalTicks: 24,
+    // Swarmer node: a full 9-strong crush so the room reads as a horde, not a
+    // skirmish (#38). Well within the readability budget (~15) in a mixed horde.
     // Scale generator pressure with player count when co-op lands (M3).
-    maxAlive: 5,
+    maxAlive: 9,
     goldDrop: 25,
     // Wounded nodes panic-spawn: faster interval for 2.5 s, once, below
     // half HP. Tuned against solo-clear attrition (see docs/STATUS.md).
