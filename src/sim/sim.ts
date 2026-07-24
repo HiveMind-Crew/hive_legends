@@ -9,6 +9,10 @@ import {
   type PowerUpKind,
   type BlastAbilityDef,
   type DashVolleyAbilityDef,
+  type BossAction,
+  type BossDef,
+  type BossState,
+  type EntityId,
   type EnemyDef,
   type EnemyRangedDef,
   type EnemyState,
@@ -124,6 +128,30 @@ export function createSim(config: SimConfig): Sim {
     maxHp: sw.hp ?? SECRET_WALL_HP
   }));
 
+  // The level's boss, if it has one (issue #25). She starts idle: the first
+  // action waits out a full interval so the party gets to read the room.
+  let boss: BossState | null = null;
+  if (level.boss) {
+    const bdef = content.bosses[level.boss.typeId];
+    if (!bdef) throw new Error(`unknown boss: ${level.boss.typeId}`);
+    boss = {
+      id: nextEntityId++,
+      typeId: bdef.id,
+      pos: tileCenter(level, level.boss.tx, level.boss.ty),
+      facing: { x: 0, y: 1 },
+      hp: bdef.maxHp,
+      maxHp: bdef.maxHp,
+      phaseIndex: 0,
+      actionCooldown: bdef.phases[0]?.actionIntervalTicks ?? 240,
+      telegraphTicksLeft: 0,
+      pendingAction: null,
+      actionCursor: 0,
+      lungeTicksLeft: 0,
+      lungeDir: { x: 0, y: 1 },
+      touchCooldown: 0
+    };
+  }
+
   return {
     config,
     state: {
@@ -139,6 +167,7 @@ export function createSim(config: SimConfig): Sim {
       gates,
       secrets,
       projectiles: [],
+      boss,
       exitPos: tileCenter(level, level.exit.tx, level.exit.ty)
     }
   };
@@ -156,6 +185,7 @@ export function simTick(sim: Sim, inputs: readonly InputCommand[]): SimEvent[] {
   updateProjectiles(sim, events);
   updateEnemies(sim, events);
   separateEnemies(sim);
+  updateBoss(sim, events);
   updateGenerators(sim, events);
   collectPickups(sim, events);
   updateGates(sim, events);
@@ -264,6 +294,16 @@ function performMeleeAttack(sim: Sim, p: PlayerState, atk: AttackDef, events: Si
     if (dir.x * p.facing.x + dir.y * p.facing.y < cosHalfArc) continue;
     damageSecret(sim, sw, damage, events);
   }
+  const boss = livingBoss(sim);
+  if (boss) {
+    const bdef = content.bosses[boss.typeId];
+    const d = sub(boss.pos, p.pos);
+    const dist = Math.hypot(d.x, d.y);
+    if (bdef && dist <= atk.range + bdef.radius) {
+      const dir = dist > 1e-6 ? { x: d.x / dist, y: d.y / dist } : { ...p.facing };
+      if (dir.x * p.facing.x + dir.y * p.facing.y >= cosHalfArc) damageBoss(sim, boss, damage, events);
+    }
+  }
 }
 
 function performAbility(sim: Sim, p: PlayerState, events: SimEvent[]): void {
@@ -352,6 +392,13 @@ function performBlast(sim: Sim, p: PlayerState, ab: BlastAbilityDef, events: Sim
     if (dist > ab.radius + SECRET_RADIUS) continue;
     damageSecret(sim, sw, damage, events);
   }
+  const boss = livingBoss(sim);
+  if (boss) {
+    const bdef = content.bosses[boss.typeId];
+    if (bdef && Math.hypot(boss.pos.x - center.x, boss.pos.y - center.y) <= ab.radius + bdef.radius) {
+      damageBoss(sim, boss, damage, events);
+    }
+  }
 }
 
 /**
@@ -395,6 +442,15 @@ function usePotion(sim: Sim, p: PlayerState, events: SimEvent[]): void {
   for (const sw of [...sim.state.secrets]) {
     if (Math.hypot(sw.pos.x - center.x, sw.pos.y - center.y) > potion.radius + SECRET_RADIUS) continue;
     damageSecret(sim, sw, potion.damage, events);
+  }
+  // The burst bites the boss too — a hoarded potion is exactly the thing you
+  // want to spend in the finale (issues #41 + #25).
+  const boss = livingBoss(sim);
+  if (boss) {
+    const bdef = content.bosses[boss.typeId];
+    if (bdef && Math.hypot(boss.pos.x - center.x, boss.pos.y - center.y) <= potion.radius + bdef.radius) {
+      damageBoss(sim, boss, potion.damage, events);
+    }
   }
 }
 
@@ -571,12 +627,29 @@ function spawnProjectile(sim: Sim, p: PlayerState, atk: ProjectileAttackDef, dir
 
 /** Spawns one hostile bolt from an enemy toward a target position. */
 function spawnEnemyProjectile(sim: Sim, e: EnemyState, ranged: EnemyRangedDef, radius: number, target: Vec2, events: SimEvent[]): void {
-  const dir = norm(sub(target, e.pos));
-  const spawnDist = radius + ranged.projectileRadius + 1;
+  spawnHostileBolt(sim, e.id, e.pos, radius, ranged, norm(sub(target, e.pos)), events);
+}
+
+/**
+ * Spawns one hostile bolt from any attacker (enemy or boss) along a direction.
+ * Reported as `enemy-shot` whatever the source, so the renderer and audio treat
+ * a boss glob exactly like a spitter's bile.
+ */
+function spawnHostileBolt(
+  sim: Sim,
+  ownerId: EntityId,
+  origin: Vec2,
+  originRadius: number,
+  ranged: EnemyRangedDef,
+  dirIn: Vec2,
+  events: SimEvent[]
+): void {
+  const dir = norm(dirIn);
+  const spawnDist = originRadius + ranged.projectileRadius + 1;
   const projectile: ProjectileState = {
     id: sim.state.nextEntityId++,
-    ownerId: e.id,
-    pos: { x: e.pos.x + dir.x * spawnDist, y: e.pos.y + dir.y * spawnDist },
+    ownerId,
+    pos: { x: origin.x + dir.x * spawnDist, y: origin.y + dir.y * spawnDist },
     vel: { x: dir.x * ranged.projectileSpeed, y: dir.y * ranged.projectileSpeed },
     radius: ranged.projectileRadius,
     distanceLeft: ranged.projectileRange,
@@ -589,7 +662,7 @@ function spawnEnemyProjectile(sim: Sim, e: EnemyState, ranged: EnemyRangedDef, r
   sim.state.projectiles.push(projectile);
   events.push({
     type: 'enemy-shot',
-    enemyId: e.id,
+    enemyId: ownerId,
     projectileId: projectile.id,
     pos: { ...projectile.pos },
     vel: { ...projectile.vel }
@@ -635,6 +708,17 @@ function updateProjectiles(sim: Sim, events: SimEvent[]): void {
           break;
         }
         bolt.pierceLeft--;
+      }
+
+      // The boss is a solid target: a bolt striking her stops there.
+      if (!dead) {
+        const boss = livingBoss(sim);
+        const bdef = boss ? content.bosses[boss.typeId] : undefined;
+        if (boss && bdef && Math.hypot(boss.pos.x - bolt.pos.x, boss.pos.y - bolt.pos.y) <= bolt.radius + bdef.radius) {
+          events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
+          damageBoss(sim, boss, bolt.damage, events);
+          dead = true;
+        }
       }
 
       // Generators and props always stop a player bolt (no piercing structures).
@@ -853,6 +937,201 @@ function separateEnemies(sim: Sim): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Boss (issue #25)
+// ---------------------------------------------------------------------------
+
+/** The phase whose HP threshold the boss has fallen to (authored 1 first). */
+function bossPhaseIndex(def: BossDef, hpFraction: number): number {
+  let idx = 0;
+  for (let i = 0; i < def.phases.length; i++) {
+    if (hpFraction <= def.phases[i]!.hpFraction) idx = i;
+  }
+  return idx;
+}
+
+/**
+ * Drives the boss: phase escalation by HP, a telegraph-then-release action
+ * cycle, the lunge charge, and body-contact damage. Every damaging action is
+ * preceded by `telegraphTicks` of standing still, which is the whole fight —
+ * read the tell, step away, punish the recovery.
+ */
+function updateBoss(sim: Sim, events: SimEvent[]): void {
+  const s = sim.state;
+  const boss = s.boss;
+  if (!boss || boss.hp <= 0) return;
+  const { level, content } = sim.config;
+  const def = content.bosses[boss.typeId];
+  if (!def) return;
+
+  // Phase escalation. Entering a phase resets the action clock to its pace.
+  const idx = bossPhaseIndex(def, boss.hp / boss.maxHp);
+  if (idx !== boss.phaseIndex) {
+    boss.phaseIndex = idx;
+    boss.actionCursor = 0;
+    boss.actionCooldown = Math.min(boss.actionCooldown, def.phases[idx]!.actionIntervalTicks);
+    events.push({ type: 'boss-phase', bossId: boss.id, phaseIndex: idx, name: def.phases[idx]!.name, pos: { ...boss.pos } });
+  }
+  const phase = def.phases[boss.phaseIndex]!;
+
+  if (boss.touchCooldown > 0) boss.touchCooldown--;
+  const target = nearestLivingPlayer(s.players, boss.pos);
+  if (target) boss.facing = norm(sub(target.pos, boss.pos));
+
+  // An active lunge overrides everything: she barrels along the locked-in
+  // heading until it expires or a wall stops her.
+  if (boss.lungeTicksLeft > 0) {
+    boss.lungeTicksLeft--;
+    const before = { ...boss.pos };
+    const step = def.lunge.speed * TICK_DT;
+    moveCircle(level, boss.pos, def.radius, boss.lungeDir.x * step, boss.lungeDir.y * step, blockOf(sim, true));
+    if (Math.hypot(boss.pos.x - before.x, boss.pos.y - before.y) < step * 0.25) boss.lungeTicksLeft = 0; // hit a wall
+    bossContactDamage(sim, boss, def, def.lunge.damage, events);
+    return;
+  }
+
+  // Winding up: hold still so the tell is unmistakable, then release.
+  if (boss.telegraphTicksLeft > 0) {
+    boss.telegraphTicksLeft--;
+    if (boss.telegraphTicksLeft === 0) {
+      const action = boss.pendingAction;
+      boss.pendingAction = null;
+      boss.actionCooldown = phase.actionIntervalTicks;
+      if (action) executeBossAction(sim, boss, def, action, events);
+    }
+    bossContactDamage(sim, boss, def, def.touchDamage, events);
+    return;
+  }
+
+  // Otherwise: count down to the next action, lumbering after the party.
+  if (boss.actionCooldown > 0) {
+    boss.actionCooldown--;
+  } else {
+    const action = phase.actions[boss.actionCursor % phase.actions.length] ?? 'brood-call';
+    boss.actionCursor++;
+    boss.pendingAction = action;
+    boss.telegraphTicksLeft = def.telegraphTicks;
+    events.push({ type: 'boss-telegraph', bossId: boss.id, action, pos: { ...boss.pos }, durationTicks: def.telegraphTicks });
+  }
+
+  if (target) {
+    const d = sub(target.pos, boss.pos);
+    const dist = Math.hypot(d.x, d.y);
+    if (dist > def.radius * 0.5) {
+      const step = phase.moveSpeed * TICK_DT;
+      moveCircle(level, boss.pos, def.radius, (d.x / dist) * step, (d.y / dist) * step, blockOf(sim, true));
+    }
+  }
+  bossContactDamage(sim, boss, def, def.touchDamage, events);
+}
+
+/** Body contact: hurts any player overlapping her, rate-limited by cooldown. */
+function bossContactDamage(sim: Sim, boss: BossState, def: BossDef, damage: number, events: SimEvent[]): void {
+  if (boss.touchCooldown > 0) return;
+  for (const p of sim.state.players) {
+    if (!p.alive || p.invulnTicks > 0) continue;
+    const hero = sim.config.content.heroes[p.heroId];
+    if (!hero) continue;
+    if (Math.hypot(p.pos.x - boss.pos.x, p.pos.y - boss.pos.y) > def.radius + hero.radius) continue;
+    const guard = guardDefFor(sim, p);
+    const dealt = damage * (guard ? guard.damageMult : 1) * powerMult(sim, p, 'damageTakenMult');
+    p.hp -= dealt;
+    p.invulnTicks = PLAYER_HIT_INVULN_TICKS;
+    boss.touchCooldown = def.touchCooldownTicks;
+    events.push({ type: 'player-hit', playerId: p.id, damage: dealt, pos: { ...p.pos } });
+    if (guard) events.push({ type: 'guard-block', playerId: p.id, enemyId: boss.id, pos: { ...p.pos } });
+    if (p.hp <= 0) {
+      p.hp = 0;
+      p.alive = false;
+      events.push({ type: 'player-died', playerId: p.id, pos: { ...p.pos } });
+    }
+    return; // one victim per swing
+  }
+}
+
+/** Releases a telegraphed action. */
+function executeBossAction(sim: Sim, boss: BossState, def: BossDef, action: BossAction, events: SimEvent[]): void {
+  if (action === 'lunge') {
+    boss.lungeDir = { ...boss.facing };
+    boss.lungeTicksLeft = def.lunge.durationTicks;
+    return;
+  }
+  if (action === 'glob') {
+    const base = Math.atan2(boss.facing.y, boss.facing.x);
+    const spread = (def.glob.spreadDeg * Math.PI) / 180;
+    for (let i = 0; i < def.glob.count; i++) {
+      const frac = def.glob.count > 1 ? i / (def.glob.count - 1) : 0.5;
+      const angle = base + (frac - 0.5) * spread;
+      spawnHostileBolt(sim, boss.id, boss.pos, def.radius, def.glob, { x: Math.cos(angle), y: Math.sin(angle) }, events);
+    }
+    return;
+  }
+  broodCall(sim, boss, def, events);
+}
+
+/** Brood Call: births a clutch of swarmers on a ring around the Mother. */
+function broodCall(sim: Sim, boss: BossState, def: BossDef, events: SimEvent[]): void {
+  const s = sim.state;
+  const enemyDef = sim.config.content.enemies[def.broodCall.enemyId];
+  if (!enemyDef) return;
+  for (let n = 0; n < def.broodCall.count; n++) {
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const [v, next] = rngNext(s.rngState);
+      s.rngState = next;
+      const angle = v * Math.PI * 2;
+      const dist = def.radius + enemyDef.radius + 8;
+      const pos = { x: boss.pos.x + Math.cos(angle) * dist, y: boss.pos.y + Math.sin(angle) * dist };
+      if (circleHitsWall(sim.config.level, pos, enemyDef.radius, blockOf(sim, true))) continue;
+      const enemy: EnemyState = {
+        id: s.nextEntityId++,
+        typeId: enemyDef.id,
+        pos,
+        hp: enemyDef.maxHp,
+        attackCooldown: 0,
+        windupTicksLeft: 0,
+        hitstunTicks: 0,
+        knockback: { x: 0, y: 0 },
+        slowTicks: 0,
+        slowMult: 1,
+        sourceGen: null // no generator owns these, so no alive-cap applies
+      };
+      s.enemies.push(enemy);
+      events.push({ type: 'enemy-spawned', enemyId: enemy.id, typeId: enemy.typeId, pos: { ...pos } });
+      break;
+    }
+  }
+}
+
+/** Player damage onto the boss. At zero HP she dies and drops her hoard. */
+function damageBoss(sim: Sim, boss: BossState, damage: number, events: SimEvent[]): void {
+  if (boss.hp <= 0) return;
+  const def = sim.config.content.bosses[boss.typeId];
+  boss.hp -= damage;
+  if (boss.hp <= 0) {
+    boss.hp = 0;
+    boss.lungeTicksLeft = 0;
+    boss.telegraphTicksLeft = 0;
+    boss.pendingAction = null;
+    events.push({ type: 'boss-died', bossId: boss.id, pos: { ...boss.pos } });
+    if (def && def.goldDrop > 0) {
+      sim.state.pickups.push({
+        id: sim.state.nextEntityId++,
+        kind: 'gold',
+        amount: def.goldDrop,
+        pos: { ...boss.pos }
+      });
+    }
+  } else {
+    events.push({ type: 'boss-hit', bossId: boss.id, pos: { ...boss.pos }, damage });
+  }
+}
+
+/** The living boss as a damageable target, or null. */
+function livingBoss(sim: Sim): BossState | null {
+  const b = sim.state.boss;
+  return b && b.hp > 0 ? b : null;
+}
+
 function updateGenerators(sim: Sim, events: SimEvent[]): void {
   const s = sim.state;
   const { level, content } = sim.config;
@@ -954,7 +1233,9 @@ function updateObjective(sim: Sim, events: SimEvent[]): void {
     return;
   }
 
-  if (s.phase === 'combat' && s.generators.length === 0) {
+  // The way out opens once every spawner is down AND the level's boss (if any)
+  // has fallen — on a boss realm she IS the objective (issue #25).
+  if (s.phase === 'combat' && s.generators.length === 0 && livingBoss(sim) === null) {
     s.phase = 'exit-open';
     events.push({ type: 'exit-opened', pos: { ...s.exitPos } });
   }

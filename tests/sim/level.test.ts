@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { BROOD_WARRENS, LEVELS, MISSION_ORDER, RESIN_GALLERIES } from '../../src/content';
+import { BROOD_WARRENS, HOLLOW_THRONE, LEVELS, MISSION_ORDER, RESIN_GALLERIES } from '../../src/content';
 import { circleHitsWall, moveCircle, tileCenter, validateLevel } from '../../src/sim/level';
 import type { LevelDef } from '../../src/sim/types';
 
-const AUTHORED = [BROOD_WARRENS, RESIN_GALLERIES];
+const AUTHORED = [BROOD_WARRENS, RESIN_GALLERIES, HOLLOW_THRONE];
 
 /** Floor-BFS reachability from a start tile; `blocked` tiles are impassable. */
 function reachable(level: LevelDef, start: { tx: number; ty: number }, blocked: { tx: number; ty: number }[] = []) {

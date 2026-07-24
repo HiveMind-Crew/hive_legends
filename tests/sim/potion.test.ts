@@ -25,6 +25,7 @@ function spawnEnemy(sim: Sim, id: number, typeId: string, x: number, y: number):
     pos: { x, y },
     hp: CONTENT.enemies[typeId]!.maxHp,
     attackCooldown: 0,
+    windupTicksLeft: 0,
     hitstunTicks: 0,
     knockback: { x: 0, y: 0 },
     slowTicks: 0,

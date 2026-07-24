@@ -51,6 +51,11 @@ export class HudScene extends Phaser.Scene {
   private heraldQueue: { text: string; color: string }[] = [];
   private heraldBusy = false;
   private muteIcon!: Phaser.GameObjects.Text;
+  private bossName!: Phaser.GameObjects.Text;
+  private bossPhase!: Phaser.GameObjects.Text;
+  private bossBarBack!: Phaser.GameObjects.Rectangle;
+  private bossBar!: Phaser.GameObjects.Rectangle;
+  private bossShown = 0; // eased bar fill, so chip damage reads as a drain
 
   constructor() {
     super('hud');
@@ -79,6 +84,20 @@ export class HudScene extends Phaser.Scene {
       .text(480, 150, '', { fontFamily: 'monospace', fontSize: '20px', color: '#ffffff', fontStyle: 'bold' })
       .setOrigin(0.5)
       .setVisible(false);
+
+    // Boss bar (issue #25): a wide finale meter under the player panels,
+    // hidden on ordinary realms.
+    this.bossName = this.add
+      .text(480, 96, '', { fontFamily: 'monospace', fontSize: '17px', color: '#ff8a7a', fontStyle: 'bold' })
+      .setOrigin(0.5)
+      .setVisible(false);
+    this.bossBarBack = this.add.rectangle(480, 116, 620, 14, 0x2a1018).setStrokeStyle(2, 0x7a2430).setVisible(false);
+    this.bossBar = this.add.rectangle(170, 116, 616, 10, 0xd23b52).setOrigin(0, 0.5).setVisible(false);
+    this.bossPhase = this.add
+      .text(480, 132, '', { fontFamily: 'monospace', fontSize: '11px', color: '#ffb0a0' })
+      .setOrigin(0.5)
+      .setVisible(false);
+    this.bossShown = 1;
 
     // Mute indicator, bottom-right; reflects the shared audio engine state.
     this.muteIcon = this.add
@@ -185,7 +204,27 @@ export class HudScene extends Phaser.Scene {
       this.updatePanel(i, info);
     }
     this.updateObjective(info);
+    this.updateBossBar(info);
     this.muteIcon.setText(audio.isMuted ? '♪ muted (M)' : '♪ (M)');
+  }
+
+  /** The finale meter: name, eased HP drain, and the current phase title. */
+  private updateBossBar(info: HudInfo): void {
+    const boss = info.boss;
+    const show = boss !== null;
+    for (const obj of [this.bossName, this.bossBarBack, this.bossBar, this.bossPhase]) obj.setVisible(show);
+    if (!boss) {
+      this.bossShown = 1;
+      return;
+    }
+    this.bossName.setText(`${boss.name.toUpperCase()} — ${boss.title.toUpperCase()}`);
+    this.bossPhase.setText(boss.phaseName);
+    const frac = Math.max(0, Math.min(1, boss.hp / boss.maxHp));
+    // Ease the bar toward the true value so a big hit reads as a drain.
+    this.bossShown += (frac - this.bossShown) * 0.2;
+    this.bossBar.width = 616 * this.bossShown;
+    // Recolor as she is worn down, matching the phase escalation.
+    this.bossBar.setFillStyle(frac > 0.6 ? 0xd23b52 : frac > 0.25 ? 0xe0703a : 0xffb020);
   }
 
   private updatePanel(i: number, info: HudInfo): void {
@@ -244,9 +283,13 @@ export class HudScene extends Phaser.Scene {
   }
 
   private updateObjective(info: HudInfo): void {
+    // On a boss realm the finale bar carries the objective, so the ribbon
+    // steps aside rather than reading "BROOD NODES: 0".
     const label =
       info.phase === 'combat'
-        ? `BROOD NODES: ${info.generatorsLeft}`
+        ? info.boss
+          ? ''
+          : `BROOD NODES: ${info.generatorsLeft}`
         : info.phase === 'exit-open'
           ? 'FIND THE EXIT!'
           : '';

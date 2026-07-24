@@ -12,6 +12,7 @@ import {
   FLOOR_VARIANTS,
   POWERUP_COLORS,
   TEX,
+  bossFrame,
   broodNodeFrame,
   enemyFrame,
   facingDirIndex,
@@ -42,9 +43,20 @@ export interface HudPlayerInfo {
   alive: boolean;
 }
 
+/** Boss status for the HUD's finale bar (issue #25). */
+export interface HudBossInfo {
+  name: string;
+  title: string;
+  hp: number;
+  maxHp: number;
+  phaseName: string;
+}
+
 export interface HudInfo {
   players: HudPlayerInfo[];
   generatorsLeft: number;
+  /** Present only on a boss realm, and only while she still stands. */
+  boss: HudBossInfo | null;
   phase: string;
 }
 
@@ -351,7 +363,23 @@ export class MissionScene extends Phaser.Scene {
         };
       }),
       generatorsLeft: s.generators.length,
+      boss: this.bossHudInfo(),
       phase: s.phase
+    };
+  }
+
+  /** The finale bar's data, or null when there is no living boss. */
+  private bossHudInfo(): HudBossInfo | null {
+    const boss = this.sim.state.boss;
+    if (!boss || boss.hp <= 0) return null;
+    const def = CONTENT.bosses[boss.typeId];
+    if (!def) return null;
+    return {
+      name: def.name,
+      title: def.title,
+      hp: boss.hp,
+      maxHp: boss.maxHp,
+      phaseName: def.phases[boss.phaseIndex]?.name ?? ''
     };
   }
 
@@ -482,6 +510,51 @@ export class MissionScene extends Phaser.Scene {
           this.burst(this.ichorFx, 10, ev.pos);
           this.hitStop(35);
           break;
+        case 'boss-telegraph': {
+          // Name the incoming move so the tell is learnable, not just visual.
+          const label =
+            ev.action === 'lunge' ? 'SHE CHARGES!' : ev.action === 'glob' ? 'SHE SPITS!' : 'SHE CALLS THE BROOD!';
+          this.floatText(ev.pos, label, '#ff5a4d');
+          this.flashRing(ev.pos, 90, 0xff5a4d);
+          this.burst(this.dustFx, 8, ev.pos);
+          break;
+        }
+        case 'boss-phase':
+          hud.herald(ev.name.toUpperCase(), '#ff5a4d');
+          this.cameras.main.flash(120, 200, 90, 110);
+          this.cameras.main.shake(240, 0.01);
+          this.burst(this.shardFx, 14, ev.pos);
+          this.flashRing(ev.pos, 130, 0xff5a4d);
+          break;
+        case 'boss-hit':
+          this.tintFlash(this.sprites.get(ev.bossId), 0xffffff);
+          this.damageNumber(ev.pos, ev.damage, '#ffd0e0');
+          this.burst(this.ichorFx, 3, ev.pos);
+          this.meleeKick();
+          break;
+        case 'boss-died': {
+          // Finale spectacle: the #6 destruction pattern, scaled way up.
+          hud.herald('MIREVEIL FALLS', '#ffd75e');
+          this.deathPuff(ev.pos, 0xa855c8, 3.4);
+          this.burst(this.shardFx, 24, ev.pos);
+          this.burst(this.ichorFx, 24, ev.pos);
+          this.burst(this.dustFx, 18, ev.pos);
+          this.cameras.main.shake(600, 0.02);
+          this.cameras.main.flash(200, 244, 227, 178);
+          this.hitStop(90);
+          const at = { ...ev.pos };
+          for (const delay of [180, 380, 620]) {
+            this.time.delayedCall(delay, () => {
+              this.burst(this.shardFx, 14, at);
+              this.burst(this.ichorFx, 10, at);
+              this.flashRing(at, 120, 0xe1a6f0);
+              this.cameras.main.shake(180, 0.012);
+            });
+          }
+          const scorch = this.add.circle(at.x, at.y, 54, 0x000000, 0.28).setDepth(DEPTH_DECAL + 1);
+          this.tweens.add({ targets: scorch, alpha: 0, duration: 4000, onComplete: () => scorch.destroy() });
+          break;
+        }
         case 'generator-enraged':
           this.floatText(ev.pos, 'ENRAGED', '#ff5a4d');
           this.burst(this.shardFx, 6, ev.pos);
@@ -782,6 +855,66 @@ export class MissionScene extends Phaser.Scene {
       }
       bar.width = 40 * frac;
       bar.setFillStyle(tier === 0 ? 0xa855c8 : tier === 1 ? 0xf0a35e : 0xff5a4d);
+    }
+
+    // The boss (issue #25): damage-tier texture, a swelling telegraph tell, and
+    // a hard tint while she is mid-charge.
+    const boss = s.boss;
+    if (boss && boss.hp > 0) {
+      seen.add(boss.id);
+      const bdef = CONTENT.bosses[boss.typeId];
+      const frac = boss.hp / boss.maxHp;
+      const tier = frac > 2 / 3 ? 0 : frac > 1 / 3 ? 1 : 2;
+      const spr = this.ensureSprite(boss.id, bossFrame(boss.typeId, 0));
+      spr.setTexture(bossFrame(boss.typeId, tier));
+      spr.setPosition(boss.pos.x, boss.pos.y).setDepth(boss.pos.y);
+      spr.setRotation(Math.atan2(boss.facing.y, boss.facing.x) - Math.PI / 2); // art faces south
+
+      // Telegraph: she swells and flares red over the windup, so the tell is
+      // unmistakable before anything lands.
+      const tel = bdef ? boss.telegraphTicksLeft / Math.max(1, bdef.telegraphTicks) : 0;
+      const charging = boss.lungeTicksLeft > 0;
+      if (boss.telegraphTicksLeft > 0) {
+        const swell = 1 + 0.14 * (1 - tel);
+        spr.setScale(swell);
+        spr.setTint(Phaser.Display.Color.GetColor(255, 190 - Math.round(120 * (1 - tel)), 190 - Math.round(120 * (1 - tel))));
+      } else if (charging) {
+        spr.setScale(1.06);
+        spr.setTint(0xff8a7a);
+      } else {
+        spr.setScale(1 + 0.02 * Math.sin(this.time.now / 420));
+        spr.clearTint();
+      }
+
+      this.ensureShadow(boss.id, 2.6).setPosition(boss.pos.x, boss.pos.y + 26);
+
+      // A persistent ground ring marks her footprint; it pulses on the windup.
+      let ring = this.rings.get(boss.id);
+      if (!ring) {
+        ring = this.add.image(0, 0, TEX.accentRing).setDepth(DEPTH_DECAL).setScale(2.3, 1.3).setTint(0xff5a4d);
+        this.rings.set(boss.id, ring);
+      }
+      ring.setPosition(boss.pos.x, boss.pos.y + 18).setAlpha(boss.telegraphTicksLeft > 0 ? 0.35 + 0.4 * (1 - tel) : 0.28);
+
+      // Charge trail while she barrels forward.
+      if (charging && this.trailCount < MAX_TRAIL_GHOSTS && s.tick % 2 === 0) {
+        this.trailCount++;
+        const ghost = this.add
+          .image(boss.pos.x, boss.pos.y, spr.texture.key)
+          .setRotation(spr.rotation)
+          .setAlpha(0.3)
+          .setTint(0xff8a7a)
+          .setDepth(boss.pos.y - 1);
+        this.tweens.add({
+          targets: ghost,
+          alpha: 0,
+          duration: 180,
+          onComplete: () => {
+            ghost.destroy();
+            this.trailCount--;
+          }
+        });
+      }
     }
 
     for (const pk of s.pickups) {
