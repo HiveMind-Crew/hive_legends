@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { BROOD_WARRENS, HOLLOW_THRONE, LEVELS, MISSION_ORDER, RESIN_GALLERIES } from '../../src/content';
+import { BROOD_WARRENS, COBALT_COMBS, HOLLOW_THRONE, LEVELS, MISSION_ORDER, RESIN_GALLERIES } from '../../src/content';
 import { circleHitsWall, moveCircle, tileCenter, validateLevel } from '../../src/sim/level';
 import type { LevelDef } from '../../src/sim/types';
 
-const AUTHORED = [BROOD_WARRENS, RESIN_GALLERIES, HOLLOW_THRONE];
+const AUTHORED = [BROOD_WARRENS, RESIN_GALLERIES, COBALT_COMBS, HOLLOW_THRONE];
 
 /** Floor-BFS reachability from a start tile; `blocked` tiles are impassable. */
 function reachable(level: LevelDef, start: { tx: number; ty: number }, blocked: { tx: number; ty: number }[] = []) {
@@ -65,6 +65,34 @@ describe('level validation', () => {
     const canReach = reachable(level, spawn);
     for (const g of level.generators) expect(canReach(g.tx, g.ty), `gen ${g.typeId}`).toBe(true);
     expect(canReach(level.exit.tx, level.exit.ty), 'exit').toBe(true);
+  });
+
+  it('The Cobalt Combs vaults are sealed behind their gate and secret wall', () => {
+    const spawn = COBALT_COMBS.playerSpawns[0]!;
+    const gate = COBALT_COMBS.gates![0]!;
+    const secret = COBALT_COMBS.secrets![0]!;
+    // Treasure tiles sit just inside each south vault.
+    const gateTreasure = { tx: 5, ty: 24 };
+    const secretTreasure = { tx: 32, ty: 24 };
+
+    // Open (mechanic solved): reachable.
+    const open = reachable(COBALT_COMBS, spawn);
+    expect(open(gateTreasure.tx, gateTreasure.ty)).toBe(true);
+    expect(open(secretTreasure.tx, secretTreasure.ty)).toBe(true);
+
+    // Sealed (gate/secret tile impassable): the treasure is cut off, proving
+    // the vault is only reachable through the #17 mechanic.
+    const sealedGate = reachable(COBALT_COMBS, spawn, [gate]);
+    expect(sealedGate(gateTreasure.tx, gateTreasure.ty)).toBe(false);
+    const sealedSecret = reachable(COBALT_COMBS, spawn, [secret]);
+    expect(sealedSecret(secretTreasure.tx, secretTreasure.ty)).toBe(false);
+  });
+
+  it('The Cobalt Combs fields all three enemy families', () => {
+    // The step up from the Galleries is the enemy mix, not a fourth spawner —
+    // ranged pressure the earlier realms never applied.
+    const families = COBALT_COMBS.generators.map((g) => g.typeId).sort();
+    expect(families).toEqual(['brood-node', 'husk-mound', 'spitter-nest']);
   });
 
   it('The Resin Galleries vaults are sealed behind their gate and secret wall', () => {

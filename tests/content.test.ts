@@ -120,10 +120,8 @@ describe('mission wheel', () => {
   });
 
   it('each spoke runs three missions before its boss', () => {
-    // Relaxed to >= 2 until the third Azure Reach mission lands (issue #55);
-    // tighten this to exactly 3 as part of that issue.
     for (const spoke of SPOKES) {
-      expect(spoke.missions.length, `${spoke.id} mission count`).toBeGreaterThanOrEqual(2);
+      expect(spoke.missions.length, `${spoke.id} mission count`).toBe(3);
     }
   });
 
@@ -174,7 +172,7 @@ describe('mission wheel', () => {
   it('MISSION_ORDER stays the flat view of the wheel', () => {
     // The pre-wheel linear flow still reads this; it must keep its old value
     // until those call sites move to the spoke-aware rules (#54, #57).
-    expect(MISSION_ORDER).toEqual(['brood-warrens', 'resin-galleries', 'hollow-throne']);
+    expect(MISSION_ORDER).toEqual(['brood-warrens', 'resin-galleries', 'cobalt-combs', 'hollow-throne']);
     expect(MISSION_ORDER).toEqual(SPOKES.flatMap((s) => [...s.missions, s.boss]));
   });
 
