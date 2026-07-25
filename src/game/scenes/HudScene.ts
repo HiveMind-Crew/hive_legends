@@ -49,6 +49,7 @@ export class HudScene extends Phaser.Scene {
   private objectiveBg!: Phaser.GameObjects.Rectangle;
   private objectiveText!: Phaser.GameObjects.Text;
   private prevObjective = '';
+  private pressureText!: Phaser.GameObjects.Text;
   private heraldBg!: Phaser.GameObjects.Rectangle;
   private heraldText!: Phaser.GameObjects.Text;
   private heraldQueue: { text: string; color: string }[] = [];
@@ -78,6 +79,12 @@ export class HudScene extends Phaser.Scene {
     this.objectiveText = this.add
       .text(480, 78, '', { fontFamily: 'monospace', fontSize: '15px', color: '#64e6ff', fontStyle: 'bold' })
       .setOrigin(0.5);
+
+    // Hive-pressure readout, shown only once the hive has actually roused.
+    this.pressureText = this.add
+      .text(480, 96, '', { fontFamily: 'monospace', fontSize: '12px', color: '#ff8a7a', fontStyle: 'bold' })
+      .setOrigin(0.5)
+      .setVisible(false);
 
     // The Herald: a single announcement ribbon lower-centre. Messages queue so
     // they never overlap illegibly (issue #8).
@@ -215,6 +222,10 @@ export class HudScene extends Phaser.Scene {
     }
     this.updateObjective(info);
     this.updateBossBar(info);
+    // Chevrons read as a rising threat meter at a glance.
+    const roused = info.pressureStage > 0 && !info.boss;
+    this.pressureText.setVisible(roused);
+    if (roused) this.pressureText.setText(`HIVE ROUSED ${'\u25B2'.repeat(info.pressureStage)}`);
     this.muteIcon.setText(audio.isMuted ? '♪ muted (M)' : '♪ (M)');
   }
 

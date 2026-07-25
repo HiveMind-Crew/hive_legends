@@ -489,6 +489,30 @@ export interface ProgressionDef {
   damagePerLevel: number;
 }
 
+/**
+ * Mission time pressure — "the hive rouses" (issue #41). The adapted answer to
+ * the genre's health-drain: dawdling makes the brood *fiercer* rather than
+ * starving the player, so the health economy and the boss fight stay intact.
+ *
+ * Escalation is deliberately weighted to potency over headcount. Spawners sit
+ * at their alive-cap almost immediately, so shortening intervals alone barely
+ * registers — and flooding the screen would blow the readability budget.
+ */
+export interface PressureDef {
+  /** Ticks of grace before the first escalation; a clean clear never sees it. */
+  gracePeriodTicks: number;
+  /** Ticks between escalations after the grace period. */
+  intervalTicks: number;
+  /** Hard cap on stages, so a very slow run plateaus instead of running away. */
+  maxStage: number;
+  /** Additive per-stage fraction on enemy move speed (0.08 = +8% per stage). */
+  moveSpeedPerStage: number;
+  /** Additive per-stage fraction on enemy damage, contact and spat. */
+  damagePerStage: number;
+  /** Multiplicative per-stage spawn-interval scale; compounds across stages. */
+  spawnIntervalMult: number;
+}
+
 export interface ContentDb {
   heroes: Record<string, HeroDef>;
   enemies: Record<string, EnemyDef>;
@@ -499,6 +523,7 @@ export interface ContentDb {
   potion: PotionDef;
   bosses: Record<string, BossDef>;
   progression: ProgressionDef;
+  pressure: PressureDef;
 }
 
 // ---------------------------------------------------------------------------
@@ -631,6 +656,8 @@ export interface SimState {
   projectiles: ProjectileState[];
   /** The level's boss, or null on a boss-less mission. Dead bosses stay at hp 0. */
   boss: BossState | null;
+  /** How roused the hive is, 0 = calm. Rises on the mission clock (#41). */
+  pressureStage: number;
   exitPos: Vec2;
 }
 
@@ -667,6 +694,7 @@ export type SimEvent =
   | { type: 'powerup-gained'; playerId: EntityId; power: PowerUpKind; pos: Vec2 }
   | { type: 'potion-used'; playerId: EntityId; pos: Vec2; radius: number }
   | { type: 'player-leveled'; playerId: EntityId; level: number; pos: Vec2 }
+  | { type: 'pressure-rose'; stage: number }
   | { type: 'player-hit'; playerId: EntityId; damage: number; pos: Vec2 }
   | { type: 'player-died'; playerId: EntityId; pos: Vec2 }
   | { type: 'exit-opened'; pos: Vec2 }
