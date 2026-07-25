@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONTENT, MISSION_ORDER } from '../src/content';
+import { CONTENT, MISSION_ORDER, SPOKES, TEASER_SPOKES } from '../src/content';
 import {
   buyHeroUnlock,
   buyWeapon,
@@ -11,6 +11,8 @@ import {
   isHeroUnlocked,
   isLevelCleared,
   isLevelUnlocked,
+  isWheelComplete,
+  nextTeaser,
   loadProfile,
   bankXp,
   markLevelCleared,
@@ -246,5 +248,42 @@ describe('banked XP and hero level', () => {
 
   it('loadProfile backfills xp for older saves', () => {
     expect(loadProfile().xp).toBe(0);
+  });
+});
+
+/**
+ * End of authored content (issue #63). Clearing the last boss should name what
+ * is coming rather than going quiet. The rule lives here rather than in
+ * ResultsScene so it can be tested; the scene only renders what it returns.
+ */
+describe('end of authored content', () => {
+  const everyNode = SPOKES.flatMap((s) => [...s.missions, s.boss]);
+
+  it('is not reached while any node is outstanding', () => {
+    const profile = defaultProfile();
+    expect(isWheelComplete(profile)).toBe(false);
+    expect(nextTeaser(profile)).toBeUndefined();
+
+    // Clear everything except the final boss — still not the end.
+    for (const id of everyNode.slice(0, -1)) markLevelCleared(profile, id);
+    expect(isWheelComplete(profile)).toBe(false);
+    expect(nextTeaser(profile)).toBeUndefined();
+  });
+
+  it('offers the first teaser once every node is cleared', () => {
+    const profile = defaultProfile();
+    for (const id of everyNode) markLevelCleared(profile, id);
+    expect(isWheelComplete(profile)).toBe(true);
+    expect(nextTeaser(profile)).toBe(TEASER_SPOKES[0]);
+  });
+
+  it('a teaser is never a playable destination', () => {
+    // Teasers exist to be looked at. Nothing should route a mission at one, so
+    // no teaser id may collide with an authored level.
+    const profile = defaultProfile();
+    for (const id of everyNode) markLevelCleared(profile, id);
+    const teaser = nextTeaser(profile)!;
+    expect(CONTENT.spokes.some((s) => s.id === teaser.id)).toBe(false);
+    expect(everyNode).not.toContain(teaser.id);
   });
 });
