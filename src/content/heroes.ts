@@ -10,16 +10,19 @@ export const HEROES: Record<string, HeroDef> = {
     name: 'Korrin Vale',
     role: 'Vanguard',
     description:
-      'A wandering shield-breaker who fights at the front line, shattering swarms with heavy sweeps and seismic slams.',
+      'A wandering pike-fighter who holds the front line, running the brood through with long, driving thrusts and seismic slams.',
     maxHp: 120,
     moveSpeed: 190,
     radius: 12,
+    // A pike, not a maul: the Vanguard reaches furthest of the two melee heroes
+    // and hits hardest per swing, but through a narrow cone — it spears what it
+    // faces rather than scattering a crowd. The wide sweep is the Sentinel's.
     attack: {
       kind: 'melee',
-      damage: 25,
-      range: 52,
-      arcDeg: 110,
-      knockback: 260,
+      damage: 28,
+      range: 68,
+      arcDeg: 70,
+      knockback: 220, // pins rather than scatters; the Sentinel does the shoving
       cooldownTicks: 22
     },
     ability: {
@@ -41,13 +44,16 @@ export const HEROES: Record<string, HeroDef> = {
     maxHp: 80,
     moveSpeed: 170,
     radius: 11,
+    // Artillery, not archery: the longest reach on the roster, delivering its
+    // damage in heavy, deliberate lumps. The slow cadence is the cost of that
+    // reach and of Resin Cage — the Ranger out-sustains her and always should.
     attack: {
       kind: 'projectile',
-      damage: 18,
+      damage: 28,
       speed: 380,
       radius: 4,
-      range: 320,
-      cooldownTicks: 16,
+      range: 420, // outranges the Ranger; artillery opens from further out
+      cooldownTicks: 26,
       pierce: 1,
       knockback: 120
     },
@@ -55,8 +61,10 @@ export const HEROES: Record<string, HeroDef> = {
       kind: 'blast',
       id: 'resin-cage',
       name: 'Resin Cage',
-      damage: 25,
-      radius: 90,
+      // Above the swarm threshold (a 40 hp Skitterling), so the cast clears a
+      // clutch outright *and* roots what survives — the Arcanist's felt moment.
+      damage: 45,
+      radius: 100,
       knockback: 0,
       cooldownTicks: 300,
       offsetPx: 140,
@@ -77,11 +85,15 @@ export const HEROES: Record<string, HeroDef> = {
     radius: 10,
     attack: {
       kind: 'projectile',
-      damage: 12,
+      damage: 16,
       speed: 520,
       radius: 4,
       range: 380,
-      cooldownTicks: 9, // rapid fire
+      // Rapid, but deliberately clear of the enemy hitstun window
+      // (`combat.enemyHitstunTicks`): a cadence at or below it re-stuns before
+      // the previous stun lapses and locks a target out for good. See
+      // docs/COMBAT.md, "Cadence vs hitstun".
+      cooldownTicks: 12,
       pierce: 2, // a dart hits up to three targets in a line
       knockback: 40
     },
@@ -106,10 +118,13 @@ export const HEROES: Record<string, HeroDef> = {
     maxHp: 170,
     moveSpeed: 150,
     radius: 13,
+    // The wide sweep is the Sentinel's alone: the least damage per swing on the
+    // roster, spread across the broadest arc. He clears ground; the Vanguard
+    // kills what stands in front of him.
     attack: {
       kind: 'melee',
       damage: 20,
-      range: 56,
+      range: 64,
       arcDeg: 150,
       knockback: 380, // heavy sweep that scatters hordes
       cooldownTicks: 28

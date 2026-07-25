@@ -389,15 +389,28 @@ sets may only shrink):
 4. The two melee heroes converge — Vanguard and Sentinel crowd scores differ by
    under 1% at T1, and both tracks end at wide-arc high-knockback mauls.
 
+Phase 2 closed all four. The Arcanist became artillery (bolt 18 → 28 damage at
+16 → 26 ticks, reach 320 → 420 so she now outranges the Ranger) with Resin Cage
+raised to 45 damage / radius 100, above the 40 hp swarm threshold. The Ranger's
+cadence moved to 12/11/11, clear of the 10-tick hitstun window, with damage
+raised to hold its DPS roughly in place. The Vanguard became a pike — arc 110°
+→ 70°, reach 52 → 68, damage 25 → 28, T3 renamed *Sunreaver Pike* — and the
+Sentinel took the wide sweep outright (reach 56 → 64, T3 arc 180° → 175°). The
+Sentinel now out-crowds the Vanguard at every tier while the Vanguard
+out-damages him ~65%. Both tracked-exception sets in `tests/combat.test.ts` are
+empty, so all nine archetype invariants hold unconditionally.
+
+Cost worth watching: narrowing the Vanguard slowed the e2e bot's reference
+Warrens clear from 1074 ticks (17.9 s) to 1574 (26.2 s). That is inside the
+20–35 s band `src/content/pressure.ts` documents and inside the 40 s rouse
+grace — the old time was *below* the band — and the bot swings blindly while
+charging, so it is a pessimistic bound. Re-check against real play before
+widening the arc; the Sentinel's crowd lead is only ~6% at T3, so his reach
+would have to grow with it or the two heroes converge again.
+
 ## Next recommended task
 
-Phase 2 of the attack review: close the four tracked exceptions above
-(Arcanist recast as artillery with a Resin Cage above the swarm threshold,
-Vanguard narrowed to a focused strike so the Sentinel keeps the wide sweep,
-Ranger cadence raised above the hitstun window). Expect `test:e2e` timings to
-shift, since the bot plays a Vanguard.
-
-Otherwise M1 is content-complete, and the highest-value work is **presentation
+M1 is content-complete, and the highest-value work is **presentation
 and polish rather than systems**:
 
 1. **Original art packs — #27 (characters) and #28 (environment/UI).** The

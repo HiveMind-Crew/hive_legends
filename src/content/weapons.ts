@@ -12,42 +12,44 @@ import type { WeaponDef } from '../sim/types';
  * the tier-1 (base) id is derivable from the hero id alone.
  */
 export const WEAPONS: Record<string, WeaponDef> = {
-  // --- Vanguard (melee sweeps) ------------------------------------------
+  // --- Vanguard (focused thrusts; the track deepens reach, never widens the
+  // arc — broad sweeps belong to the Sentinel) ---------------------------
   'vanguard-t1': {
     id: 'vanguard-t1',
     name: 'Wardpike',
     heroId: 'vanguard',
     tier: 1,
-    description: 'The Vanguard’s standard shield-breaker sweep.',
+    description: 'The Vanguard’s standard driving thrust.',
     cost: 0,
     attackOverrides: {}
   },
   'vanguard-t2': {
     id: 'vanguard-t2',
-    name: "Warden's Edge",
+    name: "Warden's Reach",
     heroId: 'vanguard',
     tier: 2,
-    description: 'A broader sweep that catches more of the swarm (+arc, +damage).',
+    description: 'A longer haft that spears from further out (+reach, +damage).',
     cost: 90,
-    attackOverrides: { damage: 31, arcDeg: 150 }
+    attackOverrides: { damage: 35, range: 72 }
   },
   'vanguard-t3': {
     id: 'vanguard-t3',
-    name: 'Sunreaver Maul',
+    name: 'Sunreaver Pike',
     heroId: 'vanguard',
     tier: 3,
-    description: 'A crushing maul that scatters ranks (+damage, +knockback).',
+    description: 'A greatpike that runs a rank through end to end (+damage, +reach).',
     cost: 220,
-    attackOverrides: { damage: 40, knockback: 360, arcDeg: 150 }
+    attackOverrides: { damage: 44, range: 76, arcDeg: 80, knockback: 260 }
   },
 
-  // --- Arcanist (piercing amber bolts) ----------------------------------
+  // --- Arcanist (heavy amber artillery; the track adds weight per bolt and
+  // depth of penetration, never cadence — the slow rhythm is the class) ---
   'arcanist-t1': {
     id: 'arcanist-t1',
     name: 'Hexbolt Focus',
     heroId: 'arcanist',
     tier: 1,
-    description: 'The Arcanist’s standard piercing amber bolt.',
+    description: 'The Arcanist’s standard heavy amber bolt.',
     cost: 0,
     attackOverrides: {}
   },
@@ -58,7 +60,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
     tier: 2,
     description: 'Bolts bore through an extra rank (+pierce, +damage).',
     cost: 100,
-    attackOverrides: { damage: 22, pierce: 2 }
+    attackOverrides: { damage: 34, pierce: 2 }
   },
   'arcanist-t3': {
     id: 'arcanist-t3',
@@ -67,7 +69,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
     tier: 3,
     description: 'A lancing bolt, faster and deeper-striking (+damage, +speed, +pierce).',
     cost: 240,
-    attackOverrides: { damage: 28, speed: 460, pierce: 3 }
+    attackOverrides: { damage: 44, speed: 460, pierce: 3 }
   },
 
   // --- Ranger (rapid thorn darts) ---------------------------------------
@@ -80,6 +82,9 @@ export const WEAPONS: Record<string, WeaponDef> = {
     cost: 0,
     attackOverrides: {}
   },
+  // Cadence stays above `combat.enemyHitstunTicks` at every tier — a faster
+  // draw than that would stunlock rather than out-damage. Tiers buy weight and
+  // penetration instead.
   'ranger-t2': {
     id: 'ranger-t2',
     name: 'Thornscar Bow',
@@ -87,7 +92,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
     tier: 2,
     description: 'A faster draw that threads darts quicker (−cooldown, +damage).',
     cost: 100,
-    attackOverrides: { damage: 15, cooldownTicks: 7 }
+    attackOverrides: { damage: 17, cooldownTicks: 11 }
   },
   'ranger-t3': {
     id: 'ranger-t3',
@@ -96,7 +101,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
     tier: 3,
     description: 'A longbow whose darts skewer whole files (+pierce, +damage).',
     cost: 240,
-    attackOverrides: { damage: 18, pierce: 4, cooldownTicks: 8 }
+    attackOverrides: { damage: 20, pierce: 4, cooldownTicks: 11 }
   },
 
   // --- Sentinel (great sweeping maul) -----------------------------------
@@ -109,6 +114,8 @@ export const WEAPONS: Record<string, WeaponDef> = {
     cost: 0,
     attackOverrides: {}
   },
+  // The arc stays under a half-plane: at 180° a swing hits everything but the
+  // hero's exact rear and flanking stops being counterplay (docs/COMBAT.md).
   'sentinel-t2': {
     id: 'sentinel-t2',
     name: 'Bulwark Cleaver',
@@ -116,15 +123,15 @@ export const WEAPONS: Record<string, WeaponDef> = {
     tier: 2,
     description: 'A wider guard-sweep that clears the line (+arc, +damage).',
     cost: 110,
-    attackOverrides: { damage: 26, arcDeg: 180 }
+    attackOverrides: { damage: 26, arcDeg: 170 }
   },
   'sentinel-t3': {
     id: 'sentinel-t3',
     name: 'Graven Maul',
     heroId: 'sentinel',
     tier: 3,
-    description: 'A monstrous maul that hurls the brood aside (+damage, +knockback).',
+    description: 'A monstrous maul that hurls the brood aside (+damage, +knockback, +reach).',
     cost: 260,
-    attackOverrides: { damage: 34, knockback: 480, arcDeg: 180 }
+    attackOverrides: { damage: 34, knockback: 480, arcDeg: 175, range: 68 }
   }
 };

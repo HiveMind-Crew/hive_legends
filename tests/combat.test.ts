@@ -119,9 +119,9 @@ describe('roster archetypes', () => {
    * different things for a swing than for a bolt.
    */
   it('no hero is beaten on every core axis by another of the same kind', () => {
-    // Known violations, tracked in docs/COMBAT.md. This set must only ever
-    // shrink: a new entry means a hero has lost its reason to exist.
-    const knownDominated = new Set(['arcanist < ranger']);
+    // No exceptions: the Arcanist's out-ranging of the Ranger closed the last
+    // one. A new entry here means a hero has lost its reason to exist.
+    const knownDominated = new Set<string>();
 
     const found = new Set<string>();
     for (const a of HEROES) {
@@ -151,9 +151,10 @@ describe('cadence vs hitstun', () => {
    * before the previous freeze lapses, removing it from the fight for good.
    */
   it('no loadout can hold a target permanently stunned', () => {
-    // Known violations, tracked in docs/COMBAT.md — the Ranger stunlocks at
-    // every tier. This set must only ever shrink.
-    const knownStunlocks = new Set(['ranger-t1', 'ranger-t2', 'ranger-t3']);
+    // No exceptions: the Ranger's cadence now clears the hitstun window at
+    // every tier. Any entry here is a hero that removes a target from the
+    // fight outright, which is not a hero feature.
+    const knownStunlocks = new Set<string>();
 
     const found = allLoadouts()
       .filter((l) => stunlocks(l.attack, CONTENT.combat.enemyHitstunTicks))

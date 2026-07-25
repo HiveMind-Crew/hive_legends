@@ -150,10 +150,11 @@ describe('weapon tiers', () => {
     expect(attack).toBeDefined();
     expect(attack.kind).toBe(hero.attack.kind); // stays melee
     // Overridden fields take the weapon value; untouched fields keep the base.
+    // Cadence is the field no Vanguard tier overrides — the track buys damage
+    // and reach, never swing speed.
     expect(attack.kind === 'melee' && attack.damage).toBe(WEAPONS['vanguard-t3']!.attackOverrides.damage);
-    expect(attack.kind === 'melee' && attack.range).toBe(
-      hero.attack.kind === 'melee' ? hero.attack.range : undefined
-    );
+    expect(WEAPONS['vanguard-t3']!.attackOverrides.cooldownTicks, 'cadence stays a base field').toBeUndefined();
+    expect(attack.cooldownTicks).toBe(hero.attack.cooldownTicks);
   });
 
   it('equip only accepts owned weapons and never changes the attack kind', () => {
