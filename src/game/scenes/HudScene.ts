@@ -32,6 +32,11 @@ interface Panel {
   killsText: Phaser.GameObjects.Text;
   keyIcon: Phaser.GameObjects.Image;
   keyText: Phaser.GameObjects.Text;
+  potionIcon: Phaser.GameObjects.Image;
+  potionText: Phaser.GameObjects.Text;
+  levelText: Phaser.GameObjects.Text;
+  xpBack: Phaser.GameObjects.Rectangle;
+  xpBar: Phaser.GameObjects.Rectangle;
   abilityBack: Phaser.GameObjects.Rectangle;
   abilityBar: Phaser.GameObjects.Rectangle;
   joinText: Phaser.GameObjects.Text;
@@ -44,11 +49,17 @@ export class HudScene extends Phaser.Scene {
   private objectiveBg!: Phaser.GameObjects.Rectangle;
   private objectiveText!: Phaser.GameObjects.Text;
   private prevObjective = '';
+  private pressureText!: Phaser.GameObjects.Text;
   private heraldBg!: Phaser.GameObjects.Rectangle;
   private heraldText!: Phaser.GameObjects.Text;
   private heraldQueue: { text: string; color: string }[] = [];
   private heraldBusy = false;
   private muteIcon!: Phaser.GameObjects.Text;
+  private bossName!: Phaser.GameObjects.Text;
+  private bossPhase!: Phaser.GameObjects.Text;
+  private bossBarBack!: Phaser.GameObjects.Rectangle;
+  private bossBar!: Phaser.GameObjects.Rectangle;
+  private bossShown = 0; // eased bar fill, so chip damage reads as a drain
 
   constructor() {
     super('hud');
@@ -69,6 +80,12 @@ export class HudScene extends Phaser.Scene {
       .text(480, 78, '', { fontFamily: 'monospace', fontSize: '15px', color: '#64e6ff', fontStyle: 'bold' })
       .setOrigin(0.5);
 
+    // Hive-pressure readout, shown only once the hive has actually roused.
+    this.pressureText = this.add
+      .text(480, 96, '', { fontFamily: 'monospace', fontSize: '12px', color: '#ff8a7a', fontStyle: 'bold' })
+      .setOrigin(0.5)
+      .setVisible(false);
+
     // The Herald: a single announcement ribbon lower-centre. Messages queue so
     // they never overlap illegibly (issue #8).
     this.heraldBg = this.add.rectangle(480, 150, 520, 34, 0x120c1a, 0.72).setOrigin(0.5).setVisible(false);
@@ -77,6 +94,20 @@ export class HudScene extends Phaser.Scene {
       .text(480, 150, '', { fontFamily: 'monospace', fontSize: '20px', color: '#ffffff', fontStyle: 'bold' })
       .setOrigin(0.5)
       .setVisible(false);
+
+    // Boss bar (issue #25): a wide finale meter under the player panels,
+    // hidden on ordinary realms.
+    this.bossName = this.add
+      .text(480, 96, '', { fontFamily: 'monospace', fontSize: '17px', color: '#ff8a7a', fontStyle: 'bold' })
+      .setOrigin(0.5)
+      .setVisible(false);
+    this.bossBarBack = this.add.rectangle(480, 116, 620, 14, 0x2a1018).setStrokeStyle(2, 0x7a2430).setVisible(false);
+    this.bossBar = this.add.rectangle(170, 116, 616, 10, 0xd23b52).setOrigin(0, 0.5).setVisible(false);
+    this.bossPhase = this.add
+      .text(480, 132, '', { fontFamily: 'monospace', fontSize: '11px', color: '#ffb0a0' })
+      .setOrigin(0.5)
+      .setVisible(false);
+    this.bossShown = 1;
 
     // Mute indicator, bottom-right; reflects the shared audio engine state.
     this.muteIcon = this.add
@@ -160,6 +191,17 @@ export class HudScene extends Phaser.Scene {
     const keyIcon = this.add.image(x + 196, y + 39, TEX.key).setScale(0.7).setVisible(false);
     const keyText = mono(203, 33, 12, '#e6c34a');
 
+    // Potion tally (bottom-centre), shown only while carrying potions.
+    const potionIcon = this.add.image(x + 110, y + 39, TEX.potion).setScale(0.7).setVisible(false);
+    const potionText = mono(117, 33, 12, '#7be08a');
+
+    // Hero level, tucked into the free space left of the ability meter, with
+    // its progress as a thin strip along the panel's bottom edge (issue #46).
+    // Deliberately clear of the gold/kills/key row, which is already crowded.
+    const levelText = mono(112, 1, 11, '#ffd75e', 'bold');
+    const xpBack = this.add.rectangle(x + 3, y + PANEL_H - 3, PANEL_W - 6, 3, 0x2a2438).setOrigin(0, 0.5);
+    const xpBar = this.add.rectangle(x + 3, y + PANEL_H - 3, PANEL_W - 6, 3, 0xffd75e).setOrigin(0, 0.5);
+
     const abilityBack = this.add.rectangle(x + 150, y + 8, 68, 8, 0x2a2438).setOrigin(0, 0);
     const abilityBar = this.add.rectangle(x + 150, y + 8, 68, 8, accent).setOrigin(0, 0);
 
@@ -167,7 +209,7 @@ export class HudScene extends Phaser.Scene {
     joinText.setText('JOIN');
     joinText.setX(x + PANEL_W / 2 - joinText.width / 2);
 
-    return { border, chip, chipText, portrait, hpText, maxHpText, goldIcon, goldText, killsText, keyIcon, keyText, abilityBack, abilityBar, joinText };
+    return { border, chip, chipText, portrait, hpText, maxHpText, goldIcon, goldText, killsText, keyIcon, keyText, potionIcon, potionText, levelText, xpBack, xpBar, abilityBack, abilityBar, joinText };
   }
 
   override update(): void {
@@ -179,7 +221,31 @@ export class HudScene extends Phaser.Scene {
       this.updatePanel(i, info);
     }
     this.updateObjective(info);
+    this.updateBossBar(info);
+    // Chevrons read as a rising threat meter at a glance.
+    const roused = info.pressureStage > 0 && !info.boss;
+    this.pressureText.setVisible(roused);
+    if (roused) this.pressureText.setText(`HIVE ROUSED ${'\u25B2'.repeat(info.pressureStage)}`);
     this.muteIcon.setText(audio.isMuted ? '♪ muted (M)' : '♪ (M)');
+  }
+
+  /** The finale meter: name, eased HP drain, and the current phase title. */
+  private updateBossBar(info: HudInfo): void {
+    const boss = info.boss;
+    const show = boss !== null;
+    for (const obj of [this.bossName, this.bossBarBack, this.bossBar, this.bossPhase]) obj.setVisible(show);
+    if (!boss) {
+      this.bossShown = 1;
+      return;
+    }
+    this.bossName.setText(`${boss.name.toUpperCase()} — ${boss.title.toUpperCase()}`);
+    this.bossPhase.setText(boss.phaseName);
+    const frac = Math.max(0, Math.min(1, boss.hp / boss.maxHp));
+    // Ease the bar toward the true value so a big hit reads as a drain.
+    this.bossShown += (frac - this.bossShown) * 0.2;
+    this.bossBar.width = 616 * this.bossShown;
+    // Recolor as she is worn down, matching the phase escalation.
+    this.bossBar.setFillStyle(frac > 0.6 ? 0xd23b52 : frac > 0.25 ? 0xe0703a : 0xffb020);
   }
 
   private updatePanel(i: number, info: HudInfo): void {
@@ -189,7 +255,7 @@ export class HudScene extends Phaser.Scene {
 
     panel.joinText.setVisible(!active);
     panel.border.setAlpha(active ? 1 : 0.35);
-    for (const obj of [panel.chip, panel.chipText, panel.portrait, panel.hpText, panel.maxHpText, panel.goldIcon, panel.goldText, panel.killsText, panel.keyIcon, panel.keyText, panel.abilityBack, panel.abilityBar]) {
+    for (const obj of [panel.chip, panel.chipText, panel.portrait, panel.hpText, panel.maxHpText, panel.goldIcon, panel.goldText, panel.killsText, panel.keyIcon, panel.keyText, panel.potionIcon, panel.potionText, panel.levelText, panel.xpBack, panel.xpBar, panel.abilityBack, panel.abilityBar]) {
       obj.setVisible(active);
     }
     if (!p) return;
@@ -198,6 +264,18 @@ export class HudScene extends Phaser.Scene {
     const hasKeys = p.keys > 0;
     panel.keyIcon.setVisible(hasKeys);
     panel.keyText.setVisible(hasKeys).setText(hasKeys ? `x${p.keys}` : '');
+
+    // Potions likewise appear only while carried.
+    const hasPotions = p.potions > 0;
+    panel.potionIcon.setVisible(hasPotions);
+    panel.potionText.setVisible(hasPotions).setText(hasPotions ? `x${p.potions}` : '');
+
+    // Hero level and progress toward the next; the bar fills solid at the cap.
+    panel.levelText.setText(`Lv ${p.level}`);
+    const span = p.xpForLevel;
+    const frac = span === null ? 1 : Math.max(0, Math.min(1, p.xpIntoLevel / span));
+    panel.xpBar.width = (PANEL_W - 6) * frac;
+    panel.xpBar.setFillStyle(span === null ? 0x9fe06a : 0xffd75e);
 
     // Large health number with a low-health pulse.
     panel.hpText.setText(String(Math.ceil(p.hp)));
@@ -233,9 +311,13 @@ export class HudScene extends Phaser.Scene {
   }
 
   private updateObjective(info: HudInfo): void {
+    // On a boss realm the finale bar carries the objective, so the ribbon
+    // steps aside rather than reading "BROOD NODES: 0".
     const label =
       info.phase === 'combat'
-        ? `BROOD NODES: ${info.generatorsLeft}`
+        ? info.boss
+          ? ''
+          : `BROOD NODES: ${info.generatorsLeft}`
         : info.phase === 'exit-open'
           ? 'FIND THE EXIT!'
           : '';

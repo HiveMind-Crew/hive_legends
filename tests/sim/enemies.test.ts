@@ -31,6 +31,7 @@ function spawnEnemy(sim: Sim, typeId: string, id: number, x: number, y: number):
     pos: { x, y },
     hp: CONTENT.enemies[typeId]!.maxHp,
     attackCooldown: 0,
+    windupTicksLeft: 0,
     hitstunTicks: 0,
     knockback: { x: 0, y: 0 },
     slowTicks: 0,
@@ -64,6 +65,112 @@ describe('enemy roster', () => {
     const families = new Set(sim.state.enemies.map((e) => CONTENT.enemies[e.typeId]!.family));
     expect(families.has('husk')).toBe(true);
     expect(families.has('spitter')).toBe(true);
+  });
+
+  it('every ranged enemy authors keep-distance kiting, and melee never does', () => {
+    for (const def of Object.values(CONTENT.enemies)) {
+      if (def.ranged) {
+        expect(def.keepDistanceFraction, `${def.id} kiting`).toBeGreaterThan(0);
+        expect(def.keepDistanceFraction, `${def.id} kiting`).toBeLessThan(1);
+      } else {
+        // Melee families hold their ground; kiting would read as cowardice.
+        expect(def.keepDistanceFraction ?? 0, `${def.id} kiting`).toBe(0);
+      }
+    }
+  });
+
+  it('every generator on-death spawn names a real enemy', () => {
+    for (const gen of Object.values(CONTENT.generators)) {
+      if (gen.onDeathSpawn) expect(CONTENT.enemies[gen.onDeathSpawn.enemyId]).toBeDefined();
+    }
+  });
+});
+
+describe('elite on generator death (#40)', () => {
+  /** Destroys the Husk Mound in isolation and returns the emitted events. */
+  function killHuskMound(seed = 33): { sim: Sim; events: SimEvent[] } {
+    const sim = newSim('vanguard', seed);
+    const mound = sim.state.generators.find((g) => g.typeId === 'husk-mound')!;
+    sim.state.generators = [mound]; // isolate: no other spawners muddy the state
+    sim.state.enemies = [];
+    mound.hp = 20; // one Vanguard swing (25 dmg) destroys it before any husk spawns
+    const p = sim.state.players[0]!;
+    p.pos = { x: mound.pos.x - 40, y: mound.pos.y }; // in melee reach, facing the mound
+    p.facing = { x: 1, y: 0 };
+    return { sim, events: runTicks(sim, 5, input({ attack: true })) };
+  }
+
+  it('a Gravebound Ravager bursts from the Husk Mound when it dies', () => {
+    const { sim, events } = killHuskMound();
+    expect(events.some((e) => e.type === 'generator-destroyed')).toBe(true);
+    const elites = sim.state.enemies.filter((e) => e.typeId === 'gravebound-ravager');
+    expect(elites).toHaveLength(1);
+    // Elite tier is what drives the crimson render + the Herald's elite call.
+    expect(CONTENT.enemies['gravebound-ravager']!.tier).toBe('elite');
+    // Unparented (no dead generator to cap it) and given an attack grace so it
+    // can't land an un-telegraphed hit the instant it emerges (#39).
+    expect(elites[0]!.sourceGen).toBeNull();
+    expect(elites[0]!.attackCooldown).toBeGreaterThan(0);
+    // An `enemy-spawned` event fires so the renderer plays the emergence + Herald.
+    expect(events.some((e) => e.type === 'enemy-spawned' && e.typeId === 'gravebound-ravager')).toBe(true);
+  });
+
+  it('the death-spawn is deterministic', () => {
+    const a = killHuskMound(777);
+    const b = killHuskMound(777);
+    expect(hashState(a.sim.state)).toBe(hashState(b.sim.state));
+  });
+});
+
+describe('attack windup (#39)', () => {
+  const HUSK_WINDUP = CONTENT.enemies['carapace-husk']!.attackWindupTicks;
+
+  it('telegraphs the first strike instead of hitting on contact', () => {
+    const sim = newSim();
+    sim.state.generators = []; // isolate
+    const p = sim.state.players[0]!;
+    const before = p.hp;
+    const husk = spawnEnemy(sim, 'carapace-husk', 900, p.pos.x + 30, p.pos.y); // already in reach
+
+    // First tick: the husk commits to a windup and deals NO damage yet.
+    const first = runTicks(sim, 1);
+    expect(first.some((e) => e.type === 'enemy-windup' && e.enemyId === husk.id)).toBe(true);
+    expect(first.some((e) => e.type === 'player-hit')).toBe(false);
+    expect(husk.windupTicksLeft).toBeGreaterThan(0);
+    expect(p.hp).toBe(before);
+
+    // The blow lands only once the authored windup elapses.
+    const rest = runTicks(sim, HUSK_WINDUP);
+    expect(rest.some((e) => e.type === 'player-hit')).toBe(true);
+    expect(p.hp).toBeLessThan(before);
+  });
+
+  it('a target that leaves reach during the windup is not hit', () => {
+    const sim = newSim();
+    sim.state.generators = [];
+    const p = sim.state.players[0]!;
+    const before = p.hp;
+    const husk = spawnEnemy(sim, 'carapace-husk', 901, p.pos.x + 30, p.pos.y);
+    runTicks(sim, 1); // commit to the windup
+    expect(husk.windupTicksLeft).toBeGreaterThan(0);
+
+    // Step well out of reach before the swing releases: it whiffs.
+    p.pos = { x: p.pos.x + 400, y: p.pos.y };
+    const events = runTicks(sim, HUSK_WINDUP + 2);
+    expect(events.some((e) => e.type === 'player-hit')).toBe(false);
+    expect(p.hp).toBe(before);
+  });
+
+  it('windup combat stays deterministic', () => {
+    const seeds = [909, 909];
+    const sims = seeds.map((seed) => {
+      const sim = newSim('vanguard', seed);
+      sim.state.generators = [];
+      spawnEnemy(sim, 'carapace-husk', 910, sim.state.players[0]!.pos.x + 30, sim.state.players[0]!.pos.y);
+      return sim;
+    });
+    for (let i = 0; i < 200; i++) for (const sim of sims) simTick(sim, [input({ attack: true })]);
+    expect(hashState(sims[0]!.state)).toBe(hashState(sims[1]!.state));
   });
 });
 
@@ -135,6 +242,56 @@ describe('spitter (ranged)', () => {
     expect(events.some((e) => e.type === 'guard-block')).toBe(true);
     // Damage taken is the reduced (guarded) fraction of the bolt's damage.
     expect(before - p.hp).toBeLessThanOrEqual(spitter.ranged!.projectileDamage);
+  });
+
+  it('backs away when the player crowds it, reopening the gap (#23)', () => {
+    const sim = newSim();
+    sim.state.generators = []; // isolate
+    const p = sim.state.players[0]!;
+    const def = CONTENT.enemies['bile-spitter']!;
+    const keepDistance = def.attackRange * def.keepDistanceFraction!;
+    // Stand well inside its comfort band, on open floor with room behind it.
+    const start = { x: p.pos.x + 60, y: p.pos.y };
+    expect(60).toBeLessThan(keepDistance);
+    const e = spawnEnemy(sim, 'bile-spitter', 860, start.x, start.y);
+    runTicks(sim, 60);
+    const now = Math.hypot(e.pos.x - p.pos.x, e.pos.y - p.pos.y);
+    expect(now).toBeGreaterThan(60); // it gave ground
+  });
+
+  it('holds its ground in the sweet spot between keep-distance and range', () => {
+    const sim = newSim();
+    sim.state.generators = [];
+    const p = sim.state.players[0]!;
+    const def = CONTENT.enemies['bile-spitter']!;
+    const keepDistance = def.attackRange * def.keepDistanceFraction!;
+    // Comfortably inside range but outside the retreat band.
+    const gap = (keepDistance + def.attackRange) / 2;
+    const e = spawnEnemy(sim, 'bile-spitter', 861, p.pos.x + gap, p.pos.y);
+    const before = { ...e.pos };
+    runTicks(sim, 60);
+    expect(Math.hypot(e.pos.x - before.x, e.pos.y - before.y)).toBeLessThan(2);
+  });
+
+  it('keeps firing while it retreats', () => {
+    const sim = newSim();
+    sim.state.generators = [];
+    const p = sim.state.players[0]!;
+    spawnEnemy(sim, 'bile-spitter', 862, p.pos.x + 50, p.pos.y); // crowded
+    const events = runTicks(sim, 120);
+    expect(events.some((ev) => ev.type === 'enemy-shot')).toBe(true);
+  });
+
+  it('a crowded melee enemy stands and fights instead of kiting', () => {
+    const sim = newSim();
+    sim.state.generators = [];
+    const p = sim.state.players[0]!;
+    // A husk pressed right up against the player must not give ground.
+    const e = spawnEnemy(sim, 'carapace-husk', 863, p.pos.x + 20, p.pos.y);
+    const before = Math.hypot(e.pos.x - p.pos.x, e.pos.y - p.pos.y);
+    runTicks(sim, 60);
+    const after = Math.hypot(e.pos.x - p.pos.x, e.pos.y - p.pos.y);
+    expect(after).toBeLessThanOrEqual(before + 1);
   });
 
   it('spitter fights stay deterministic', () => {

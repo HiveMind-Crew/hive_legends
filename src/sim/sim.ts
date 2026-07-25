@@ -9,6 +9,11 @@ import {
   type PowerUpKind,
   type BlastAbilityDef,
   type DashVolleyAbilityDef,
+  type BossAction,
+  type BossDef,
+  type BossState,
+  type EntityId,
+  type EnemyDef,
   type EnemyRangedDef,
   type EnemyState,
   type GateState,
@@ -20,6 +25,8 @@ import {
   type PickupState,
   type PlayerState,
   type ProjectileAttackDef,
+  type PressureDef,
+  type ProgressionDef,
   type ProjectileState,
   type PropState,
   type SimConfig,
@@ -51,7 +58,11 @@ export function createSim(config: SimConfig): Sim {
     const mods = pc.modifiers ?? NO_MODIFIERS;
     const spawn = level.playerSpawns[i % level.playerSpawns.length] ?? level.playerSpawns[0];
     if (!spawn) throw new Error('level has no player spawns');
-    const maxHp = hero.maxHp + mods.maxHpBonus;
+    // Banked XP carries in and sets the starting level (issue #46); its
+    // bonuses stack on top of the bought upgrades.
+    const xp = Math.max(0, pc.startXp ?? 0);
+    const heroLevel = levelForXp(content.progression, xp);
+    const maxHp = hero.maxHp + mods.maxHpBonus + levelMaxHpBonus(content.progression, heroLevel);
     return {
       id: nextEntityId++,
       heroId: hero.id,
@@ -67,6 +78,9 @@ export function createSim(config: SimConfig): Sim {
       guardTicks: 0,
       power: emptyPowerTimers(),
       keys: 0,
+      potions: 0,
+      xp,
+      level: heroLevel,
       alive: true
     };
   });
@@ -122,6 +136,30 @@ export function createSim(config: SimConfig): Sim {
     maxHp: sw.hp ?? SECRET_WALL_HP
   }));
 
+  // The level's boss, if it has one (issue #25). She starts idle: the first
+  // action waits out a full interval so the party gets to read the room.
+  let boss: BossState | null = null;
+  if (level.boss) {
+    const bdef = content.bosses[level.boss.typeId];
+    if (!bdef) throw new Error(`unknown boss: ${level.boss.typeId}`);
+    boss = {
+      id: nextEntityId++,
+      typeId: bdef.id,
+      pos: tileCenter(level, level.boss.tx, level.boss.ty),
+      facing: { x: 0, y: 1 },
+      hp: bdef.maxHp,
+      maxHp: bdef.maxHp,
+      phaseIndex: 0,
+      actionCooldown: bdef.phases[0]?.actionIntervalTicks ?? 240,
+      telegraphTicksLeft: 0,
+      pendingAction: null,
+      actionCursor: 0,
+      lungeTicksLeft: 0,
+      lungeDir: { x: 0, y: 1 },
+      touchCooldown: 0
+    };
+  }
+
   return {
     config,
     state: {
@@ -137,6 +175,8 @@ export function createSim(config: SimConfig): Sim {
       gates,
       secrets,
       projectiles: [],
+      boss,
+      pressureStage: 0,
       exitPos: tileCenter(level, level.exit.tx, level.exit.ty)
     }
   };
@@ -154,6 +194,8 @@ export function simTick(sim: Sim, inputs: readonly InputCommand[]): SimEvent[] {
   updateProjectiles(sim, events);
   updateEnemies(sim, events);
   separateEnemies(sim);
+  updateBoss(sim, events);
+  updatePressure(sim, events);
   updateGenerators(sim, events);
   collectPickups(sim, events);
   updateGates(sim, events);
@@ -208,6 +250,10 @@ function updatePlayers(sim: Sim, inputs: readonly InputCommand[], events: SimEve
       p.abilityCooldown = hero.ability.cooldownTicks;
       performAbility(sim, p, events);
     }
+
+    // Screen-clear potion (#41): a carried consumable, spent on a rising-edge
+    // input. No cooldown — scarcity is the limiter (the input is edge-gated).
+    if (input.usePotion && p.potions > 0) usePotion(sim, p, events);
   });
 }
 
@@ -257,6 +303,16 @@ function performMeleeAttack(sim: Sim, p: PlayerState, atk: AttackDef, events: Si
     const dir = dist > 1e-6 ? { x: d.x / dist, y: d.y / dist } : { ...p.facing };
     if (dir.x * p.facing.x + dir.y * p.facing.y < cosHalfArc) continue;
     damageSecret(sim, sw, damage, events);
+  }
+  const boss = livingBoss(sim);
+  if (boss) {
+    const bdef = content.bosses[boss.typeId];
+    const d = sub(boss.pos, p.pos);
+    const dist = Math.hypot(d.x, d.y);
+    if (bdef && dist <= atk.range + bdef.radius) {
+      const dir = dist > 1e-6 ? { x: d.x / dist, y: d.y / dist } : { ...p.facing };
+      if (dir.x * p.facing.x + dir.y * p.facing.y >= cosHalfArc) damageBoss(sim, boss, damage, events);
+    }
   }
 }
 
@@ -346,6 +402,125 @@ function performBlast(sim: Sim, p: PlayerState, ab: BlastAbilityDef, events: Sim
     if (dist > ab.radius + SECRET_RADIUS) continue;
     damageSecret(sim, sw, damage, events);
   }
+  const boss = livingBoss(sim);
+  if (boss) {
+    const bdef = content.bosses[boss.typeId];
+    if (bdef && Math.hypot(boss.pos.x - center.x, boss.pos.y - center.y) <= ab.radius + bdef.radius) {
+      damageBoss(sim, boss, damage, events);
+    }
+  }
+}
+
+/**
+ * Spend one carried potion (#41): a self-centered screen-clear burst that
+ * damages every enemy, generator, prop, and secret wall in its radius, with
+ * heavy knockback on enemies. Unlike hero abilities it costs a consumable, not
+ * a cooldown — the scarcity is the cost. Deals no self/ally harm.
+ */
+function usePotion(sim: Sim, p: PlayerState, events: SimEvent[]): void {
+  const { content } = sim.config;
+  const potion = content.potion;
+  p.potions -= 1;
+  const center = { ...p.pos };
+  events.push({ type: 'potion-used', playerId: p.id, pos: center, radius: potion.radius });
+
+  // Iterate over copies: damageEnemy/damageGenerator/damageProp mutate the
+  // live arrays as things die.
+  for (const e of [...sim.state.enemies]) {
+    if (e.hp <= 0) continue;
+    const def = content.enemies[e.typeId];
+    if (!def) continue;
+    const d = sub(e.pos, center);
+    const dist = Math.hypot(d.x, d.y);
+    if (dist > potion.radius + def.radius) continue;
+    const dir = dist > 1e-6 ? { x: d.x / dist, y: d.y / dist } : { x: 0, y: -1 };
+    damageEnemy(sim, e, potion.damage, dir, potion.knockback, p.id, events);
+  }
+  for (const g of [...sim.state.generators]) {
+    if (g.hp <= 0) continue;
+    const gdef = content.generators[g.typeId];
+    if (!gdef) continue;
+    if (Math.hypot(g.pos.x - center.x, g.pos.y - center.y) > potion.radius + gdef.radius) continue;
+    damageGenerator(sim, g, potion.damage, events);
+  }
+  for (const pr of [...sim.state.props]) {
+    const pdef = content.props[pr.typeId];
+    if (!pdef) continue;
+    if (Math.hypot(pr.pos.x - center.x, pr.pos.y - center.y) > potion.radius + pdef.radius) continue;
+    damageProp(sim, pr, potion.damage, events);
+  }
+  for (const sw of [...sim.state.secrets]) {
+    if (Math.hypot(sw.pos.x - center.x, sw.pos.y - center.y) > potion.radius + SECRET_RADIUS) continue;
+    damageSecret(sim, sw, potion.damage, events);
+  }
+  // The burst bites the boss too — a hoarded potion is exactly the thing you
+  // want to spend in the finale (issues #41 + #25).
+  const boss = livingBoss(sim);
+  if (boss) {
+    const bdef = content.bosses[boss.typeId];
+    if (bdef && Math.hypot(boss.pos.x - center.x, boss.pos.y - center.y) <= potion.radius + bdef.radius) {
+      damageBoss(sim, boss, potion.damage, events);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Hero levelling (issue #46)
+// ---------------------------------------------------------------------------
+
+/** The level a total XP amount buys, clamped to the curve's cap. */
+export function levelForXp(prog: ProgressionDef, xp: number): number {
+  let level = 1;
+  for (let i = 0; i < prog.xpToReach.length; i++) {
+    if (xp >= (prog.xpToReach[i] ?? Infinity)) level = i + 1;
+  }
+  return level;
+}
+
+/** Total XP required to reach the next level, or null at the cap. */
+export function xpForNextLevel(prog: ProgressionDef, level: number): number | null {
+  return level >= prog.xpToReach.length ? null : (prog.xpToReach[level] ?? null);
+}
+
+function levelMaxHpBonus(prog: ProgressionDef, level: number): number {
+  return (level - 1) * prog.maxHpPerLevel;
+}
+
+function levelDamageBonus(prog: ProgressionDef, level: number): number {
+  return (level - 1) * prog.damagePerLevel;
+}
+
+/**
+ * Credits XP to a player and levels them up if it crosses a threshold. A level
+ * grants max HP *and heals by the gain*, so it reads as a reward mid-fight;
+ * damage rises through `heroDamage`. Multiple levels can land at once (a boss
+ * kill early on), each announced.
+ */
+function awardXp(sim: Sim, p: PlayerState, amount: number, events: SimEvent[]): void {
+  if (amount <= 0 || !p.alive) return;
+  const prog = sim.config.content.progression;
+  p.xp += amount;
+  const earned = levelForXp(prog, p.xp);
+  while (p.level < earned) {
+    p.level++;
+    p.maxHp += prog.maxHpPerLevel;
+    p.hp = Math.min(p.maxHp, p.hp + prog.maxHpPerLevel); // the level-up heal
+    events.push({ type: 'player-leveled', playerId: p.id, level: p.level, pos: { ...p.pos } });
+  }
+}
+
+/** Credits XP to a player by id (kills carry the killer's id). */
+function awardXpTo(sim: Sim, playerId: EntityId, amount: number, events: SimEvent[]): void {
+  const p = sim.state.players.find((x) => x.id === playerId);
+  if (p) awardXp(sim, p, amount, events);
+}
+
+/**
+ * Objective XP (generators, the boss) goes to every living hero, so a co-op
+ * party levels together rather than racing for last hits.
+ */
+function awardObjectiveXp(sim: Sim, amount: number, events: SimEvent[]): void {
+  for (const p of sim.state.players) awardXp(sim, p, amount, events);
 }
 
 function heroDamageBonus(sim: Sim, p: PlayerState): number {
@@ -389,7 +564,8 @@ function powerMult(sim: Sim, p: PlayerState, field: 'damageMult' | 'speedMult' |
 
 /** Outgoing attack/ability damage after flat modifiers and the frenzy buff. */
 function heroDamage(sim: Sim, p: PlayerState, base: number): number {
-  return (base + heroDamageBonus(sim, p)) * powerMult(sim, p, 'damageMult');
+  const levelBonus = levelDamageBonus(sim.config.content.progression, p.level);
+  return (base + heroDamageBonus(sim, p) + levelBonus) * powerMult(sim, p, 'damageMult');
 }
 
 function damageEnemy(
@@ -409,6 +585,8 @@ function damageEnemy(
     events.push({ type: 'enemy-died', enemyId: e.id, typeId: e.typeId, pos: { ...e.pos }, byPlayer, damage });
     const killer = sim.state.players.find((p) => p.id === byPlayer);
     if (killer) killer.kills++;
+    // XP goes to whoever landed the killing blow (issue #46).
+    awardXpTo(sim, byPlayer, sim.config.content.enemies[e.typeId]?.xp ?? 0, events);
     dropEnemyGold(sim, e);
     sim.state.enemies = sim.state.enemies.filter((x) => x !== e);
   } else {
@@ -443,6 +621,7 @@ function damageGenerator(sim: Sim, g: GeneratorState, damage: number, events: Si
   if (g.hp <= 0) {
     g.hp = 0;
     events.push({ type: 'generator-destroyed', generatorId: g.id, pos: { ...g.pos } });
+    awardObjectiveXp(sim, def?.xp ?? 0, events); // objective XP is shared
     if (def && def.goldDrop > 0) {
       sim.state.pickups.push({
         id: sim.state.nextEntityId++,
@@ -451,10 +630,39 @@ function damageGenerator(sim: Sim, g: GeneratorState, damage: number, events: Si
         pos: { ...g.pos }
       });
     }
+    spawnOnGeneratorDeath(sim, g, def, events);
     sim.state.generators = sim.state.generators.filter((x) => x !== g);
   } else {
     events.push({ type: 'generator-hit', generatorId: g.id, pos: { ...g.pos }, damage });
   }
+}
+
+/**
+ * One-shot spawn when a generator dies (e.g. an elite bursting from the
+ * wreckage). Data-driven via `GeneratorDef.onDeathSpawn`. The spawned enemy is
+ * unparented (`sourceGen: null` — no dead generator to cap it) and starts on
+ * cooldown, so it pauses to menace before its first windup rather than lunging
+ * the instant it claws out on top of whoever cracked the generator open.
+ */
+function spawnOnGeneratorDeath(sim: Sim, g: GeneratorState, def: GeneratorDef | undefined, events: SimEvent[]): void {
+  if (!def?.onDeathSpawn) return;
+  const enemyDef = sim.config.content.enemies[def.onDeathSpawn.enemyId];
+  if (!enemyDef) return;
+  const enemy: EnemyState = {
+    id: sim.state.nextEntityId++,
+    typeId: enemyDef.id,
+    pos: { ...g.pos },
+    hp: enemyDef.maxHp,
+    attackCooldown: enemyDef.attackCooldownTicks,
+    windupTicksLeft: 0,
+    hitstunTicks: 0,
+    knockback: { x: 0, y: 0 },
+    slowTicks: 0,
+    slowMult: 1,
+    sourceGen: null
+  };
+  sim.state.enemies.push(enemy);
+  events.push({ type: 'enemy-spawned', enemyId: enemy.id, typeId: enemy.typeId, pos: { ...enemy.pos } });
 }
 
 function fireProjectile(sim: Sim, p: PlayerState, atk: ProjectileAttackDef, events: SimEvent[]): void {
@@ -492,17 +700,38 @@ function spawnProjectile(sim: Sim, p: PlayerState, atk: ProjectileAttackDef, dir
 
 /** Spawns one hostile bolt from an enemy toward a target position. */
 function spawnEnemyProjectile(sim: Sim, e: EnemyState, ranged: EnemyRangedDef, radius: number, target: Vec2, events: SimEvent[]): void {
-  const dir = norm(sub(target, e.pos));
-  const spawnDist = radius + ranged.projectileRadius + 1;
+  // A roused hive spits harder. Scaled here, at the enemy call site, so the
+  // boss's glob — which shares this bolt plumbing — keeps its authored damage
+  // and escalates through her own phase script instead (#41 x #25).
+  spawnHostileBolt(sim, e.id, e.pos, radius, ranged, norm(sub(target, e.pos)), events, pressureDamageMult(sim));
+}
+
+/**
+ * Spawns one hostile bolt from any attacker (enemy or boss) along a direction.
+ * Reported as `enemy-shot` whatever the source, so the renderer and audio treat
+ * a boss glob exactly like a spitter's bile.
+ */
+function spawnHostileBolt(
+  sim: Sim,
+  ownerId: EntityId,
+  origin: Vec2,
+  originRadius: number,
+  ranged: EnemyRangedDef,
+  dirIn: Vec2,
+  events: SimEvent[],
+  damageMult = 1
+): void {
+  const dir = norm(dirIn);
+  const spawnDist = originRadius + ranged.projectileRadius + 1;
   const projectile: ProjectileState = {
     id: sim.state.nextEntityId++,
-    ownerId: e.id,
-    pos: { x: e.pos.x + dir.x * spawnDist, y: e.pos.y + dir.y * spawnDist },
+    ownerId,
+    pos: { x: origin.x + dir.x * spawnDist, y: origin.y + dir.y * spawnDist },
     vel: { x: dir.x * ranged.projectileSpeed, y: dir.y * ranged.projectileSpeed },
     radius: ranged.projectileRadius,
     distanceLeft: ranged.projectileRange,
     pierceLeft: 0,
-    damage: ranged.projectileDamage,
+    damage: ranged.projectileDamage * damageMult,
     knockback: 0,
     hitIds: [],
     hostile: true
@@ -510,7 +739,7 @@ function spawnEnemyProjectile(sim: Sim, e: EnemyState, ranged: EnemyRangedDef, r
   sim.state.projectiles.push(projectile);
   events.push({
     type: 'enemy-shot',
-    enemyId: e.id,
+    enemyId: ownerId,
     projectileId: projectile.id,
     pos: { ...projectile.pos },
     vel: { ...projectile.vel }
@@ -556,6 +785,17 @@ function updateProjectiles(sim: Sim, events: SimEvent[]): void {
           break;
         }
         bolt.pierceLeft--;
+      }
+
+      // The boss is a solid target: a bolt striking her stops there.
+      if (!dead) {
+        const boss = livingBoss(sim);
+        const bdef = boss ? content.bosses[boss.typeId] : undefined;
+        if (boss && bdef && Math.hypot(boss.pos.x - bolt.pos.x, boss.pos.y - bolt.pos.y) <= bolt.radius + bdef.radius) {
+          events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
+          damageBoss(sim, boss, bolt.damage, events);
+          dead = true;
+        }
       }
 
       // Generators and props always stop a player bolt (no piercing structures).
@@ -681,40 +921,83 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
     }
 
     const target = nearestLivingPlayer(s.players, e.pos);
-    if (!target) continue;
+    if (!target) {
+      e.windupTicksLeft = 0; // no one to strike — drop any pending windup
+      continue;
+    }
     const d = sub(target.pos, e.pos);
     const dist = Math.hypot(d.x, d.y);
 
+    // A committed attack windup: hold position, tick the telegraph down, and
+    // resolve the strike when it lands. A melee swing whiffs if the target
+    // slipped out of reach, so every hit — first contact included — is
+    // dodgeable by reading the windup and stepping away.
+    if (e.windupTicksLeft > 0) {
+      e.windupTicksLeft--;
+      if (e.windupTicksLeft === 0) executeEnemyAttack(sim, e, def, target, events);
+      continue;
+    }
+
+    // Steering. Close the gap when out of range; kiting families instead give
+    // ground while the target is inside their comfort band (issue #23), so
+    // artillery reopens the range rather than firing point-blank. Steering and
+    // attacking are independent, so a spitter can shoot while backing off.
+    const keepDistance = def.attackRange * (def.keepDistanceFraction ?? 0);
+    const step =
+      def.moveSpeed * pressureSpeedMult(sim, sim.config.content.pressure) * (e.slowTicks > 0 ? e.slowMult : 1) * TICK_DT;
     if (dist > def.attackRange) {
-      const step = def.moveSpeed * (e.slowTicks > 0 ? e.slowMult : 1) * TICK_DT;
       moveCircle(level, e.pos, def.radius, (d.x / dist) * step, (d.y / dist) * step, blk);
-    } else if (e.attackCooldown === 0 && (def.ranged || target.invulnTicks === 0)) {
-      e.attackCooldown = def.attackCooldownTicks;
-      // Ranged families spit a hostile bolt; melee families strike on contact.
-      if (def.ranged) {
-        spawnEnemyProjectile(sim, e, def.ranged, def.radius, target.pos, events);
-        continue;
-      }
-      // Bastion Wall soaks most of the hit and shoves the attacker back; the
-      // Aegis ward stacks a further reduction on top.
-      const guard = guardDefFor(sim, target);
-      const damage = def.touchDamage * (guard ? guard.damageMult : 1) * powerMult(sim, target, 'damageTakenMult');
-      target.hp -= damage;
-      target.invulnTicks = PLAYER_HIT_INVULN_TICKS;
-      events.push({ type: 'player-hit', playerId: target.id, damage, pos: { ...target.pos } });
-      if (guard) {
-        if (guard.reflectKnockback > 0 && dist > 1e-6) {
-          e.knockback.x += (-d.x / dist) * guard.reflectKnockback;
-          e.knockback.y += (-d.y / dist) * guard.reflectKnockback;
-        }
-        events.push({ type: 'guard-block', playerId: target.id, enemyId: e.id, pos: { ...e.pos } });
-      }
-      if (target.hp <= 0) {
-        target.hp = 0;
-        target.alive = false;
-        events.push({ type: 'player-died', playerId: target.id, pos: { ...target.pos } });
+    } else if (dist < keepDistance && dist > 1e-6) {
+      moveCircle(level, e.pos, def.radius, (-d.x / dist) * step, (-d.y / dist) * step, blk);
+    }
+
+    // Attacking, only from inside its range. Melee still respects i-frames.
+    if (dist <= def.attackRange && e.attackCooldown === 0 && (def.ranged || target.invulnTicks === 0)) {
+      // Begin the telegraph instead of striking instantly. (No enemy ships a
+      // zero windup, but a 0 would resolve the attack the same tick.)
+      if (def.attackWindupTicks > 0) {
+        e.windupTicksLeft = def.attackWindupTicks;
+        events.push({ type: 'enemy-windup', enemyId: e.id, pos: { ...e.pos }, durationTicks: def.attackWindupTicks });
+      } else {
+        executeEnemyAttack(sim, e, def, target, events);
       }
     }
+  }
+}
+
+/**
+ * Resolves a committed enemy attack (the release of a windup). Ranged families
+ * always launch their glob; melee families connect only if the target is still
+ * in reach and out of i-frames — otherwise the swing whiffs, but it still pays
+ * its cooldown, so a dodged telegraph has real recovery. Mirrors the guard/ward
+ * damage reduction and Bastion Wall knockback-reflect of the old inline strike.
+ */
+function executeEnemyAttack(sim: Sim, e: EnemyState, def: EnemyDef, target: PlayerState, events: SimEvent[]): void {
+  e.attackCooldown = def.attackCooldownTicks;
+  if (def.ranged) {
+    spawnEnemyProjectile(sim, e, def.ranged, def.radius, target.pos, events);
+    return;
+  }
+  const d = sub(target.pos, e.pos);
+  const dist = Math.hypot(d.x, d.y);
+  if (dist > def.attackRange || target.invulnTicks > 0) return; // whiffed, or target immune
+  const guard = guardDefFor(sim, target);
+  const damage =
+    def.touchDamage * pressureDamageMult(sim) * (guard ? guard.damageMult : 1) * powerMult(sim, target, 'damageTakenMult');
+  target.hp -= damage;
+  target.invulnTicks = PLAYER_HIT_INVULN_TICKS;
+  events.push({ type: 'player-hit', playerId: target.id, damage, pos: { ...target.pos } });
+  if (guard) {
+    if (guard.reflectKnockback > 0 && dist > 1e-6) {
+      e.knockback.x += (-d.x / dist) * guard.reflectKnockback;
+      e.knockback.y += (-d.y / dist) * guard.reflectKnockback;
+    }
+    events.push({ type: 'guard-block', playerId: target.id, enemyId: e.id, pos: { ...e.pos } });
+  }
+  if (target.hp <= 0) {
+    target.hp = 0;
+    target.alive = false;
+    events.push({ type: 'player-died', playerId: target.id, pos: { ...target.pos } });
   }
 }
 
@@ -741,6 +1024,240 @@ function separateEnemies(sim: Sim): void {
       moveCircle(level, b.pos, rb, nx * push, ny * push, blk);
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Mission time pressure — "the hive rouses" (issue #41)
+// ---------------------------------------------------------------------------
+
+/**
+ * Advances the mission clock and rouses the hive a stage at a time. Purely a
+ * function of `tick`, so it stays deterministic and replay-safe.
+ */
+function updatePressure(sim: Sim, events: SimEvent[]): void {
+  const s = sim.state;
+  const def = sim.config.content.pressure;
+  if (s.pressureStage >= def.maxStage) return;
+  if (s.tick < def.gracePeriodTicks) return;
+  const elapsed = s.tick - def.gracePeriodTicks;
+  const earned = Math.min(def.maxStage, 1 + Math.floor(elapsed / Math.max(1, def.intervalTicks)));
+  if (earned > s.pressureStage) {
+    s.pressureStage = earned;
+    events.push({ type: 'pressure-rose', stage: earned });
+  }
+}
+
+/** Enemy move-speed scale from the current pressure stage. */
+function pressureSpeedMult(sim: Sim, def: PressureDef): number {
+  return 1 + def.moveSpeedPerStage * sim.state.pressureStage;
+}
+
+/** Enemy damage scale from the current pressure stage (contact and spat). */
+function pressureDamageMult(sim: Sim): number {
+  const def = sim.config.content.pressure;
+  return 1 + def.damagePerStage * sim.state.pressureStage;
+}
+
+/** Spawn-interval scale; compounds per stage, so spawners quicken as it rises. */
+function pressureIntervalMult(sim: Sim): number {
+  const def = sim.config.content.pressure;
+  return Math.pow(def.spawnIntervalMult, sim.state.pressureStage);
+}
+
+// ---------------------------------------------------------------------------
+// Boss (issue #25)
+// ---------------------------------------------------------------------------
+
+/** The phase whose HP threshold the boss has fallen to (authored 1 first). */
+function bossPhaseIndex(def: BossDef, hpFraction: number): number {
+  let idx = 0;
+  for (let i = 0; i < def.phases.length; i++) {
+    if (hpFraction <= def.phases[i]!.hpFraction) idx = i;
+  }
+  return idx;
+}
+
+/**
+ * Drives the boss: phase escalation by HP, a telegraph-then-release action
+ * cycle, the lunge charge, and body-contact damage. Every damaging action is
+ * preceded by `telegraphTicks` of standing still, which is the whole fight —
+ * read the tell, step away, punish the recovery.
+ */
+function updateBoss(sim: Sim, events: SimEvent[]): void {
+  const s = sim.state;
+  const boss = s.boss;
+  if (!boss || boss.hp <= 0) return;
+  const { level, content } = sim.config;
+  const def = content.bosses[boss.typeId];
+  if (!def) return;
+
+  // Phase escalation. Entering a phase resets the action clock to its pace.
+  const idx = bossPhaseIndex(def, boss.hp / boss.maxHp);
+  if (idx !== boss.phaseIndex) {
+    boss.phaseIndex = idx;
+    boss.actionCursor = 0;
+    boss.actionCooldown = Math.min(boss.actionCooldown, def.phases[idx]!.actionIntervalTicks);
+    events.push({ type: 'boss-phase', bossId: boss.id, phaseIndex: idx, name: def.phases[idx]!.name, pos: { ...boss.pos } });
+  }
+  const phase = def.phases[boss.phaseIndex]!;
+
+  if (boss.touchCooldown > 0) boss.touchCooldown--;
+  const target = nearestLivingPlayer(s.players, boss.pos);
+  if (target) boss.facing = norm(sub(target.pos, boss.pos));
+
+  // An active lunge overrides everything: she barrels along the locked-in
+  // heading until it expires or a wall stops her.
+  if (boss.lungeTicksLeft > 0) {
+    boss.lungeTicksLeft--;
+    const before = { ...boss.pos };
+    const step = def.lunge.speed * TICK_DT;
+    moveCircle(level, boss.pos, def.radius, boss.lungeDir.x * step, boss.lungeDir.y * step, blockOf(sim, true));
+    if (Math.hypot(boss.pos.x - before.x, boss.pos.y - before.y) < step * 0.25) boss.lungeTicksLeft = 0; // hit a wall
+    bossContactDamage(sim, boss, def, def.lunge.damage, events);
+    return;
+  }
+
+  // Winding up: hold still so the tell is unmistakable, then release.
+  if (boss.telegraphTicksLeft > 0) {
+    boss.telegraphTicksLeft--;
+    if (boss.telegraphTicksLeft === 0) {
+      const action = boss.pendingAction;
+      boss.pendingAction = null;
+      boss.actionCooldown = phase.actionIntervalTicks;
+      if (action) executeBossAction(sim, boss, def, action, events);
+    }
+    bossContactDamage(sim, boss, def, def.touchDamage, events);
+    return;
+  }
+
+  // Otherwise: count down to the next action, lumbering after the party.
+  if (boss.actionCooldown > 0) {
+    boss.actionCooldown--;
+  } else {
+    const action = phase.actions[boss.actionCursor % phase.actions.length] ?? 'brood-call';
+    boss.actionCursor++;
+    boss.pendingAction = action;
+    boss.telegraphTicksLeft = def.telegraphTicks;
+    events.push({ type: 'boss-telegraph', bossId: boss.id, action, pos: { ...boss.pos }, durationTicks: def.telegraphTicks });
+  }
+
+  if (target) {
+    const d = sub(target.pos, boss.pos);
+    const dist = Math.hypot(d.x, d.y);
+    if (dist > def.radius * 0.5) {
+      const step = phase.moveSpeed * TICK_DT;
+      moveCircle(level, boss.pos, def.radius, (d.x / dist) * step, (d.y / dist) * step, blockOf(sim, true));
+    }
+  }
+  bossContactDamage(sim, boss, def, def.touchDamage, events);
+}
+
+/** Body contact: hurts any player overlapping her, rate-limited by cooldown. */
+function bossContactDamage(sim: Sim, boss: BossState, def: BossDef, damage: number, events: SimEvent[]): void {
+  if (boss.touchCooldown > 0) return;
+  for (const p of sim.state.players) {
+    if (!p.alive || p.invulnTicks > 0) continue;
+    const hero = sim.config.content.heroes[p.heroId];
+    if (!hero) continue;
+    if (Math.hypot(p.pos.x - boss.pos.x, p.pos.y - boss.pos.y) > def.radius + hero.radius) continue;
+    const guard = guardDefFor(sim, p);
+    const dealt = damage * (guard ? guard.damageMult : 1) * powerMult(sim, p, 'damageTakenMult');
+    p.hp -= dealt;
+    p.invulnTicks = PLAYER_HIT_INVULN_TICKS;
+    boss.touchCooldown = def.touchCooldownTicks;
+    events.push({ type: 'player-hit', playerId: p.id, damage: dealt, pos: { ...p.pos } });
+    if (guard) events.push({ type: 'guard-block', playerId: p.id, enemyId: boss.id, pos: { ...p.pos } });
+    if (p.hp <= 0) {
+      p.hp = 0;
+      p.alive = false;
+      events.push({ type: 'player-died', playerId: p.id, pos: { ...p.pos } });
+    }
+    return; // one victim per swing
+  }
+}
+
+/** Releases a telegraphed action. */
+function executeBossAction(sim: Sim, boss: BossState, def: BossDef, action: BossAction, events: SimEvent[]): void {
+  if (action === 'lunge') {
+    boss.lungeDir = { ...boss.facing };
+    boss.lungeTicksLeft = def.lunge.durationTicks;
+    return;
+  }
+  if (action === 'glob') {
+    const base = Math.atan2(boss.facing.y, boss.facing.x);
+    const spread = (def.glob.spreadDeg * Math.PI) / 180;
+    for (let i = 0; i < def.glob.count; i++) {
+      const frac = def.glob.count > 1 ? i / (def.glob.count - 1) : 0.5;
+      const angle = base + (frac - 0.5) * spread;
+      spawnHostileBolt(sim, boss.id, boss.pos, def.radius, def.glob, { x: Math.cos(angle), y: Math.sin(angle) }, events);
+    }
+    return;
+  }
+  broodCall(sim, boss, def, events);
+}
+
+/** Brood Call: births a clutch of swarmers on a ring around the Mother. */
+function broodCall(sim: Sim, boss: BossState, def: BossDef, events: SimEvent[]): void {
+  const s = sim.state;
+  const enemyDef = sim.config.content.enemies[def.broodCall.enemyId];
+  if (!enemyDef) return;
+  for (let n = 0; n < def.broodCall.count; n++) {
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const [v, next] = rngNext(s.rngState);
+      s.rngState = next;
+      const angle = v * Math.PI * 2;
+      const dist = def.radius + enemyDef.radius + 8;
+      const pos = { x: boss.pos.x + Math.cos(angle) * dist, y: boss.pos.y + Math.sin(angle) * dist };
+      if (circleHitsWall(sim.config.level, pos, enemyDef.radius, blockOf(sim, true))) continue;
+      const enemy: EnemyState = {
+        id: s.nextEntityId++,
+        typeId: enemyDef.id,
+        pos,
+        hp: enemyDef.maxHp,
+        attackCooldown: 0,
+        windupTicksLeft: 0,
+        hitstunTicks: 0,
+        knockback: { x: 0, y: 0 },
+        slowTicks: 0,
+        slowMult: 1,
+        sourceGen: null // no generator owns these, so no alive-cap applies
+      };
+      s.enemies.push(enemy);
+      events.push({ type: 'enemy-spawned', enemyId: enemy.id, typeId: enemy.typeId, pos: { ...pos } });
+      break;
+    }
+  }
+}
+
+/** Player damage onto the boss. At zero HP she dies and drops her hoard. */
+function damageBoss(sim: Sim, boss: BossState, damage: number, events: SimEvent[]): void {
+  if (boss.hp <= 0) return;
+  const def = sim.config.content.bosses[boss.typeId];
+  boss.hp -= damage;
+  if (boss.hp <= 0) {
+    boss.hp = 0;
+    boss.lungeTicksLeft = 0;
+    boss.telegraphTicksLeft = 0;
+    boss.pendingAction = null;
+    events.push({ type: 'boss-died', bossId: boss.id, pos: { ...boss.pos } });
+    awardObjectiveXp(sim, def?.xp ?? 0, events); // the finale payout, shared
+    if (def && def.goldDrop > 0) {
+      sim.state.pickups.push({
+        id: sim.state.nextEntityId++,
+        kind: 'gold',
+        amount: def.goldDrop,
+        pos: { ...boss.pos }
+      });
+    }
+  } else {
+    events.push({ type: 'boss-hit', bossId: boss.id, pos: { ...boss.pos }, damage });
+  }
+}
+
+/** The living boss as a damageable target, or null. */
+function livingBoss(sim: Sim): BossState | null {
+  const b = sim.state.boss;
+  return b && b.hp > 0 ? b : null;
 }
 
 function updateGenerators(sim: Sim, events: SimEvent[]): void {
@@ -776,6 +1293,7 @@ function updateGenerators(sim: Sim, events: SimEvent[]): void {
         pos,
         hp: enemyDef.maxHp,
         attackCooldown: 0,
+        windupTicksLeft: 0,
         hitstunTicks: 0,
         knockback: { x: 0, y: 0 },
         slowTicks: 0,
@@ -786,7 +1304,8 @@ function updateGenerators(sim: Sim, events: SimEvent[]): void {
       events.push({ type: 'enemy-spawned', enemyId: enemy.id, typeId: enemy.typeId, pos: { ...pos } });
       spawned = true;
     }
-    g.spawnCooldown = g.enrageTicksLeft > 0 ? enragedInterval(def) : def.spawnIntervalTicks;
+    const baseInterval = g.enrageTicksLeft > 0 ? enragedInterval(def) : def.spawnIntervalTicks;
+    g.spawnCooldown = Math.max(1, Math.round(baseInterval * pressureIntervalMult(sim)));
   }
 }
 
@@ -819,6 +1338,9 @@ function collectPickups(sim: Sim, events: SimEvent[]): void {
       } else if (pk.kind === 'key') {
         p.keys += pk.amount;
         events.push({ type: 'pickup-collected', playerId: p.id, kind: pk.kind, amount: pk.amount, pos: { ...pk.pos } });
+      } else if (pk.kind === 'potion') {
+        p.potions += pk.amount;
+        events.push({ type: 'pickup-collected', playerId: p.id, kind: pk.kind, amount: pk.amount, pos: { ...pk.pos } });
       } else {
         p.gold += pk.amount;
         events.push({ type: 'pickup-collected', playerId: p.id, kind: pk.kind, amount: pk.amount, pos: { ...pk.pos } });
@@ -840,7 +1362,9 @@ function updateObjective(sim: Sim, events: SimEvent[]): void {
     return;
   }
 
-  if (s.phase === 'combat' && s.generators.length === 0) {
+  // The way out opens once every spawner is down AND the level's boss (if any)
+  // has fallen — on a boss realm she IS the objective (issue #25).
+  if (s.phase === 'combat' && s.generators.length === 0 && livingBoss(sim) === null) {
     s.phase = 'exit-open';
     events.push({ type: 'exit-opened', pos: { ...s.exitPos } });
   }

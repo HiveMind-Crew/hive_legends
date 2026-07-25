@@ -20,13 +20,16 @@ export interface InputCommand {
   moveY: number; // -1..1
   attack: boolean;
   ability: boolean;
+  /** Rising-edge: consume one carried potion this tick (screen-clear burst). */
+  usePotion: boolean;
 }
 
 export const EMPTY_INPUT: InputCommand = Object.freeze({
   moveX: 0,
   moveY: 0,
   attack: false,
-  ability: false
+  ability: false,
+  usePotion: false
 });
 
 export type EntityId = number;
@@ -204,10 +207,27 @@ export interface EnemyDef {
   touchDamage: number;
   attackRange: number;
   attackCooldownTicks: number;
+  /**
+   * Telegraph before a strike lands, in ticks. On entering attack range the
+   * enemy commits (holds position) and winds up for this long; the hit resolves
+   * only when it elapses, so every attack — including the first contact — is
+   * dodgeable. Author longer for heavy hitters (readability rule, #39).
+   */
+  attackWindupTicks: number;
   goldMin: number;
   goldMax: number;
+  /** XP awarded to the killer (issue #46). */
+  xp: number;
   /** If present, the enemy fires hostile bolts at attackRange instead of meleeing. */
   ranged?: EnemyRangedDef;
+  /**
+   * Kiting (issue #23): back away while the target is closer than this
+   * fraction of `attackRange`, so an artillery enemy reopens the gap instead
+   * of planting itself and firing point-blank. Omit (or 0) to hold ground —
+   * melee families never kite. A content test requires every `ranged` enemy
+   * to author it.
+   */
+  keepDistanceFraction?: number;
 }
 
 /** One-shot frenzy when a generator first drops to low HP. */
@@ -229,8 +249,103 @@ export interface GeneratorDef {
   /** Max simultaneously-alive enemies originating from one generator. */
   maxAlive: number;
   goldDrop: number;
+  /** XP awarded for destroying it (issue #46). */
+  xp: number;
   /** Optional enrage behavior; omit for generators that never enrage. */
   enrage?: GeneratorEnrageDef;
+  /**
+   * Optional one-shot spawn when this generator is destroyed — e.g. an elite
+   * bursts from the wreckage. Fires once, at the generator's position, on death.
+   */
+  onDeathSpawn?: GeneratorDeathSpawnDef;
+}
+
+/** A single enemy birthed when a generator is destroyed. */
+export interface GeneratorDeathSpawnDef {
+  /** Enemy type id to spawn (must exist in the content enemy table). */
+  enemyId: string;
+}
+
+// ---------------------------------------------------------------------------
+// Boss (issue #25)
+// ---------------------------------------------------------------------------
+
+/** The damaging things a boss can do. Each is telegraphed before it lands. */
+export const BOSS_ACTIONS = ['brood-call', 'lunge', 'glob'] as const;
+export type BossAction = (typeof BOSS_ACTIONS)[number];
+
+/**
+ * One stage of the fight, entered when the boss's HP fraction drops to
+ * `hpFraction`. Phases are authored strongest-first (the first entry must use
+ * 1 so it covers a full-health boss) and own their pace and move set.
+ */
+export interface BossPhaseDef {
+  name: string;
+  /** HP fraction at or below which this phase is active. */
+  hpFraction: number;
+  moveSpeed: number;
+  /** Ticks between the end of one action and the start of the next. */
+  actionIntervalTicks: number;
+  /** Actions cycled, in order, while this phase is active. */
+  actions: readonly BossAction[];
+}
+
+export interface BossDef {
+  id: string;
+  name: string;
+  /** Flavour line announced when the fight opens. */
+  title: string;
+  maxHp: number;
+  radius: number;
+  /** Contact damage from the boss body, and its per-player rate limit. */
+  touchDamage: number;
+  touchCooldownTicks: number;
+  /**
+   * Telegraph held before every damaging action. The look & feel readability
+   * rule requires >= 45 ticks; a content test enforces it.
+   */
+  telegraphTicks: number;
+  phases: readonly BossPhaseDef[];
+  /** Brood Call: births a clutch of these around the boss. */
+  broodCall: { enemyId: string; count: number };
+  /** Lunge: a fast, wall-stopped charge along a locked-in direction. */
+  lunge: { speed: number; durationTicks: number; damage: number };
+  /** Glob: a fan of hostile bolts. */
+  glob: { count: number; spreadDeg: number } & EnemyRangedDef;
+  goldDrop: number;
+  /** XP awarded for felling her (issue #46). */
+  xp: number;
+}
+
+/** Runtime boss state. At most one per level. */
+export interface BossState {
+  id: EntityId;
+  typeId: string;
+  pos: Vec2;
+  facing: Vec2;
+  hp: number;
+  maxHp: number;
+  /** Index into the def's phase list. */
+  phaseIndex: number;
+  /** Ticks until the next action is chosen. */
+  actionCooldown: number;
+  /** Ticks left in the current telegraph (0 = not telegraphing). */
+  telegraphTicksLeft: number;
+  /** The action being telegraphed, released when the telegraph elapses. */
+  pendingAction: BossAction | null;
+  /** Rotating cursor into the active phase's action list. */
+  actionCursor: number;
+  /** Ticks left in an active lunge (0 = not lunging) and its locked heading. */
+  lungeTicksLeft: number;
+  lungeDir: Vec2;
+  touchCooldown: number;
+}
+
+/** Where a level plants its boss. */
+export interface LevelBossDef {
+  typeId: string;
+  tx: number;
+  ty: number;
 }
 
 /** Small breakable prop: any damage destroys it; drops loot via seeded RNG. */
@@ -326,6 +441,8 @@ export interface LevelDef {
   secrets?: readonly LevelSecretDef[];
   /** Visual set dressing (render-only). */
   decor?: readonly LevelDecorDef[];
+  /** Optional boss; while it lives the exit stays shut (issue #25). */
+  boss?: LevelBossDef;
   exit: { tx: number; ty: number };
 }
 
@@ -349,6 +466,53 @@ export interface PowerUpDef {
   damageTakenMult: number;
 }
 
+/**
+ * The screen-clear consumable (issue #41): a scarce, hoarded potion the player
+ * carries and spends at will for a big self-centered burst. Numbers are data;
+ * the sim reads them when a `usePotion` input fires with a potion in hand.
+ */
+export interface PotionDef {
+  name: string;
+  damage: number;
+  radius: number;
+  knockback: number;
+}
+
+/**
+ * Hero levelling curve (issue #46). `xpToReach[i]` is the *total* XP needed to
+ * be level i + 1, so index 0 is level 1 at 0 XP and the array length is the
+ * level cap. Bonuses are applied per level gained, stacking with gold upgrades.
+ */
+export interface ProgressionDef {
+  xpToReach: readonly number[];
+  maxHpPerLevel: number;
+  damagePerLevel: number;
+}
+
+/**
+ * Mission time pressure — "the hive rouses" (issue #41). The adapted answer to
+ * the genre's health-drain: dawdling makes the brood *fiercer* rather than
+ * starving the player, so the health economy and the boss fight stay intact.
+ *
+ * Escalation is deliberately weighted to potency over headcount. Spawners sit
+ * at their alive-cap almost immediately, so shortening intervals alone barely
+ * registers — and flooding the screen would blow the readability budget.
+ */
+export interface PressureDef {
+  /** Ticks of grace before the first escalation; a clean clear never sees it. */
+  gracePeriodTicks: number;
+  /** Ticks between escalations after the grace period. */
+  intervalTicks: number;
+  /** Hard cap on stages, so a very slow run plateaus instead of running away. */
+  maxStage: number;
+  /** Additive per-stage fraction on enemy move speed (0.08 = +8% per stage). */
+  moveSpeedPerStage: number;
+  /** Additive per-stage fraction on enemy damage, contact and spat. */
+  damagePerStage: number;
+  /** Multiplicative per-stage spawn-interval scale; compounds across stages. */
+  spawnIntervalMult: number;
+}
+
 export interface ContentDb {
   heroes: Record<string, HeroDef>;
   enemies: Record<string, EnemyDef>;
@@ -356,13 +520,17 @@ export interface ContentDb {
   props: Record<string, PropDef>;
   weapons: Record<string, WeaponDef>;
   powerups: Record<PowerUpKind, PowerUpDef>;
+  potion: PotionDef;
+  bosses: Record<string, BossDef>;
+  progression: ProgressionDef;
+  pressure: PressureDef;
 }
 
 // ---------------------------------------------------------------------------
 // Runtime state
 // ---------------------------------------------------------------------------
 
-export type PickupKind = 'gold' | 'health' | 'powerup' | 'key';
+export type PickupKind = 'gold' | 'health' | 'powerup' | 'key' | 'potion';
 
 export interface PlayerState {
   id: EntityId;
@@ -382,6 +550,12 @@ export interface PlayerState {
   power: Record<PowerUpKind, number>;
   /** Keys held (spent to open gates). Party-shared semantics in solo. */
   keys: number;
+  /** Potions carried (spent for a screen-clear burst). See #41. */
+  potions: number;
+  /** Total XP carried into and earned during this run (issue #46). */
+  xp: number;
+  /** Level derived from `xp` against the progression curve; 1-based. */
+  level: number;
   alive: boolean;
 }
 
@@ -391,6 +565,8 @@ export interface EnemyState {
   pos: Vec2;
   hp: number;
   attackCooldown: number;
+  /** Ticks left in a committed attack windup (0 = not winding up). See #39. */
+  windupTicksLeft: number;
   hitstunTicks: number;
   knockback: Vec2;
   /** Ticks of movement slow remaining (0 = unslowed) and its multiplier. */
@@ -478,6 +654,10 @@ export interface SimState {
   gates: GateState[];
   secrets: SecretWallState[];
   projectiles: ProjectileState[];
+  /** The level's boss, or null on a boss-less mission. Dead bosses stay at hp 0. */
+  boss: BossState | null;
+  /** How roused the hive is, 0 = calm. Rises on the mission clock (#41). */
+  pressureStage: number;
   exitPos: Vec2;
 }
 
@@ -495,9 +675,14 @@ export type SimEvent =
   | { type: 'ability-dash'; playerId: EntityId; from: Vec2; to: Vec2 }
   | { type: 'ability-guard'; playerId: EntityId; pos: Vec2; durationTicks: number }
   | { type: 'guard-block'; playerId: EntityId; enemyId: EntityId; pos: Vec2 }
+  | { type: 'enemy-windup'; enemyId: EntityId; pos: Vec2; durationTicks: number }
   | { type: 'enemy-hit'; enemyId: EntityId; pos: Vec2; damage: number }
   | { type: 'enemy-died'; enemyId: EntityId; typeId: string; pos: Vec2; byPlayer: EntityId; damage: number }
   | { type: 'enemy-spawned'; enemyId: EntityId; typeId: string; pos: Vec2 }
+  | { type: 'boss-telegraph'; bossId: EntityId; action: BossAction; pos: Vec2; durationTicks: number }
+  | { type: 'boss-phase'; bossId: EntityId; phaseIndex: number; name: string; pos: Vec2 }
+  | { type: 'boss-hit'; bossId: EntityId; pos: Vec2; damage: number }
+  | { type: 'boss-died'; bossId: EntityId; pos: Vec2 }
   | { type: 'generator-hit'; generatorId: EntityId; pos: Vec2; damage: number }
   | { type: 'generator-enraged'; generatorId: EntityId; pos: Vec2 }
   | { type: 'generator-destroyed'; generatorId: EntityId; pos: Vec2 }
@@ -507,6 +692,9 @@ export type SimEvent =
   | { type: 'secret-revealed'; secretId: EntityId; pos: Vec2 }
   | { type: 'pickup-collected'; playerId: EntityId; kind: PickupKind; amount: number; pos: Vec2 }
   | { type: 'powerup-gained'; playerId: EntityId; power: PowerUpKind; pos: Vec2 }
+  | { type: 'potion-used'; playerId: EntityId; pos: Vec2; radius: number }
+  | { type: 'player-leveled'; playerId: EntityId; level: number; pos: Vec2 }
+  | { type: 'pressure-rose'; stage: number }
   | { type: 'player-hit'; playerId: EntityId; damage: number; pos: Vec2 }
   | { type: 'player-died'; playerId: EntityId; pos: Vec2 }
   | { type: 'exit-opened'; pos: Vec2 }
@@ -533,6 +721,12 @@ export interface SimPlayerConfig {
    * how a purchased weapon enters the sim — like modifiers, only at createSim.
    */
   attack?: AttackDef;
+  /**
+   * Banked XP the hero carries in (issue #46). The sim derives the starting
+   * level from it against the progression curve — meta enters the sim here and
+   * only here, exactly like `modifiers`.
+   */
+  startXp?: number;
 }
 
 export interface SimConfig {

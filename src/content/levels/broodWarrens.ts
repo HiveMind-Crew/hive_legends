@@ -65,6 +65,8 @@ export const BROOD_WARRENS: LevelDef = {
     { kind: 'powerup', amount: 0, power: 'swiftness', tx: 10, ty: 10 },
     { kind: 'powerup', amount: 0, power: 'frenzy', tx: 20, ty: 10 },
     { kind: 'powerup', amount: 0, power: 'ward', tx: 26, ty: 16 },
+    // A single screen-clear potion (issue #41), scarce by design.
+    { kind: 'potion', amount: 1, tx: 8, ty: 12 },
     // A key on the beaten path, opening the gated NW vault (issue #17).
     { kind: 'key', amount: 1, tx: 12, ty: 2 },
     // Treasure sealed in the two NW corner vaults.

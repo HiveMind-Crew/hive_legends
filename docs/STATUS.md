@@ -1,15 +1,24 @@
 # Project status
 
-Updated: 2026-07-20 (content expansion: Phase 1 complete — #15/#16/#17 + heroes #18-#20, enemies #23, art pipeline #26)
+Updated: 2026-07-24 — **the M1 vertical slice is content-complete** (boss #25,
+XP levelling #46, combat-feel pass #38/#39/#40, screen-clear potion #41, and
+the first real art pack #44 all landed).
 
 ## Milestones
 
 - **M0 — Foundations: COMPLETE.** Toolchain, CI, deterministic sim core
   (ADR 0002), data-driven content, docs.
-- **M1 — Vertical slice: IN PROGRESS (slice 0 complete).** See checklist.
-- M2 — Systems depth (full roster, progression trees, first full realm): not started.
-- M3 — Co-op (local first, then online lockstep): not started.
-- M4 — Content expansion (realms 2–3, elites, hazards, economy): not started.
+- **M1 — Vertical slice: CONTENT-COMPLETE.** Every checklist item below is
+  landed. What remains under the M1 umbrella is the original-art track
+  (#27 characters, #28 environment/UI), which can proceed in parallel.
+- M2 — Systems depth (progression trees, deeper economy): not started; board
+  in #29. Note the full four-hero roster and realms 2–3, once slated here and
+  for M4, landed early during M1.
+- M3 — Co-op (local first, then online lockstep): not started. The
+  deterministic sim (ADR 0002) and the four-slot HUD are the groundwork;
+  generator pressure and objective XP already have per-player hooks noted in
+  the code.
+- M4 — Content expansion (further realms, hazards, economy): not started.
 - M5 — Final realm, release polish: not started.
 
 ## Vertical-slice checklist (M1)
@@ -28,26 +37,49 @@ Done in slice 0:
 - [x] Persistent upgrades shop (Hearthstone Vigor, Sharpened Edge)
 - [x] Replay with retained progression
 
-Remaining for the full slice:
+Rest of the slice (this list had drifted badly out of date — audited against
+the code on 2026-07-24 and corrected; everything below is now landed):
 
-- [ ] Second playable hero (Arcanist archetype: area magic / crowd control)
-- [ ] Two more standard enemy types + one elite enemy
-- [ ] Key-controlled gate and a hidden treasure area
-- [ ] Temporary power-up
-- [ ] Boss encounter
-- [ ] Hub polish (hero select → mission select flow)
-- [ ] Audio (original SFX/music)
-- [ ] XP/level progression in addition to gold upgrades
+- [x] Second playable hero — in fact all four: Arcanist (#18), Ranger (#19),
+      Sentinel (#20), with roster/unlock rules in hero select (#21).
+- [x] Two more standard enemy types + one elite — Carapace Husk and Bile
+      Spitter (#23), plus the elite Gravebound Ravager, which now actually
+      spawns from a destroyed Husk Mound (#40).
+- [x] Key-controlled gate and a hidden treasure area — keys, gates and
+      breakable secret walls (#17), authored into both early realms.
+- [x] Temporary power-up — Emberheart / Windstep Sigil / Aegis Bloom (#16),
+      plus the carried screen-clear potion and the "hive rouses" time-pressure
+      ramp, both from #41.
+- [x] Boss encounter — Mireveil, Mother of the Brood, in realm 3 "The Hollow
+      Throne" (#25): data-driven three-phase script (Brood Call → Lunge →
+      spat globs), a >= 1 s telegraph before every damaging action, a HUD
+      finale bar, and a multi-stage death spectacle. The exit stays sealed
+      while she lives.
+- [x] Hub polish (hero select → mission select flow) — attract-mode title and
+      hero cards (#9), plus the mission-select panel and unlock gating (#24).
+- [x] Audio (original SFX/music) — synthesized SFX, a procedural combat loop,
+      and the Herald announcer (#8).
+- [x] XP/level progression in addition to gold upgrades — XP from kills and
+      objectives levels the hero *mid-run* (#46), granting max HP (healing the
+      gain) and damage, announced by the Herald. Banked to the profile, so the
+      next mission starts at that level. Stacks with the bought gold upgrades.
+
+**With this, the M1 vertical slice is content-complete.** Remaining tracked
+work is the original-art track (#27, #28) and the M2 board (#29).
 
 ## Verification state
 
-`lint`, `typecheck`, 19 unit tests, production build, and the Playwright
-gameplay playthrough (bot completes the mission, buys an upgrade, replays
-with retained power; screenshots in `test-results/`) all pass. One transient
-e2e failure was observed once during development and did not reproduce in 4
-consecutive runs — watch CI for recurrence.
+`lint`, `typecheck`, **166 unit tests across 17 files**, the production build,
+and the Playwright gameplay playthrough (bot clears The Brood Warrens, banks
+gold and XP, buys an upgrade, and replays with both the upgrade and the earned
+level applied; screenshots in `test-results/`) all pass. Run the whole gate
+with the one-liner in `CLAUDE.md`; layer-by-layer detail is in
+`docs/TESTING.md`.
 
-## Look & feel track (new)
+One transient e2e failure was observed once early in development and has not
+reproduced since — watch CI for recurrence.
+
+## Look & feel track (complete)
 
 A presentation review against the genre's arcade benchmark identified the gap
 as almost entirely look/feel, not mechanics. Direction is recorded in
@@ -69,9 +101,10 @@ Landed:
   facing chevron; skitterlings crawl-wiggle, rotate to their heading, and
   flare red in a windup pose before striking; per-player accent colors
   (underglow ring + chevron + HUD P1 chip) via `src/game/colors.ts`.
-  Caveat: an enemy's *first* contact hit lands without a telegraph because
-  the sim has no windup state (cooldown starts at 0) — fold a real windup
-  into the enemy-readability work in #7.
+  ~~Caveat: an enemy's *first* contact hit lands without a telegraph because
+  the sim has no windup state.~~ **Resolved in #39** — the sim now owns a real
+  `windupTicksLeft` telegraph, so first contact is foreshadowed like every
+  other attack and the renderer reads the pose from sim state.
 - [x] #3 Combat juice — hit-stop on kills (render stepping pauses, sim ticks
   never skipped), pooled particle bursts (ichor, chitin shards, dust, coin
   sparks, heart wisps), floating damage numbers, knockback motion trails,
@@ -95,9 +128,9 @@ Landed:
   spitter silhouettes) and `tier` (common/veteran/elite palettes); the
   texture generator composes family x tier x frame, so a new enemy is pure
   content data. Elites: crimson palette, glow outline, renderer size bump,
-  persistent ground ring. Content-validity unit test added. Husk/spitter
-  silhouettes exist but no enemy uses them yet — M1's new enemy types are
-  now data-only work.
+  persistent ground ring. Content-validity unit test added. (All three
+  silhouettes are now in use: Carapace Husk, Bile Spitter and the elite
+  Gravebound Ravager — added as pure content data, exactly as intended.)
 - [x] #4 Arcade HUD — four fixed per-player panels (accent frame, portrait,
   large health number with low-health pulse, rolling gold counter, kills,
   ability meter with READY! flash), dimmed JOIN placeholders for empty
@@ -331,7 +364,14 @@ gating in `tests/meta.test.ts`.
 
 ## Next recommended task
 
-The **Broodmother "Mireveil" boss (#25)** — the Realm 1 finale, whose ranged
-hazards reuse the Spitter's hostile-projectile plumbing and which now has a
-second realm to anchor the realm arc. Original art packs (#27/#28) remain open
-for parallel pickup; a third realm (#24's pattern) is now pure content work.
+M1 is content-complete, so the highest-value work is now **presentation and
+polish rather than systems**:
+
+1. **Original art packs — #27 (characters) and #28 (environment/UI).** The
+   drop-in pipeline is proven: the Vanguard pack (#44) replaced generated
+   frames with zero code changes. The other three heroes, the enemy families
+   and the boss are the biggest visible win available. Key list and canvas
+   sizes: `docs/ART.md`.
+Balance note carried from #25: ranged heroes kite Mireveil noticeably more
+easily than melee (~15–17s vs ~32s to kill). Worth a tuning pass once there is
+real playtest data, rather than speculative numbers now.

@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { BROOD_WARRENS } from '../src/content/levels/broodWarrens';
+import { PROGRESSION } from '../src/content/progression';
+import { levelForXp } from '../src/sim/sim';
 import type { SimState } from '../src/sim/types';
 
 /**
@@ -264,6 +266,8 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   expect(profile).not.toBeNull();
   expect(profile.missionsCompleted).toBeGreaterThanOrEqual(1);
   expect(profile.bank).toBeGreaterThan(0);
+  // The run's kills and destroyed spawners banked XP too (issue #46).
+  expect(profile.xp).toBeGreaterThan(0);
 
   // Buy a persistent upgrade in the results shop (Hearthstone Vigor, 50g).
   const bank: number = profile.bank;
@@ -277,7 +281,8 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
     expect(after.bank).toBe(bank - 50);
   }
 
-  // Replay: hero must keep the purchased power (+20 max HP per vitality rank).
+  // Replay: the hero must keep the purchased power (+20 max HP per vitality
+  // rank) *and* the level earned from the run's XP (+maxHpPerLevel each).
   await page.keyboard.press('R');
   // The pre-replay handle still reports phase 'complete'; wait for the fresh sim.
   await expect
@@ -285,7 +290,10 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
     .toBe('combat');
   const replayState = await getState(page);
   const vitality = bank >= 50 ? 1 : 0;
-  expect(replayState.players[0]!.maxHp).toBe(120 + 20 * vitality);
+  const heroLevel = levelForXp(PROGRESSION, profile.xp);
+  const levelHp = (heroLevel - 1) * PROGRESSION.maxHpPerLevel;
+  expect(replayState.players[0]!.level).toBe(heroLevel);
+  expect(replayState.players[0]!.maxHp).toBe(120 + 20 * vitality + levelHp);
   await page.screenshot({ path: 'test-results/05-replay-upgraded.png' });
 
   const fatal = consoleErrors.filter((e) => !e.includes('favicon'));

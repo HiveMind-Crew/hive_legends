@@ -41,6 +41,7 @@ function plantTarget(sim: Sim): EnemyState {
     pos: { x: p.pos.x, y: p.pos.y + 30 }, // directly along the default (0,1) facing
     hp: 1000, // fat target so we read raw damage, not kills
     attackCooldown: 999,
+    windupTicksLeft: 0,
     hitstunTicks: 0,
     knockback: { x: 0, y: 0 },
     slowTicks: 0,
@@ -93,6 +94,7 @@ describe('weapon tiers in the sim', () => {
         pos: { x: p.pos.x + 34, y: p.pos.y + 20 }, // ~60° off the (0,1) facing
         hp: 1000,
         attackCooldown: 999,
+        windupTicksLeft: 0,
         hitstunTicks: 0,
         knockback: { x: 0, y: 0 },
         slowTicks: 0,

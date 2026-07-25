@@ -111,6 +111,27 @@ class AudioEngine {
       case 'generator-enraged':
         this.alarm();
         break;
+      // Boss (issue #25): a rising tell, a phase fanfare, and a long collapse.
+      case 'pressure-rose':
+        this.alarm();
+        this.rumble();
+        break;
+      case 'boss-telegraph':
+        this.alarm();
+        break;
+      case 'boss-phase':
+        this.arpeggio([196, 233, 294, 349], 'sawtooth', 0.16, 0.85);
+        this.rumble();
+        break;
+      case 'boss-hit':
+        this.thud(180, 0.07, 0.14);
+        break;
+      case 'boss-died':
+        this.duckMusic();
+        this.boom();
+        this.rumble();
+        this.arpeggio([784, 659, 523, 392], 'square', 0.18, 1.0);
+        break;
       case 'generator-destroyed':
         this.boom();
         break;

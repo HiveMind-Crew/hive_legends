@@ -12,6 +12,7 @@ import {
   FLOOR_VARIANTS,
   POWERUP_COLORS,
   TEX,
+  bossFrame,
   broodNodeFrame,
   enemyFrame,
   facingDirIndex,
@@ -24,6 +25,16 @@ import {
 } from '../textures';
 
 const MAX_STEPS_PER_FRAME = 5;
+
+/**
+ * XP needed to span the given level (from its start to the next), or null at
+ * the cap — drives the HUD's XP bar (issue #46).
+ */
+function xpSpanForLevel(level: number): number | null {
+  const curve = CONTENT.progression.xpToReach;
+  if (level >= curve.length) return null;
+  return (curve[level] ?? 0) - (curve[level - 1] ?? 0);
+}
 
 export interface HudPlayerInfo {
   heroId: string;
@@ -38,12 +49,31 @@ export interface HudPlayerInfo {
   guardTicks: number;
   guardMax: number;
   keys: number;
+  potions: number;
+  /** Hero level and progress toward the next (issue #46). */
+  level: number;
+  xp: number;
+  xpIntoLevel: number;
+  xpForLevel: number | null;
   alive: boolean;
+}
+
+/** Boss status for the HUD's finale bar (issue #25). */
+export interface HudBossInfo {
+  name: string;
+  title: string;
+  hp: number;
+  maxHp: number;
+  phaseName: string;
 }
 
 export interface HudInfo {
   players: HudPlayerInfo[];
   generatorsLeft: number;
+  /** How roused the hive is, 0 = calm (issue #41). */
+  pressureStage: number;
+  /** Present only on a boss realm, and only while she still stands. */
+  boss: HudBossInfo | null;
   phase: string;
 }
 
@@ -59,7 +89,6 @@ const DEPTH_TEXT = 9500;
 const ATTACK_POSE_TICKS = 8; // how long after swinging the attack pose holds
 const WALK_FRAME_TICKS = 8;
 const CRAWL_FRAME_TICKS = 6;
-const WINDUP_TICKS = 12; // enemy cooldown remainder shown as a windup telegraph
 
 // Combat-juice caps and camera feel (issue #3). Hit-stop pauses render
 // stepping only — the sim accumulator holds, no ticks are ever skipped.
@@ -93,6 +122,7 @@ export class MissionScene extends Phaser.Scene {
   private exitGlow!: Phaser.GameObjects.Image;
   private moteFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private exitSprite!: Phaser.GameObjects.Image;
+  private startXp = 0; // banked XP at mission start, for the results delta
   private heroId = 'vanguard';
   private levelId = BROOD_WARRENS.id;
   private slowedIds = new Set<EntityId>();
@@ -132,11 +162,13 @@ export class MissionScene extends Phaser.Scene {
         {
           heroId: this.heroId,
           modifiers: profileModifiers(profile),
-          attack: equippedAttack(profile, hero)
+          attack: equippedAttack(profile, hero),
+          startXp: profile.xp
         }
       ],
       content: CONTENT
     });
+    this.startXp = profile.xp;
     this.accumulator = 0;
     this.ended = false;
     this.sprites.clear();
@@ -346,11 +378,33 @@ export class MissionScene extends Phaser.Scene {
           guardTicks: p.guardTicks,
           guardMax: hero?.ability.kind === 'guard' ? hero.ability.durationTicks : 0,
           keys: p.keys,
+          potions: p.potions,
+          level: p.level,
+          xp: p.xp,
+          xpIntoLevel: p.xp - (CONTENT.progression.xpToReach[p.level - 1] ?? 0),
+          xpForLevel: xpSpanForLevel(p.level),
           alive: p.alive
         };
       }),
       generatorsLeft: s.generators.length,
+      pressureStage: s.pressureStage,
+      boss: this.bossHudInfo(),
       phase: s.phase
+    };
+  }
+
+  /** The finale bar's data, or null when there is no living boss. */
+  private bossHudInfo(): HudBossInfo | null {
+    const boss = this.sim.state.boss;
+    if (!boss || boss.hp <= 0) return null;
+    const def = CONTENT.bosses[boss.typeId];
+    if (!def) return null;
+    return {
+      name: def.name,
+      title: def.title,
+      hp: boss.hp,
+      maxHp: boss.maxHp,
+      phaseName: def.phases[boss.phaseIndex]?.name ?? ''
     };
   }
 
@@ -436,6 +490,25 @@ export class MissionScene extends Phaser.Scene {
         case 'ability-dash':
           this.dashTrail(ev.playerId, ev.from, ev.to);
           break;
+        case 'player-leveled':
+          // The mid-fight reward moment (issue #46): gold burst + announcement.
+          this.floatText(ev.pos, `LEVEL ${ev.level}`, '#ffd75e');
+          this.flashRing(ev.pos, 70, 0xffd75e);
+          this.burst(this.sparkFx, 16, ev.pos);
+          this.cameras.main.flash(90, 255, 215, 94);
+          hud.herald(`LEVEL ${ev.level} — YOU GROW STRONGER`, '#ffd75e');
+          break;
+        case 'pressure-rose': {
+          // Escalating call so the player feels the clock without a timer UI.
+          const line = ev.stage === 1 ? 'THE HIVE ROUSES' : ev.stage >= 4 ? 'THE HIVE IS FRENZIED' : 'THE HIVE SEETHES';
+          hud.herald(line, '#ff5a4d');
+          this.cameras.main.shake(220, 0.006);
+          break;
+        }
+        case 'potion-used':
+          this.potionBurst(ev.pos, ev.radius);
+          hud.herald('HIVE-FIRE UNLEASHED', '#9fe06a');
+          break;
         case 'ability-guard':
           this.cameras.main.flash(60, 150, 175, 210);
           this.flashRing(ev.pos, 40, 0xc2c8d2);
@@ -477,6 +550,51 @@ export class MissionScene extends Phaser.Scene {
           this.burst(this.ichorFx, 10, ev.pos);
           this.hitStop(35);
           break;
+        case 'boss-telegraph': {
+          // Name the incoming move so the tell is learnable, not just visual.
+          const label =
+            ev.action === 'lunge' ? 'SHE CHARGES!' : ev.action === 'glob' ? 'SHE SPITS!' : 'SHE CALLS THE BROOD!';
+          this.floatText(ev.pos, label, '#ff5a4d');
+          this.flashRing(ev.pos, 90, 0xff5a4d);
+          this.burst(this.dustFx, 8, ev.pos);
+          break;
+        }
+        case 'boss-phase':
+          hud.herald(ev.name.toUpperCase(), '#ff5a4d');
+          this.cameras.main.flash(120, 200, 90, 110);
+          this.cameras.main.shake(240, 0.01);
+          this.burst(this.shardFx, 14, ev.pos);
+          this.flashRing(ev.pos, 130, 0xff5a4d);
+          break;
+        case 'boss-hit':
+          this.tintFlash(this.sprites.get(ev.bossId), 0xffffff);
+          this.damageNumber(ev.pos, ev.damage, '#ffd0e0');
+          this.burst(this.ichorFx, 3, ev.pos);
+          this.meleeKick();
+          break;
+        case 'boss-died': {
+          // Finale spectacle: the #6 destruction pattern, scaled way up.
+          hud.herald('MIREVEIL FALLS', '#ffd75e');
+          this.deathPuff(ev.pos, 0xa855c8, 3.4);
+          this.burst(this.shardFx, 24, ev.pos);
+          this.burst(this.ichorFx, 24, ev.pos);
+          this.burst(this.dustFx, 18, ev.pos);
+          this.cameras.main.shake(600, 0.02);
+          this.cameras.main.flash(200, 244, 227, 178);
+          this.hitStop(90);
+          const at = { ...ev.pos };
+          for (const delay of [180, 380, 620]) {
+            this.time.delayedCall(delay, () => {
+              this.burst(this.shardFx, 14, at);
+              this.burst(this.ichorFx, 10, at);
+              this.flashRing(at, 120, 0xe1a6f0);
+              this.cameras.main.shake(180, 0.012);
+            });
+          }
+          const scorch = this.add.circle(at.x, at.y, 54, 0x000000, 0.28).setDepth(DEPTH_DECAL + 1);
+          this.tweens.add({ targets: scorch, alpha: 0, duration: 4000, onComplete: () => scorch.destroy() });
+          break;
+        }
         case 'generator-enraged':
           this.floatText(ev.pos, 'ENRAGED', '#ff5a4d');
           this.burst(this.shardFx, 6, ev.pos);
@@ -500,11 +618,14 @@ export class MissionScene extends Phaser.Scene {
           break;
         }
         case 'pickup-collected': {
-          const label = ev.kind === 'gold' ? `+${ev.amount}` : ev.kind === 'key' ? 'KEY' : `+${ev.amount} HP`;
-          const color = ev.kind === 'gold' ? '#ffd75e' : ev.kind === 'key' ? '#e6c34a' : '#e0524d';
+          const label =
+            ev.kind === 'gold' ? `+${ev.amount}` : ev.kind === 'key' ? 'KEY' : ev.kind === 'potion' ? 'POTION' : `+${ev.amount} HP`;
+          const color =
+            ev.kind === 'gold' ? '#ffd75e' : ev.kind === 'key' ? '#e6c34a' : ev.kind === 'potion' ? '#7be08a' : '#e0524d';
           this.floatText(ev.pos, label, color);
           this.burst(ev.kind === 'health' ? this.heartFx : this.sparkFx, ev.kind === 'health' ? 5 : 6, ev.pos);
           if (ev.kind === 'key') hud.herald('YOU FOUND A KEY', '#e6c34a');
+          if (ev.kind === 'potion') hud.herald('HIVE-FIRE DRAUGHT — [Q] TO QUAFF', '#7be08a');
           break;
         }
         case 'powerup-gained': {
@@ -588,6 +709,8 @@ export class MissionScene extends Phaser.Scene {
         gold: p.gold,
         kills: p.kills,
         ticks: this.sim.state.tick,
+        xpEarned: Math.max(0, p.xp - this.startXp),
+        heroLevel: p.level,
         heroId: this.heroId,
         levelId: this.levelId
       });
@@ -671,13 +794,11 @@ export class MissionScene extends Phaser.Scene {
       }
       this.trackMovement(e.id, e.pos, s.tick);
 
+      // The sim now owns the telegraph (#39): a real windup state drives the
+      // pose, so the very first contact hit is foreshadowed too. Face whoever
+      // it's winding up to strike.
       const target = this.nearestLivingPlayer(e.pos);
-      const windup =
-        def !== undefined &&
-        target !== null &&
-        e.attackCooldown > 0 &&
-        e.attackCooldown <= WINDUP_TICKS &&
-        Math.hypot(target.pos.x - e.pos.x, target.pos.y - e.pos.y) <= def.attackRange * 1.5;
+      const windup = e.windupTicksLeft > 0;
 
       let frame: EnemyAnimFrame;
       if (windup && target) {
@@ -778,6 +899,66 @@ export class MissionScene extends Phaser.Scene {
       bar.setFillStyle(tier === 0 ? 0xa855c8 : tier === 1 ? 0xf0a35e : 0xff5a4d);
     }
 
+    // The boss (issue #25): damage-tier texture, a swelling telegraph tell, and
+    // a hard tint while she is mid-charge.
+    const boss = s.boss;
+    if (boss && boss.hp > 0) {
+      seen.add(boss.id);
+      const bdef = CONTENT.bosses[boss.typeId];
+      const frac = boss.hp / boss.maxHp;
+      const tier = frac > 2 / 3 ? 0 : frac > 1 / 3 ? 1 : 2;
+      const spr = this.ensureSprite(boss.id, bossFrame(boss.typeId, 0));
+      spr.setTexture(bossFrame(boss.typeId, tier));
+      spr.setPosition(boss.pos.x, boss.pos.y).setDepth(boss.pos.y);
+      spr.setRotation(Math.atan2(boss.facing.y, boss.facing.x) - Math.PI / 2); // art faces south
+
+      // Telegraph: she swells and flares red over the windup, so the tell is
+      // unmistakable before anything lands.
+      const tel = bdef ? boss.telegraphTicksLeft / Math.max(1, bdef.telegraphTicks) : 0;
+      const charging = boss.lungeTicksLeft > 0;
+      if (boss.telegraphTicksLeft > 0) {
+        const swell = 1 + 0.14 * (1 - tel);
+        spr.setScale(swell);
+        spr.setTint(Phaser.Display.Color.GetColor(255, 190 - Math.round(120 * (1 - tel)), 190 - Math.round(120 * (1 - tel))));
+      } else if (charging) {
+        spr.setScale(1.06);
+        spr.setTint(0xff8a7a);
+      } else {
+        spr.setScale(1 + 0.02 * Math.sin(this.time.now / 420));
+        spr.clearTint();
+      }
+
+      this.ensureShadow(boss.id, 2.6).setPosition(boss.pos.x, boss.pos.y + 26);
+
+      // A persistent ground ring marks her footprint; it pulses on the windup.
+      let ring = this.rings.get(boss.id);
+      if (!ring) {
+        ring = this.add.image(0, 0, TEX.accentRing).setDepth(DEPTH_DECAL).setScale(2.3, 1.3).setTint(0xff5a4d);
+        this.rings.set(boss.id, ring);
+      }
+      ring.setPosition(boss.pos.x, boss.pos.y + 18).setAlpha(boss.telegraphTicksLeft > 0 ? 0.35 + 0.4 * (1 - tel) : 0.28);
+
+      // Charge trail while she barrels forward.
+      if (charging && this.trailCount < MAX_TRAIL_GHOSTS && s.tick % 2 === 0) {
+        this.trailCount++;
+        const ghost = this.add
+          .image(boss.pos.x, boss.pos.y, spr.texture.key)
+          .setRotation(spr.rotation)
+          .setAlpha(0.3)
+          .setTint(0xff8a7a)
+          .setDepth(boss.pos.y - 1);
+        this.tweens.add({
+          targets: ghost,
+          alpha: 0,
+          duration: 180,
+          onComplete: () => {
+            ghost.destroy();
+            this.trailCount--;
+          }
+        });
+      }
+    }
+
     for (const pk of s.pickups) {
       seen.add(pk.id);
       const key =
@@ -787,7 +968,9 @@ export class MissionScene extends Phaser.Scene {
             ? TEX.health
             : pk.kind === 'key'
               ? TEX.key
-              : powerupTexture(pk.power ?? 'frenzy');
+              : pk.kind === 'potion'
+                ? TEX.potion
+                : powerupTexture(pk.power ?? 'frenzy');
       const spr = this.ensureSprite(pk.id, key);
       const bob = Math.sin(this.time.now / 280 + pk.id) * 2.5;
       spr.setPosition(pk.pos.x, pk.pos.y - 3 + bob).setDepth(pk.pos.y);
@@ -989,6 +1172,21 @@ export class MissionScene extends Phaser.Scene {
     const scorch = this.add.circle(pos.x, pos.y, radius * 0.55, 0x000000, 0.18).setDepth(DEPTH_DECAL + 1);
     this.tweens.add({ targets: scorch, alpha: 0, duration: 1200, onComplete: () => scorch.destroy() });
     this.burst(this.dustFx, 12, pos);
+  }
+
+  /** Potion (#41): a big green hive-fire detonation — flash, shockwave, scorch. */
+  private potionBurst(pos: Vec2, radius: number): void {
+    this.cameras.main.flash(90, 150, 224, 138);
+    this.cameras.main.shake(220, 0.016);
+    this.hitStop(60);
+    this.flashRing(pos, radius, 0x9fe06a);
+    const ring = this.add.circle(pos.x, pos.y, 16).setStrokeStyle(4, 0xd6ffd0, 0.9).setDepth(DEPTH_FX);
+    this.tweens.add({ targets: ring, radius: radius * 1.05, alpha: 0, duration: 420, ease: 'Quad.Out', onComplete: () => ring.destroy() });
+    const scorch = this.add.circle(pos.x, pos.y, radius * 0.5, 0x1c3a22, 0.22).setDepth(DEPTH_DECAL + 1);
+    this.tweens.add({ targets: scorch, alpha: 0, duration: 1600, onComplete: () => scorch.destroy() });
+    this.burst(this.sparkFx, 16, pos);
+    this.burst(this.dustFx, 14, pos);
+    this.burst(this.shardFx, 8, pos);
   }
 
   private flashArc(pos: { x: number; y: number }, facing: { x: number; y: number }): void {
