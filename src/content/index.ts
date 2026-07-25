@@ -1,5 +1,6 @@
 import type { ContentDb, LevelDef } from '../sim/types';
 import { BOSSES } from './bosses';
+import { COMBAT } from './combat';
 import { ENEMIES, GENERATORS } from './enemies';
 import { HEROES } from './heroes';
 import { BROOD_WARRENS } from './levels/broodWarrens';
@@ -22,7 +23,8 @@ export const CONTENT: ContentDb = {
   potion: POTION,
   bosses: BOSSES,
   progression: PROGRESSION,
-  pressure: PRESSURE
+  pressure: PRESSURE,
+  combat: COMBAT
 };
 
 /** Every authored mission, keyed by level id. */

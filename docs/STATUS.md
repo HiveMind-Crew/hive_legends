@@ -362,10 +362,43 @@ reachability + vault-seal checks in `tests/sim/level.test.ts`, a determinism +
 scripted-completion pass in `tests/sim/resinGalleries.test.ts`, and progression
 gating in `tests/meta.test.ts`.
 
+Hero attack documentation landed: `docs/COMBAT.md` is now the reference for
+what each hero's attack and ability are *for*, the shared combat rules they are
+tuned against, and the archetype each hero owns. Its number tables (roster,
+weapon tiers, throughput, lockdown, abilities, TTK) are generated from
+`src/content` by `scripts/combatTables.ts` via `npm run docs:combat`, and
+`tests/combatDoc.test.ts` fails the suite when the checked-in doc drifts — so a
+balance change always lands with its table diff attached. Archetype invariants
+(tier monotonicity, arc ceiling, the Sentinel/Ranger axis claims, burst-vs-swarm
+threshold, guard downtime, domination, cadence-vs-hitstun) are pinned in
+`tests/combat.test.ts`. The shared dials that attacks are tuned against —
+player i-frames, enemy hitstun, knockback decay — moved out of `src/sim/sim.ts`
+into `src/content/combat.ts` (`ContentDb.combat`), per the "gameplay numbers are
+data" rule.
+
+The review behind it found four content-data problems, documented as tracked
+exceptions in `docs/COMBAT.md` and pinned as explicit sets in the tests (both
+sets may only shrink):
+
+1. The Arcanist is beaten by the Ranger on every core axis (HP, speed, range,
+   DPS, pierce); its only edges are knockback rate and Resin Cage.
+2. Resin Cage (25 dmg) does not kill a Skitterling (40 hp), so the Arcanist's
+   one spell has no felt moment — it contributes ~7% of the hero's damage.
+3. The Ranger stunlocks at every tier: cadence 9/7/8 ticks against a 10-tick
+   hitstun window, which permanently removes a target from the fight.
+4. The two melee heroes converge — Vanguard and Sentinel crowd scores differ by
+   under 1% at T1, and both tracks end at wide-arc high-knockback mauls.
+
 ## Next recommended task
 
-M1 is content-complete, so the highest-value work is now **presentation and
-polish rather than systems**:
+Phase 2 of the attack review: close the four tracked exceptions above
+(Arcanist recast as artillery with a Resin Cage above the swarm threshold,
+Vanguard narrowed to a focused strike so the Sentinel keeps the wide sweep,
+Ranger cadence raised above the hitstun window). Expect `test:e2e` timings to
+shift, since the bot plays a Vanguard.
+
+Otherwise M1 is content-complete, and the highest-value work is **presentation
+and polish rather than systems**:
 
 1. **Original art packs — #27 (characters) and #28 (environment/UI).** The
    drop-in pipeline is proven: the Vanguard pack (#44) replaced generated
