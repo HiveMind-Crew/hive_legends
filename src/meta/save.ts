@@ -1,7 +1,8 @@
 import { PROGRESSION } from '../content/progression';
+import { SPOKES } from '../content/spokes';
 import { WEAPONS } from '../content/weapons';
 import { levelForXp } from '../sim/sim';
-import type { AttackDef, HeroDef, HeroModifiers, WeaponDef } from '../sim/types';
+import type { AttackDef, HeroDef, HeroModifiers, SpokeDef, WeaponDef } from '../sim/types';
 
 /**
  * Persistent meta-progression, stored in localStorage. Mission gold is
@@ -181,15 +182,135 @@ export function isLevelCleared(profile: Profile, levelId: string): boolean {
   return profile.clearedLevels.includes(levelId);
 }
 
+// --- The mission wheel (issue #54) ------------------------------------------
+//
+// Every rule below derives from `Profile.clearedLevels` alone. No progression
+// state is stored per spoke, which is what keeps adding a world a pure content
+// change and means existing saves never need migrating. See docs/PROGRESSION.md.
+
+/** Why a wheel node can't be entered — the hub renders different copy per reason. */
+export type NodeLockReason =
+  /** An earlier mission in the same spoke is still uncleared. */
+  | 'previous-mission'
+  /** It's the boss, and the spoke's missions aren't all cleared. */
+  | 'boss-gated'
+  /** The whole spoke is shut until the previous spoke's boss falls. */
+  | 'spoke-gated';
+
+export type NodeLockState =
+  | { state: 'available' }
+  | { state: 'cleared' }
+  | { state: 'locked'; reason: NodeLockReason };
+
+/** A level's position on the wheel. */
+interface WheelNode {
+  spoke: SpokeDef;
+  /** Index into `spoke.missions`, or -1 for the spoke's boss node. */
+  index: number;
+  isBoss: boolean;
+}
+
+function findSpoke(spokeId: string): SpokeDef | undefined {
+  return SPOKES.find((s) => s.id === spokeId);
+}
+
+/** Locates a level on the wheel, or null if it belongs to no spoke. */
+function findNode(levelId: string): WheelNode | null {
+  for (const spoke of SPOKES) {
+    const index = spoke.missions.indexOf(levelId);
+    if (index >= 0) return { spoke, index, isBoss: false };
+    if (spoke.boss === levelId) return { spoke, index: -1, isBoss: true };
+  }
+  return null;
+}
+
+/** The spoke a level belongs to, or undefined if it sits off the wheel. */
+export function spokeForLevel(levelId: string): SpokeDef | undefined {
+  return findNode(levelId)?.spoke;
+}
+
 /**
- * Whether a mission is available to play. The first mission in `order` is
- * always open (the e2e Enter-default); every later one unlocks once the
- * mission before it in the order has been cleared.
+ * Whether a spoke is open at all. The first spoke (no `requiresSpoke`) always
+ * is; every later one waits for the named spoke's boss to fall.
  */
-export function isLevelUnlocked(profile: Profile, levelId: string, order: readonly string[]): boolean {
-  const idx = order.indexOf(levelId);
-  if (idx <= 0) return true; // first mission (or an unknown id) is always open
-  return isLevelCleared(profile, order[idx - 1]!);
+export function isSpokeUnlocked(profile: Profile, spokeId: string): boolean {
+  const spoke = findSpoke(spokeId);
+  if (!spoke) return false;
+  if (!spoke.requiresSpoke) return true;
+  const gate = findSpoke(spoke.requiresSpoke);
+  if (!gate) return false; // malformed wheel; a content test catches this
+  return isLevelCleared(profile, gate.boss);
+}
+
+/**
+ * Full state of a wheel node: cleared, available, or locked with the reason.
+ * A cleared level stays enterable (Results offers a replay), so `cleared` is
+ * reported separately rather than folded into `available`.
+ *
+ * A level that belongs to no spoke reports `available`, preserving the old
+ * linear rule's treatment of unknown ids as open.
+ */
+export function nodeLockState(profile: Profile, levelId: string): NodeLockState {
+  if (isLevelCleared(profile, levelId)) return { state: 'cleared' };
+
+  const node = findNode(levelId);
+  if (!node) return { state: 'available' };
+  if (!isSpokeUnlocked(profile, node.spoke.id)) return { state: 'locked', reason: 'spoke-gated' };
+
+  if (node.isBoss) {
+    const allCleared = node.spoke.missions.every((id) => isLevelCleared(profile, id));
+    return allCleared ? { state: 'available' } : { state: 'locked', reason: 'boss-gated' };
+  }
+
+  // Missions run in sequence: the first is open, each later one waits for the
+  // mission before it.
+  if (node.index === 0) return { state: 'available' };
+  const previous = node.spoke.missions[node.index - 1]!;
+  return isLevelCleared(profile, previous) ? { state: 'available' } : { state: 'locked', reason: 'previous-mission' };
+}
+
+/**
+ * How far through a spoke's missions the player is. Counts missions only —
+ * the boss is the reward for finishing them, not a fourth step toward it.
+ */
+export function spokeProgress(profile: Profile, spokeId: string): { cleared: number; total: number } {
+  const spoke = findSpoke(spokeId);
+  if (!spoke) return { cleared: 0, total: 0 };
+  return {
+    cleared: spoke.missions.filter((id) => isLevelCleared(profile, id)).length,
+    total: spoke.missions.length
+  };
+}
+
+/**
+ * The node the hub should put its cursor on: the first thing that is playable
+ * and not yet done, walking the wheel in order. Once everything is cleared it
+ * falls back to the last reachable node so the cursor is never homeless.
+ */
+export function suggestedNode(profile: Profile): { spokeId: string; levelId: string } {
+  let lastReachable: { spokeId: string; levelId: string } | null = null;
+
+  for (const spoke of SPOKES) {
+    if (!isSpokeUnlocked(profile, spoke.id)) continue;
+    for (const levelId of [...spoke.missions, spoke.boss]) {
+      const state = nodeLockState(profile, levelId);
+      if (state.state === 'locked') continue;
+      if (state.state === 'available') return { spokeId: spoke.id, levelId };
+      lastReachable = { spokeId: spoke.id, levelId }; // cleared — remember and keep looking
+    }
+  }
+
+  // Everything cleared, or a wheel with no reachable node at all.
+  return lastReachable ?? { spokeId: SPOKES[0]?.id ?? '', levelId: SPOKES[0]?.missions[0] ?? '' };
+}
+
+/**
+ * Whether a mission can be entered. Thin wrapper over `nodeLockState`, kept
+ * for the pre-wheel call sites; `order` is ignored and goes away with them
+ * once `MissionHubScene` lands (issue #57).
+ */
+export function isLevelUnlocked(profile: Profile, levelId: string, _order?: readonly string[]): boolean {
+  return nodeLockState(profile, levelId).state !== 'locked';
 }
 
 /** Records a level clear (idempotent) and persists. */
