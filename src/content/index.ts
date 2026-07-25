@@ -11,6 +11,7 @@ import { POWERUPS } from './powerups';
 import { PRESSURE } from './pressure';
 import { PROGRESSION } from './progression';
 import { PROPS } from './props';
+import { SPOKES } from './spokes';
 import { WEAPONS } from './weapons';
 
 export const CONTENT: ContentDb = {
@@ -24,7 +25,8 @@ export const CONTENT: ContentDb = {
   bosses: BOSSES,
   progression: PROGRESSION,
   pressure: PRESSURE,
-  combat: COMBAT
+  combat: COMBAT,
+  spokes: SPOKES
 };
 
 /** Every authored mission, keyed by level id. */
@@ -35,12 +37,19 @@ export const LEVELS: Record<string, LevelDef> = {
 };
 
 /**
- * Mission order for the hub list and "next mission" flow. The first entry is
- * the e2e Enter-default, so it must stay The Brood Warrens. The finale
- * (The Hollow Throne) caps the realm.
+ * Flat mission order, derived from the wheel (issue #53): each spoke's
+ * missions in sequence, then its boss. The first entry is the e2e
+ * Enter-default, so the first spoke's first mission must stay The Brood
+ * Warrens — a content test enforces it.
+ *
+ * This is a compatibility view for the pre-wheel linear flow
+ * (`isLevelUnlocked`, `nextLevelId`, the hero-select mission panel). It goes
+ * away once `MissionHubScene` lands and those call sites move to the
+ * spoke-aware rules — see issues #54 and #57.
  */
-export const MISSION_ORDER: readonly string[] = [BROOD_WARRENS.id, RESIN_GALLERIES.id, HOLLOW_THRONE.id];
+export const MISSION_ORDER: readonly string[] = SPOKES.flatMap((s) => [...s.missions, s.boss]);
 
+export { SPOKES } from './spokes';
 export { BROOD_WARRENS } from './levels/broodWarrens';
 export { RESIN_GALLERIES } from './levels/resinGalleries';
 export { HOLLOW_THRONE } from './levels/hollowThrone';

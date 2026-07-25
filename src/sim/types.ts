@@ -447,6 +447,35 @@ export interface LevelDef {
 }
 
 /**
+ * One branch of the mission wheel (issue #53): three missions played in order,
+ * capped by a boss encounter. Clearing all three opens the boss; felling the
+ * boss opens the spoke that names this one in `requiresSpoke`.
+ *
+ * Progression state is *not* stored per-spoke — every rule derives from
+ * `Profile.clearedLevels`, so adding a spoke is a pure content change and
+ * existing saves never need migrating. See docs/PROGRESSION.md.
+ */
+export interface SpokeDef {
+  id: string;
+  /** Display name on the wheel, e.g. "The Azure Reach". */
+  name: string;
+  /**
+   * The spoke's identity colour on the hub (0xRRGGBB). This is wheel dressing,
+   * not an in-mission palette — levels keep their own `LevelDef.theme`, so a
+   * blue spoke can still contain the amber Resin Galleries.
+   */
+  accent: number;
+  /** Ordered mission level ids; each opens when the one before it is cleared. */
+  missions: readonly string[];
+  /** Level id of the boss encounter capping the spoke; must carry a `boss`. */
+  boss: string;
+  /** Spoke whose boss must fall before this one opens; omit for the first. */
+  requiresSpoke?: string;
+  /** Placement on the wheel, in degrees clockwise from the top. */
+  angleDeg: number;
+}
+
+/**
  * Temporary power-ups (issue #16): floor pickups that grant a timed buff.
  * Every def carries all three multipliers; the ones a given power-up doesn't
  * use stay at 1, so the sim can multiply uniformly with no per-kind branching.
@@ -544,6 +573,8 @@ export interface ContentDb {
   progression: ProgressionDef;
   pressure: PressureDef;
   combat: CombatDef;
+  /** Mission-wheel branches, in wheel order (issue #53). */
+  spokes: readonly SpokeDef[];
 }
 
 // ---------------------------------------------------------------------------

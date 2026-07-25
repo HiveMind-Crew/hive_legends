@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BROOD_WARRENS, CONTENT } from '../src/content';
+import { BROOD_WARRENS, CONTENT, LEVELS, MISSION_ORDER, SPOKES } from '../src/content';
 import { TEXTURE_SPECS } from '../src/game/textureSpecs';
 import { DECOR_KINDS, ENEMY_FAMILIES, ENEMY_TIERS } from '../src/sim/types';
 
@@ -92,5 +92,93 @@ describe('content validity', () => {
       // No duplicate tiers within a hero's track.
       expect(new Set(tiers).size, `${heroId} unique tiers`).toBe(tiers.length);
     }
+  });
+});
+
+/**
+ * The mission wheel (issue #53). These pin the structural rules the unlock
+ * logic (#54) and the hub scene (#56) are entitled to assume, so a malformed
+ * spoke fails here rather than as a blank node or an unreachable boss.
+ */
+describe('mission wheel', () => {
+  it('every spoke references real levels', () => {
+    expect(SPOKES.length).toBeGreaterThan(0);
+    for (const spoke of SPOKES) {
+      for (const id of spoke.missions) {
+        expect(LEVELS[id], `${spoke.id} mission ${id}`).toBeDefined();
+      }
+      expect(LEVELS[spoke.boss], `${spoke.id} boss ${spoke.boss}`).toBeDefined();
+    }
+  });
+
+  it("a spoke's boss node is a level that actually carries a boss", () => {
+    // Capping a spoke with an ordinary map would leave the wheel claiming a
+    // boss encounter that plays as a normal mission.
+    for (const spoke of SPOKES) {
+      expect(LEVELS[spoke.boss]?.boss, `${spoke.id} boss level has a boss`).toBeDefined();
+    }
+  });
+
+  it('each spoke runs three missions before its boss', () => {
+    // Relaxed to >= 2 until the third Azure Reach mission lands (issue #55);
+    // tighten this to exactly 3 as part of that issue.
+    for (const spoke of SPOKES) {
+      expect(spoke.missions.length, `${spoke.id} mission count`).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('no level belongs to two spokes, or to one spoke twice', () => {
+    const seen = new Map<string, string>();
+    for (const spoke of SPOKES) {
+      for (const id of [...spoke.missions, spoke.boss]) {
+        const owner = seen.get(id);
+        expect(owner, `${id} claimed by both ${owner} and ${spoke.id}`).toBeUndefined();
+        seen.set(id, spoke.id);
+      }
+    }
+  });
+
+  it('spoke ids and wheel angles are unique', () => {
+    const ids = SPOKES.map((s) => s.id);
+    const angles = SPOKES.map((s) => s.angleDeg);
+    expect(new Set(ids).size, 'unique spoke ids').toBe(ids.length);
+    // Two spokes on the same bearing would draw on top of each other.
+    expect(new Set(angles).size, 'unique wheel angles').toBe(angles.length);
+  });
+
+  it('the spoke gate graph is well-formed and acyclic', () => {
+    const byId = new Map(SPOKES.map((s) => [s.id, s]));
+    // Exactly one entry point, or nothing is reachable.
+    const roots = SPOKES.filter((s) => !s.requiresSpoke);
+    expect(roots.length, 'spokes with no gate').toBe(1);
+
+    for (const spoke of SPOKES) {
+      const seen = new Set<string>([spoke.id]);
+      let cursor = spoke.requiresSpoke;
+      while (cursor !== undefined) {
+        expect(byId.has(cursor), `${spoke.id} requires real spoke ${cursor}`).toBe(true);
+        expect(seen.has(cursor), `${spoke.id} gate chain cycles at ${cursor}`).toBe(false);
+        seen.add(cursor);
+        cursor = byId.get(cursor)?.requiresSpoke;
+      }
+    }
+  });
+
+  it('the wheel opens on The Brood Warrens', () => {
+    // The e2e bot confirms straight through to a mission from a fresh profile,
+    // so the first reachable node must stay the Warrens.
+    const first = SPOKES.find((s) => !s.requiresSpoke)!;
+    expect(first.missions[0]).toBe(BROOD_WARRENS.id);
+  });
+
+  it('MISSION_ORDER stays the flat view of the wheel', () => {
+    // The pre-wheel linear flow still reads this; it must keep its old value
+    // until those call sites move to the spoke-aware rules (#54, #57).
+    expect(MISSION_ORDER).toEqual(['brood-warrens', 'resin-galleries', 'hollow-throne']);
+    expect(MISSION_ORDER).toEqual(SPOKES.flatMap((s) => [...s.missions, s.boss]));
+  });
+
+  it('is reachable from ContentDb', () => {
+    expect(CONTENT.spokes).toBe(SPOKES);
   });
 });
