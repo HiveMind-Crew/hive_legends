@@ -35,9 +35,9 @@ import {
   type Vec2
 } from './types';
 
-const PLAYER_HIT_INVULN_TICKS = 30;
-const ENEMY_HITSTUN_TICKS = 10;
-const KNOCKBACK_DECAY = 0.85;
+// Player i-frames, enemy hitstun and knockback decay are gameplay dials and
+// live in content (`ContentDb.combat`, src/content/combat.ts) — see
+// docs/COMBAT.md for how hero attack cadence is tuned against hitstun.
 const EXIT_RADIUS = 26;
 const PICKUP_RADIUS = 14;
 const SECRET_WALL_HP = 60;
@@ -578,7 +578,7 @@ function damageEnemy(
   events: SimEvent[]
 ): void {
   e.hp -= damage;
-  e.hitstunTicks = ENEMY_HITSTUN_TICKS;
+  e.hitstunTicks = sim.config.content.combat.enemyHitstunTicks;
   e.knockback.x += dir.x * knockback;
   e.knockback.y += dir.y * knockback;
   if (e.hp <= 0) {
@@ -857,7 +857,7 @@ function hostileBoltHitsPlayer(sim: Sim, bolt: ProjectileState, events: SimEvent
     const guard = guardDefFor(sim, p);
     const damage = bolt.damage * (guard ? guard.damageMult : 1) * powerMult(sim, p, 'damageTakenMult');
     p.hp -= damage;
-    p.invulnTicks = PLAYER_HIT_INVULN_TICKS;
+    p.invulnTicks = content.combat.playerHitInvulnTicks;
     events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
     events.push({ type: 'player-hit', playerId: p.id, damage, pos: { ...p.pos } });
     if (guard) events.push({ type: 'guard-block', playerId: p.id, enemyId: bolt.ownerId, pos: { ...p.pos } });
@@ -909,8 +909,8 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
     const kbMag = Math.hypot(e.knockback.x, e.knockback.y);
     if (kbMag > 1) {
       moveCircle(level, e.pos, def.radius, e.knockback.x * TICK_DT, e.knockback.y * TICK_DT, blk);
-      e.knockback.x *= KNOCKBACK_DECAY;
-      e.knockback.y *= KNOCKBACK_DECAY;
+      e.knockback.x *= content.combat.knockbackDecay;
+      e.knockback.y *= content.combat.knockbackDecay;
     } else {
       e.knockback.x = 0;
       e.knockback.y = 0;
@@ -985,7 +985,7 @@ function executeEnemyAttack(sim: Sim, e: EnemyState, def: EnemyDef, target: Play
   const damage =
     def.touchDamage * pressureDamageMult(sim) * (guard ? guard.damageMult : 1) * powerMult(sim, target, 'damageTakenMult');
   target.hp -= damage;
-  target.invulnTicks = PLAYER_HIT_INVULN_TICKS;
+  target.invulnTicks = sim.config.content.combat.playerHitInvulnTicks;
   events.push({ type: 'player-hit', playerId: target.id, damage, pos: { ...target.pos } });
   if (guard) {
     if (guard.reflectKnockback > 0 && dist > 1e-6) {
@@ -1163,7 +1163,7 @@ function bossContactDamage(sim: Sim, boss: BossState, def: BossDef, damage: numb
     const guard = guardDefFor(sim, p);
     const dealt = damage * (guard ? guard.damageMult : 1) * powerMult(sim, p, 'damageTakenMult');
     p.hp -= dealt;
-    p.invulnTicks = PLAYER_HIT_INVULN_TICKS;
+    p.invulnTicks = sim.config.content.combat.playerHitInvulnTicks;
     boss.touchCooldown = def.touchCooldownTicks;
     events.push({ type: 'player-hit', playerId: p.id, damage: dealt, pos: { ...p.pos } });
     if (guard) events.push({ type: 'guard-block', playerId: p.id, enemyId: boss.id, pos: { ...p.pos } });

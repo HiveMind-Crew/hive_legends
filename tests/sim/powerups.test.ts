@@ -111,7 +111,7 @@ describe('frenzy (outgoing damage)', () => {
     const e = spawnEnemy(sim, 901, p.pos.x, p.pos.y + 30);
     const before = e.hp;
     runTicks(sim, 1, input({ attack: true }));
-    expect(before - e.hp).toBeCloseTo(CONTENT.heroes['vanguard']!.attack.kind === 'melee' ? 25 : 0, 4);
+    expect(before - e.hp).toBeCloseTo(CONTENT.heroes['vanguard']!.attack.damage, 4);
   });
 });
 

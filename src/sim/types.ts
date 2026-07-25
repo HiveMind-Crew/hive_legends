@@ -513,6 +513,25 @@ export interface PressureDef {
   spawnIntervalMult: number;
 }
 
+/**
+ * Shared combat constants (see docs/COMBAT.md). These are the numbers every
+ * hero attack is tuned *against* rather than numbers any one hero owns, so
+ * they live in content like the rest of the gameplay dials — engine code reads
+ * them off `ContentDb.combat`.
+ *
+ * `enemyHitstunTicks` in particular is load-bearing: a hero whose attack
+ * cooldown is at or below it can re-stun a target before the stun expires and
+ * so lock it out permanently. Tune hero cadence and this value together.
+ */
+export interface CombatDef {
+  /** I-frames granted to a player after any hit lands on them. */
+  playerHitInvulnTicks: number;
+  /** Ticks an enemy is frozen out of steering, attacking and windups per hit. */
+  enemyHitstunTicks: number;
+  /** Per-tick multiplier bleeding off an enemy's knockback impulse. */
+  knockbackDecay: number;
+}
+
 export interface ContentDb {
   heroes: Record<string, HeroDef>;
   enemies: Record<string, EnemyDef>;
@@ -524,6 +543,7 @@ export interface ContentDb {
   bosses: Record<string, BossDef>;
   progression: ProgressionDef;
   pressure: PressureDef;
+  combat: CombatDef;
 }
 
 // ---------------------------------------------------------------------------

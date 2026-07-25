@@ -83,15 +83,19 @@ describe('weapon tiers in the sim', () => {
     expect(tier3Damage).toBe(WEAPONS['vanguard-t3']!.attackOverrides.damage);
   });
 
-  it('a wider-arc weapon catches a target the base sweep misses', () => {
-    // A target off to the side, outside the 110° base arc but inside 150°.
-    function sideHit(attack?: AttackDef): boolean {
+  it('a longer-reach weapon spears a target the base thrust falls short of', () => {
+    // The Vanguard's track deepens reach rather than widening the arc (the
+    // wide sweep is the Sentinel's), so a tier upgrade is felt down-range:
+    // a target dead ahead, beyond the base pike but inside Warden's Reach.
+    function reachHit(attack?: AttackDef): boolean {
       const sim = vanguardSim(attack);
       const p = sim.state.players[0]!;
       const e: EnemyState = {
         id: 9002,
         typeId: 'skitterling',
-        pos: { x: p.pos.x + 34, y: p.pos.y + 20 }, // ~60° off the (0,1) facing
+        // Straight down the (0,1) facing, between the two weapons' ranges:
+        // base 68 + enemy radius 10 = 78 falls short; T2's 72 + 10 = 82 reaches.
+        pos: { x: p.pos.x, y: p.pos.y + 80 },
         hp: 1000,
         attackCooldown: 999,
         windupTicksLeft: 0,
@@ -106,8 +110,8 @@ describe('weapon tiers in the sim', () => {
       simTick(sim, [input({ attack: true })]);
       return e.hp < before;
     }
-    expect(sideHit(undefined)).toBe(false); // base 110° arc misses the flank
-    expect(sideHit(resolve('vanguard-t2'))).toBe(true); // Warden's Edge 150° catches it
+    expect(reachHit(undefined)).toBe(false); // the base Wardpike falls short
+    expect(reachHit(resolve('vanguard-t2'))).toBe(true); // Warden's Reach spears it
   });
 
   it('is deterministic per config: identical setup ⇒ identical state hash', () => {

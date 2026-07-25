@@ -362,10 +362,56 @@ reachability + vault-seal checks in `tests/sim/level.test.ts`, a determinism +
 scripted-completion pass in `tests/sim/resinGalleries.test.ts`, and progression
 gating in `tests/meta.test.ts`.
 
+Hero attack documentation landed: `docs/COMBAT.md` is now the reference for
+what each hero's attack and ability are *for*, the shared combat rules they are
+tuned against, and the archetype each hero owns. Its number tables (roster,
+weapon tiers, throughput, lockdown, abilities, TTK) are generated from
+`src/content` by `scripts/combatTables.ts` via `npm run docs:combat`, and
+`tests/combatDoc.test.ts` fails the suite when the checked-in doc drifts — so a
+balance change always lands with its table diff attached. Archetype invariants
+(tier monotonicity, arc ceiling, the Sentinel/Ranger axis claims, burst-vs-swarm
+threshold, guard downtime, domination, cadence-vs-hitstun) are pinned in
+`tests/combat.test.ts`. The shared dials that attacks are tuned against —
+player i-frames, enemy hitstun, knockback decay — moved out of `src/sim/sim.ts`
+into `src/content/combat.ts` (`ContentDb.combat`), per the "gameplay numbers are
+data" rule.
+
+The review behind it found four content-data problems, documented as tracked
+exceptions in `docs/COMBAT.md` and pinned as explicit sets in the tests (both
+sets may only shrink):
+
+1. The Arcanist is beaten by the Ranger on every core axis (HP, speed, range,
+   DPS, pierce); its only edges are knockback rate and Resin Cage.
+2. Resin Cage (25 dmg) does not kill a Skitterling (40 hp), so the Arcanist's
+   one spell has no felt moment — it contributes ~7% of the hero's damage.
+3. The Ranger stunlocks at every tier: cadence 9/7/8 ticks against a 10-tick
+   hitstun window, which permanently removes a target from the fight.
+4. The two melee heroes converge — Vanguard and Sentinel crowd scores differ by
+   under 1% at T1, and both tracks end at wide-arc high-knockback mauls.
+
+Phase 2 closed all four. The Arcanist became artillery (bolt 18 → 28 damage at
+16 → 26 ticks, reach 320 → 420 so she now outranges the Ranger) with Resin Cage
+raised to 45 damage / radius 100, above the 40 hp swarm threshold. The Ranger's
+cadence moved to 12/11/11, clear of the 10-tick hitstun window, with damage
+raised to hold its DPS roughly in place. The Vanguard became a pike — arc 110°
+→ 70°, reach 52 → 68, damage 25 → 28, T3 renamed *Sunreaver Pike* — and the
+Sentinel took the wide sweep outright (reach 56 → 64, T3 arc 180° → 175°). The
+Sentinel now out-crowds the Vanguard at every tier while the Vanguard
+out-damages him ~65%. Both tracked-exception sets in `tests/combat.test.ts` are
+empty, so all nine archetype invariants hold unconditionally.
+
+Cost worth watching: narrowing the Vanguard slowed the e2e bot's reference
+Warrens clear from 1074 ticks (17.9 s) to 1574 (26.2 s). That is inside the
+20–35 s band `src/content/pressure.ts` documents and inside the 40 s rouse
+grace — the old time was *below* the band — and the bot swings blindly while
+charging, so it is a pessimistic bound. Re-check against real play before
+widening the arc; the Sentinel's crowd lead is only ~6% at T3, so his reach
+would have to grow with it or the two heroes converge again.
+
 ## Next recommended task
 
-M1 is content-complete, so the highest-value work is now **presentation and
-polish rather than systems**:
+M1 is content-complete, and the highest-value work is **presentation
+and polish rather than systems**:
 
 1. **Original art packs — #27 (characters) and #28 (environment/UI).** The
    drop-in pipeline is proven: the Vanguard pack (#44) replaced generated

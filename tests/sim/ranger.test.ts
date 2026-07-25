@@ -63,9 +63,13 @@ describe('ranger roster entry', () => {
   it('rapid-fires thorn darts on the attack cooldown', () => {
     const sim = newRangerSim();
     sim.state.players[0]!.facing = { x: 1, y: 0 };
-    // 9-tick cooldown: exactly one dart in the first 9 ticks.
-    const events = runTicks(sim, 9, input({ attack: true }));
+    // Exactly one dart inside one cooldown window, whatever the tuning is.
+    const cooldown = CONTENT.heroes['ranger']!.attack.cooldownTicks;
+    const events = runTicks(sim, cooldown, input({ attack: true }));
     expect(events.filter((e) => e.type === 'projectile-fired')).toHaveLength(1);
+    // The cadence must stay clear of the hitstun window, or the Ranger locks a
+    // target out of the fight permanently (docs/COMBAT.md).
+    expect(cooldown).toBeGreaterThan(CONTENT.combat.enemyHitstunTicks);
   });
 
   it('a dart pierces two enemies and stops at the third (3 targets max)', () => {

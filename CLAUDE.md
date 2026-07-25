@@ -19,6 +19,17 @@
   equipped-weapon `AttackDef`), and `startXp` (banked XP, from which the sim
   derives the starting level). The sim never reads the profile.
 
+## Hero combat
+
+Before changing any hero attack, ability, or weapon tier, read
+`docs/COMBAT.md`. It states the archetype each hero owns and the shared combat
+rules they are tuned against (no armour exists, so per-hit damage buys nothing;
+cadence at or below the hitstun window is a permanent stunlock). Its number
+tables are generated from `src/content` — after a tuning change run
+`npm run docs:combat` and review the regenerated diff. The archetype invariants
+in `tests/combat.test.ts` fail when a change crosses an archetype line rather
+than a tuning line.
+
 ## Layout
 
 - `src/sim` — deterministic simulation core (engine-free)
@@ -29,7 +40,9 @@
   listed in `public/art/manifest.json` (see `docs/ART.md`)
 - `tests/` — vitest unit tests for the sim
 - `e2e/` — Playwright gameplay playthrough (bot plays the real build)
-- `docs/adr/` — architecture decision records; `docs/STATUS.md` — milestone log
+- `scripts/` — doc generators (not shipped in the build)
+- `docs/adr/` — architecture decision records; `docs/STATUS.md` — milestone log;
+  `docs/COMBAT.md` — hero attack/ability reference (partly generated)
 
 ## Verification (all must pass before committing)
 
