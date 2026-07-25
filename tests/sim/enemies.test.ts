@@ -67,6 +67,18 @@ describe('enemy roster', () => {
     expect(families.has('spitter')).toBe(true);
   });
 
+  it('every ranged enemy authors keep-distance kiting, and melee never does', () => {
+    for (const def of Object.values(CONTENT.enemies)) {
+      if (def.ranged) {
+        expect(def.keepDistanceFraction, `${def.id} kiting`).toBeGreaterThan(0);
+        expect(def.keepDistanceFraction, `${def.id} kiting`).toBeLessThan(1);
+      } else {
+        // Melee families hold their ground; kiting would read as cowardice.
+        expect(def.keepDistanceFraction ?? 0, `${def.id} kiting`).toBe(0);
+      }
+    }
+  });
+
   it('every generator on-death spawn names a real enemy', () => {
     for (const gen of Object.values(CONTENT.generators)) {
       if (gen.onDeathSpawn) expect(CONTENT.enemies[gen.onDeathSpawn.enemyId]).toBeDefined();
@@ -230,6 +242,56 @@ describe('spitter (ranged)', () => {
     expect(events.some((e) => e.type === 'guard-block')).toBe(true);
     // Damage taken is the reduced (guarded) fraction of the bolt's damage.
     expect(before - p.hp).toBeLessThanOrEqual(spitter.ranged!.projectileDamage);
+  });
+
+  it('backs away when the player crowds it, reopening the gap (#23)', () => {
+    const sim = newSim();
+    sim.state.generators = []; // isolate
+    const p = sim.state.players[0]!;
+    const def = CONTENT.enemies['bile-spitter']!;
+    const keepDistance = def.attackRange * def.keepDistanceFraction!;
+    // Stand well inside its comfort band, on open floor with room behind it.
+    const start = { x: p.pos.x + 60, y: p.pos.y };
+    expect(60).toBeLessThan(keepDistance);
+    const e = spawnEnemy(sim, 'bile-spitter', 860, start.x, start.y);
+    runTicks(sim, 60);
+    const now = Math.hypot(e.pos.x - p.pos.x, e.pos.y - p.pos.y);
+    expect(now).toBeGreaterThan(60); // it gave ground
+  });
+
+  it('holds its ground in the sweet spot between keep-distance and range', () => {
+    const sim = newSim();
+    sim.state.generators = [];
+    const p = sim.state.players[0]!;
+    const def = CONTENT.enemies['bile-spitter']!;
+    const keepDistance = def.attackRange * def.keepDistanceFraction!;
+    // Comfortably inside range but outside the retreat band.
+    const gap = (keepDistance + def.attackRange) / 2;
+    const e = spawnEnemy(sim, 'bile-spitter', 861, p.pos.x + gap, p.pos.y);
+    const before = { ...e.pos };
+    runTicks(sim, 60);
+    expect(Math.hypot(e.pos.x - before.x, e.pos.y - before.y)).toBeLessThan(2);
+  });
+
+  it('keeps firing while it retreats', () => {
+    const sim = newSim();
+    sim.state.generators = [];
+    const p = sim.state.players[0]!;
+    spawnEnemy(sim, 'bile-spitter', 862, p.pos.x + 50, p.pos.y); // crowded
+    const events = runTicks(sim, 120);
+    expect(events.some((ev) => ev.type === 'enemy-shot')).toBe(true);
+  });
+
+  it('a crowded melee enemy stands and fights instead of kiting', () => {
+    const sim = newSim();
+    sim.state.generators = [];
+    const p = sim.state.players[0]!;
+    // A husk pressed right up against the player must not give ground.
+    const e = spawnEnemy(sim, 'carapace-husk', 863, p.pos.x + 20, p.pos.y);
+    const before = Math.hypot(e.pos.x - p.pos.x, e.pos.y - p.pos.y);
+    runTicks(sim, 60);
+    const after = Math.hypot(e.pos.x - p.pos.x, e.pos.y - p.pos.y);
+    expect(after).toBeLessThanOrEqual(before + 1);
   });
 
   it('spitter fights stay deterministic', () => {

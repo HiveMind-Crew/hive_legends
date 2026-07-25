@@ -220,6 +220,14 @@ export interface EnemyDef {
   xp: number;
   /** If present, the enemy fires hostile bolts at attackRange instead of meleeing. */
   ranged?: EnemyRangedDef;
+  /**
+   * Kiting (issue #23): back away while the target is closer than this
+   * fraction of `attackRange`, so an artillery enemy reopens the gap instead
+   * of planting itself and firing point-blank. Omit (or 0) to hold ground —
+   * melee families never kite. A content test requires every `ranged` enemy
+   * to author it.
+   */
+  keepDistanceFraction?: number;
 }
 
 /** One-shot frenzy when a generator first drops to low HP. */

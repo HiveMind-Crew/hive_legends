@@ -931,10 +931,20 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
       continue;
     }
 
+    // Steering. Close the gap when out of range; kiting families instead give
+    // ground while the target is inside their comfort band (issue #23), so
+    // artillery reopens the range rather than firing point-blank. Steering and
+    // attacking are independent, so a spitter can shoot while backing off.
+    const keepDistance = def.attackRange * (def.keepDistanceFraction ?? 0);
+    const step = def.moveSpeed * (e.slowTicks > 0 ? e.slowMult : 1) * TICK_DT;
     if (dist > def.attackRange) {
-      const step = def.moveSpeed * (e.slowTicks > 0 ? e.slowMult : 1) * TICK_DT;
       moveCircle(level, e.pos, def.radius, (d.x / dist) * step, (d.y / dist) * step, blk);
-    } else if (e.attackCooldown === 0 && (def.ranged || target.invulnTicks === 0)) {
+    } else if (dist < keepDistance && dist > 1e-6) {
+      moveCircle(level, e.pos, def.radius, (-d.x / dist) * step, (-d.y / dist) * step, blk);
+    }
+
+    // Attacking, only from inside its range. Melee still respects i-frames.
+    if (dist <= def.attackRange && e.attackCooldown === 0 && (def.ranged || target.invulnTicks === 0)) {
       // Begin the telegraph instead of striking instantly. (No enemy ships a
       // zero windup, but a 0 would resolve the attack the same tick.)
       if (def.attackWindupTicks > 0) {

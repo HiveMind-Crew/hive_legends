@@ -371,10 +371,7 @@ polish rather than systems**:
    frames with zero code changes. The other three heroes, the enemy families
    and the boss are the biggest visible win available. Key list and canvas
    sizes: `docs/ART.md`.
-2. **Spitter keep-distance steering** — the one unmet acceptance criterion on
-   #23. A spitter that gets closed on currently plants itself and fires
-   point-blank instead of backing off.
-3. **The deferred pressure mechanic (#41)** — decide on health drain vs. a
+2. **The deferred pressure mechanic (#41)** — decide on health drain vs. a
    softer aggression ramp. Recommendation and trade-offs are on the issue.
 
 Balance note carried from #25: ranged heroes kite Mireveil noticeably more
