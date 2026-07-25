@@ -112,6 +112,10 @@ class AudioEngine {
         this.alarm();
         break;
       // Boss (issue #25): a rising tell, a phase fanfare, and a long collapse.
+      case 'pressure-rose':
+        this.alarm();
+        this.rumble();
+        break;
       case 'boss-telegraph':
         this.alarm();
         break;

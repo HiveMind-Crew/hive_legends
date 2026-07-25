@@ -25,6 +25,7 @@ import {
   type PickupState,
   type PlayerState,
   type ProjectileAttackDef,
+  type PressureDef,
   type ProgressionDef,
   type ProjectileState,
   type PropState,
@@ -175,6 +176,7 @@ export function createSim(config: SimConfig): Sim {
       secrets,
       projectiles: [],
       boss,
+      pressureStage: 0,
       exitPos: tileCenter(level, level.exit.tx, level.exit.ty)
     }
   };
@@ -193,6 +195,7 @@ export function simTick(sim: Sim, inputs: readonly InputCommand[]): SimEvent[] {
   updateEnemies(sim, events);
   separateEnemies(sim);
   updateBoss(sim, events);
+  updatePressure(sim, events);
   updateGenerators(sim, events);
   collectPickups(sim, events);
   updateGates(sim, events);
@@ -697,7 +700,10 @@ function spawnProjectile(sim: Sim, p: PlayerState, atk: ProjectileAttackDef, dir
 
 /** Spawns one hostile bolt from an enemy toward a target position. */
 function spawnEnemyProjectile(sim: Sim, e: EnemyState, ranged: EnemyRangedDef, radius: number, target: Vec2, events: SimEvent[]): void {
-  spawnHostileBolt(sim, e.id, e.pos, radius, ranged, norm(sub(target, e.pos)), events);
+  // A roused hive spits harder. Scaled here, at the enemy call site, so the
+  // boss's glob — which shares this bolt plumbing — keeps its authored damage
+  // and escalates through her own phase script instead (#41 x #25).
+  spawnHostileBolt(sim, e.id, e.pos, radius, ranged, norm(sub(target, e.pos)), events, pressureDamageMult(sim));
 }
 
 /**
@@ -712,7 +718,8 @@ function spawnHostileBolt(
   originRadius: number,
   ranged: EnemyRangedDef,
   dirIn: Vec2,
-  events: SimEvent[]
+  events: SimEvent[],
+  damageMult = 1
 ): void {
   const dir = norm(dirIn);
   const spawnDist = originRadius + ranged.projectileRadius + 1;
@@ -724,7 +731,7 @@ function spawnHostileBolt(
     radius: ranged.projectileRadius,
     distanceLeft: ranged.projectileRange,
     pierceLeft: 0,
-    damage: ranged.projectileDamage,
+    damage: ranged.projectileDamage * damageMult,
     knockback: 0,
     hitIds: [],
     hostile: true
@@ -936,7 +943,8 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
     // artillery reopens the range rather than firing point-blank. Steering and
     // attacking are independent, so a spitter can shoot while backing off.
     const keepDistance = def.attackRange * (def.keepDistanceFraction ?? 0);
-    const step = def.moveSpeed * (e.slowTicks > 0 ? e.slowMult : 1) * TICK_DT;
+    const step =
+      def.moveSpeed * pressureSpeedMult(sim, sim.config.content.pressure) * (e.slowTicks > 0 ? e.slowMult : 1) * TICK_DT;
     if (dist > def.attackRange) {
       moveCircle(level, e.pos, def.radius, (d.x / dist) * step, (d.y / dist) * step, blk);
     } else if (dist < keepDistance && dist > 1e-6) {
@@ -974,7 +982,8 @@ function executeEnemyAttack(sim: Sim, e: EnemyState, def: EnemyDef, target: Play
   const dist = Math.hypot(d.x, d.y);
   if (dist > def.attackRange || target.invulnTicks > 0) return; // whiffed, or target immune
   const guard = guardDefFor(sim, target);
-  const damage = def.touchDamage * (guard ? guard.damageMult : 1) * powerMult(sim, target, 'damageTakenMult');
+  const damage =
+    def.touchDamage * pressureDamageMult(sim) * (guard ? guard.damageMult : 1) * powerMult(sim, target, 'damageTakenMult');
   target.hp -= damage;
   target.invulnTicks = PLAYER_HIT_INVULN_TICKS;
   events.push({ type: 'player-hit', playerId: target.id, damage, pos: { ...target.pos } });
@@ -1015,6 +1024,44 @@ function separateEnemies(sim: Sim): void {
       moveCircle(level, b.pos, rb, nx * push, ny * push, blk);
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Mission time pressure — "the hive rouses" (issue #41)
+// ---------------------------------------------------------------------------
+
+/**
+ * Advances the mission clock and rouses the hive a stage at a time. Purely a
+ * function of `tick`, so it stays deterministic and replay-safe.
+ */
+function updatePressure(sim: Sim, events: SimEvent[]): void {
+  const s = sim.state;
+  const def = sim.config.content.pressure;
+  if (s.pressureStage >= def.maxStage) return;
+  if (s.tick < def.gracePeriodTicks) return;
+  const elapsed = s.tick - def.gracePeriodTicks;
+  const earned = Math.min(def.maxStage, 1 + Math.floor(elapsed / Math.max(1, def.intervalTicks)));
+  if (earned > s.pressureStage) {
+    s.pressureStage = earned;
+    events.push({ type: 'pressure-rose', stage: earned });
+  }
+}
+
+/** Enemy move-speed scale from the current pressure stage. */
+function pressureSpeedMult(sim: Sim, def: PressureDef): number {
+  return 1 + def.moveSpeedPerStage * sim.state.pressureStage;
+}
+
+/** Enemy damage scale from the current pressure stage (contact and spat). */
+function pressureDamageMult(sim: Sim): number {
+  const def = sim.config.content.pressure;
+  return 1 + def.damagePerStage * sim.state.pressureStage;
+}
+
+/** Spawn-interval scale; compounds per stage, so spawners quicken as it rises. */
+function pressureIntervalMult(sim: Sim): number {
+  const def = sim.config.content.pressure;
+  return Math.pow(def.spawnIntervalMult, sim.state.pressureStage);
 }
 
 // ---------------------------------------------------------------------------
@@ -1257,7 +1304,8 @@ function updateGenerators(sim: Sim, events: SimEvent[]): void {
       events.push({ type: 'enemy-spawned', enemyId: enemy.id, typeId: enemy.typeId, pos: { ...pos } });
       spawned = true;
     }
-    g.spawnCooldown = g.enrageTicksLeft > 0 ? enragedInterval(def) : def.spawnIntervalTicks;
+    const baseInterval = g.enrageTicksLeft > 0 ? enragedInterval(def) : def.spawnIntervalTicks;
+    g.spawnCooldown = Math.max(1, Math.round(baseInterval * pressureIntervalMult(sim)));
   }
 }
 

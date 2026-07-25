@@ -48,7 +48,8 @@ the code on 2026-07-24 and corrected; everything below is now landed):
 - [x] Key-controlled gate and a hidden treasure area — keys, gates and
       breakable secret walls (#17), authored into both early realms.
 - [x] Temporary power-up — Emberheart / Windstep Sigil / Aegis Bloom (#16),
-      plus the carried screen-clear potion (#41).
+      plus the carried screen-clear potion and the "hive rouses" time-pressure
+      ramp, both from #41.
 - [x] Boss encounter — Mireveil, Mother of the Brood, in realm 3 "The Hollow
       Throne" (#25): data-driven three-phase script (Brood Call → Lunge →
       spat globs), a >= 1 s telegraph before every damaging action, a HUD
@@ -68,7 +69,7 @@ work is the original-art track (#27, #28) and the M2 board (#29).
 
 ## Verification state
 
-`lint`, `typecheck`, **150 unit tests across 16 files**, the production build,
+`lint`, `typecheck`, **166 unit tests across 17 files**, the production build,
 and the Playwright gameplay playthrough (bot clears The Brood Warrens, banks
 gold and XP, buys an upgrade, and replays with both the upgrade and the earned
 level applied; screenshots in `test-results/`) all pass. Run the whole gate
@@ -371,9 +372,6 @@ polish rather than systems**:
    frames with zero code changes. The other three heroes, the enemy families
    and the boss are the biggest visible win available. Key list and canvas
    sizes: `docs/ART.md`.
-2. **The deferred pressure mechanic (#41)** — decide on health drain vs. a
-   softer aggression ramp. Recommendation and trade-offs are on the issue.
-
 Balance note carried from #25: ranged heroes kite Mireveil noticeably more
 easily than melee (~15–17s vs ~32s to kill). Worth a tuning pass once there is
 real playtest data, rather than speculative numbers now.

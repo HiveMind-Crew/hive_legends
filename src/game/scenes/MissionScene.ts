@@ -70,6 +70,8 @@ export interface HudBossInfo {
 export interface HudInfo {
   players: HudPlayerInfo[];
   generatorsLeft: number;
+  /** How roused the hive is, 0 = calm (issue #41). */
+  pressureStage: number;
   /** Present only on a boss realm, and only while she still stands. */
   boss: HudBossInfo | null;
   phase: string;
@@ -385,6 +387,7 @@ export class MissionScene extends Phaser.Scene {
         };
       }),
       generatorsLeft: s.generators.length,
+      pressureStage: s.pressureStage,
       boss: this.bossHudInfo(),
       phase: s.phase
     };
@@ -495,6 +498,13 @@ export class MissionScene extends Phaser.Scene {
           this.cameras.main.flash(90, 255, 215, 94);
           hud.herald(`LEVEL ${ev.level} — YOU GROW STRONGER`, '#ffd75e');
           break;
+        case 'pressure-rose': {
+          // Escalating call so the player feels the clock without a timer UI.
+          const line = ev.stage === 1 ? 'THE HIVE ROUSES' : ev.stage >= 4 ? 'THE HIVE IS FRENZIED' : 'THE HIVE SEETHES';
+          hud.herald(line, '#ff5a4d');
+          this.cameras.main.shake(220, 0.006);
+          break;
+        }
         case 'potion-used':
           this.potionBurst(ev.pos, ev.radius);
           hud.herald('HIVE-FIRE UNLEASHED', '#9fe06a');
