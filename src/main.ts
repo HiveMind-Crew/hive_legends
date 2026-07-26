@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { BootScene } from './game/scenes/BootScene';
 import { HeroSelectScene } from './game/scenes/HeroSelectScene';
 import { HudScene } from './game/scenes/HudScene';
+import { MissionHubScene } from './game/scenes/MissionHubScene';
 import { MissionScene } from './game/scenes/MissionScene';
 import { ResultsScene } from './game/scenes/ResultsScene';
 
@@ -12,5 +13,6 @@ new Phaser.Game({
   height: 720,
   backgroundColor: '#0a0a12',
   pixelArt: true,
-  scene: [BootScene, HeroSelectScene, MissionScene, HudScene, ResultsScene]
+  // MissionHubScene is registered but not yet in the flow; #57 wires it in.
+  scene: [BootScene, HeroSelectScene, MissionHubScene, MissionScene, HudScene, ResultsScene]
 });
