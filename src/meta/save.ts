@@ -1,7 +1,8 @@
 import { PROGRESSION } from '../content/progression';
+import { SPOKES, TEASER_SPOKES } from '../content/spokes';
 import { WEAPONS } from '../content/weapons';
 import { levelForXp } from '../sim/sim';
-import type { AttackDef, HeroDef, HeroModifiers, WeaponDef } from '../sim/types';
+import type { AttackDef, HeroDef, HeroModifiers, TeaserSpokeDef, WeaponDef } from '../sim/types';
 
 /**
  * Persistent meta-progression, stored in localStorage. Mission gold is
@@ -198,6 +199,25 @@ export function markLevelCleared(profile: Profile, levelId: string): void {
     profile.clearedLevels.push(levelId);
     saveProfile(profile);
   }
+}
+
+/**
+ * Whether every authored node on the wheel — every mission and every boss — has
+ * been cleared. True means the player has reached the edge of the game rather
+ * than merely finished a realm.
+ */
+export function isWheelComplete(profile: Profile): boolean {
+  return SPOKES.every((spoke) => [...spoke.missions, spoke.boss].every((id) => isLevelCleared(profile, id)));
+}
+
+/**
+ * The branch to dangle once there is nothing authored left to play, or
+ * undefined while content remains. Keeping this decision here rather than
+ * inside a scene means the end-of-content rule is unit-tested; the scene only
+ * renders what it returns.
+ */
+export function nextTeaser(profile: Profile): TeaserSpokeDef | undefined {
+  return isWheelComplete(profile) ? TEASER_SPOKES[0] : undefined;
 }
 
 /** The next mission after `levelId` in `order`, or null if it's the last. */

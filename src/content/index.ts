@@ -11,7 +11,7 @@ import { POWERUPS } from './powerups';
 import { PRESSURE } from './pressure';
 import { PROGRESSION } from './progression';
 import { PROPS } from './props';
-import { SPOKES } from './spokes';
+import { SPOKES, TEASER_SPOKES } from './spokes';
 import { WEAPONS } from './weapons';
 
 export const CONTENT: ContentDb = {
@@ -26,7 +26,8 @@ export const CONTENT: ContentDb = {
   progression: PROGRESSION,
   pressure: PRESSURE,
   combat: COMBAT,
-  spokes: SPOKES
+  spokes: SPOKES,
+  teaserSpokes: TEASER_SPOKES
 };
 
 /** Every authored mission, keyed by level id. */
@@ -49,7 +50,7 @@ export const LEVELS: Record<string, LevelDef> = {
  */
 export const MISSION_ORDER: readonly string[] = SPOKES.flatMap((s) => [...s.missions, s.boss]);
 
-export { SPOKES } from './spokes';
+export { SPOKES, TEASER_SPOKES } from './spokes';
 export { BROOD_WARRENS } from './levels/broodWarrens';
 export { RESIN_GALLERIES } from './levels/resinGalleries';
 export { HOLLOW_THRONE } from './levels/hollowThrone';

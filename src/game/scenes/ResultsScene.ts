@@ -8,6 +8,7 @@ import {
   loadProfile,
   markLevelCleared,
   nextLevelId,
+  nextTeaser,
   ownedWeapons,
   saveProfile,
   upgradeCost,
@@ -70,6 +71,9 @@ export class ResultsScene extends Phaser.Scene {
     // of this realm guarantees).
     const nextId = data.victory ? nextLevelId(levelId, MISSION_ORDER) : null;
     const nextName = nextId ? LEVELS[nextId]?.name : undefined;
+    // Edge of the authored game: instead of going quiet, name what is coming
+    // (issue #63). The rule lives in meta so it is unit-tested; this only draws.
+    const teaser = data.victory && !nextId ? nextTeaser(this.profile) : undefined;
 
     // Banner treatment: colored band + glow behind the verdict, title pops in.
     const bannerColor = data.victory ? 0x9fe06a : 0xe0524d;
@@ -136,6 +140,29 @@ export class ResultsScene extends Phaser.Scene {
         lineSpacing: 10
       })
       .setOrigin(0.5);
+
+    if (teaser) {
+      // Name the spoke that owns the boss just felled, rather than hardcoding
+      // it — a second spoke must not leave this announcing the first.
+      const clearedSpoke =
+        CONTENT.spokes.find((s) => s.boss === levelId) ?? CONTENT.spokes[CONTENT.spokes.length - 1];
+      this.add
+        .text(width / 2, height - 132, `${(clearedSpoke?.name ?? 'THE WHEEL').toUpperCase()} IS CLEANSED`, {
+          fontFamily: 'monospace',
+          fontSize: '16px',
+          color: '#ffd75e'
+        })
+        .setOrigin(0.5);
+      this.add
+        .text(width / 2, height - 108, `${teaser.name} — ${teaser.tagline}`, {
+          fontFamily: 'monospace',
+          fontSize: '13px',
+          color: '#a89bb8',
+          align: 'center',
+          wordWrap: { width: width - 160 }
+        })
+        .setOrigin(0.5);
+    }
 
     const nav = nextName
       ? `N — next: ${nextName}      R — replay      H — hero select`
