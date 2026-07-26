@@ -408,6 +408,24 @@ charging, so it is a pessimistic bound. Re-check against real play before
 widening the arc; the Sentinel's crowd lead is only ~6% at T3, so his reach
 would have to grow with it or the two heroes converge again.
 
+The mission wheel landed (#59). Mission selection moved off the hero-select
+list panel onto a spoke-and-wheel hub: a spoke is three sequential missions
+capped by a boss, the boss opens when all three are cleared, and the next spoke
+opens when that boss falls. The first spoke — **The Azure Reach** — is The
+Brood Warrens, The Resin Galleries, the new **Cobalt Combs** (#55), and
+Mireveil at The Hollow Throne, with two announced-but-unauthored realms drawn
+as teaser arms.
+
+The shape of the wheel is data (`SpokeDef`/`TeaserSpokeDef` in
+`src/content/spokes.ts`), the rules live in `src/meta/save.ts`
+(`nodeLockState` and friends), and `MissionHubScene` only draws. Crucially
+nothing is stored per spoke — every rule derives from `Profile.clearedLevels`,
+so adding a realm is a pure content change and existing saves carried over with
+no migration. Flow is now hero select → wheel → mission → results, with results
+returning through the wheel so a freshly unlocked node is seen to open.
+`docs/PROGRESSION.md` is the reference, including a walkthrough for adding a
+realm and the invariants that guard it.
+
 ## Next recommended task
 
 M1 is content-complete, and the highest-value work is **presentation
