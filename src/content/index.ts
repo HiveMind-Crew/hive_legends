@@ -4,6 +4,7 @@ import { COMBAT } from './combat';
 import { ENEMIES, GENERATORS } from './enemies';
 import { HEROES } from './heroes';
 import { BROOD_WARRENS } from './levels/broodWarrens';
+import { COBALT_COMBS } from './levels/cobaltCombs';
 import { HOLLOW_THRONE } from './levels/hollowThrone';
 import { RESIN_GALLERIES } from './levels/resinGalleries';
 import { POTION } from './potions';
@@ -34,6 +35,7 @@ export const CONTENT: ContentDb = {
 export const LEVELS: Record<string, LevelDef> = {
   [BROOD_WARRENS.id]: BROOD_WARRENS,
   [RESIN_GALLERIES.id]: RESIN_GALLERIES,
+  [COBALT_COMBS.id]: COBALT_COMBS,
   [HOLLOW_THRONE.id]: HOLLOW_THRONE
 };
 
@@ -53,4 +55,5 @@ export const MISSION_ORDER: readonly string[] = SPOKES.flatMap((s) => [...s.miss
 export { SPOKES, TEASER_SPOKES } from './spokes';
 export { BROOD_WARRENS } from './levels/broodWarrens';
 export { RESIN_GALLERIES } from './levels/resinGalleries';
+export { COBALT_COMBS } from './levels/cobaltCombs';
 export { HOLLOW_THRONE } from './levels/hollowThrone';

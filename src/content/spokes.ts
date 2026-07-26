@@ -1,5 +1,6 @@
 import type { SpokeDef, TeaserSpokeDef } from '../sim/types';
 import { BROOD_WARRENS } from './levels/broodWarrens';
+import { COBALT_COMBS } from './levels/cobaltCombs';
 import { HOLLOW_THRONE } from './levels/hollowThrone';
 import { RESIN_GALLERIES } from './levels/resinGalleries';
 
@@ -23,9 +24,7 @@ export const SPOKES: readonly SpokeDef[] = [
     // own palettes — the Warrens stay violet and the Galleries stay amber,
     // whose name and authored identity depend on that tint.
     accent: 0x4aa3ff,
-    // Third mission pending (issue #55); the content test relaxes to >= 2
-    // until it lands, then tightens to exactly 3.
-    missions: [BROOD_WARRENS.id, RESIN_GALLERIES.id],
+    missions: [BROOD_WARRENS.id, RESIN_GALLERIES.id, COBALT_COMBS.id],
     boss: HOLLOW_THRONE.id,
     // The first spoke: no gate in front of it.
     angleDeg: 0

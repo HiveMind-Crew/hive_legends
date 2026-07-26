@@ -11,8 +11,13 @@ import {
   isHeroUnlocked,
   isLevelCleared,
   isLevelUnlocked,
+  isSpokeUnlocked,
   isWheelComplete,
   nextTeaser,
+  nodeLockState,
+  spokeForLevel,
+  spokeProgress,
+  suggestedNode,
   loadProfile,
   bankXp,
   markLevelCleared,
@@ -248,6 +253,96 @@ describe('banked XP and hero level', () => {
 
   it('loadProfile backfills xp for older saves', () => {
     expect(loadProfile().xp).toBe(0);
+  });
+});
+
+/**
+ * The mission wheel (issue #54). A spoke runs its missions in sequence and
+ * caps them with a boss; every rule here derives from `clearedLevels`, so
+ * these also stand as the guarantee that no save migration is ever needed.
+ */
+describe('wheel progression', () => {
+  const spoke = SPOKES[0]!;
+  const missions = spoke.missions;
+  const boss = spoke.boss;
+
+  it('a fresh profile opens only the first mission', () => {
+    const profile = defaultProfile();
+    expect(nodeLockState(profile, missions[0]!)).toEqual({ state: 'available' });
+    for (const id of missions.slice(1)) {
+      expect(nodeLockState(profile, id), id).toEqual({ state: 'locked', reason: 'previous-mission' });
+    }
+    expect(nodeLockState(profile, boss)).toEqual({ state: 'locked', reason: 'boss-gated' });
+  });
+
+  it('clearing a mission opens exactly the next one, never the boss', () => {
+    const profile = defaultProfile();
+    for (let i = 0; i < missions.length - 1; i++) {
+      markLevelCleared(profile, missions[i]!);
+      expect(nodeLockState(profile, missions[i]!), `${missions[i]} cleared`).toEqual({ state: 'cleared' });
+      expect(nodeLockState(profile, missions[i + 1]!), `${missions[i + 1]} opened`).toEqual({ state: 'available' });
+      // The boss stays shut while any mission is outstanding.
+      expect(nodeLockState(profile, boss), 'boss still gated').toEqual({ state: 'locked', reason: 'boss-gated' });
+    }
+  });
+
+  it('the boss opens once every mission in the spoke is cleared', () => {
+    const profile = defaultProfile();
+    for (const id of missions) markLevelCleared(profile, id);
+    expect(nodeLockState(profile, boss)).toEqual({ state: 'available' });
+  });
+
+  it('a cleared level stays enterable, so Results can offer a replay', () => {
+    const profile = defaultProfile();
+    markLevelCleared(profile, missions[0]!);
+    expect(nodeLockState(profile, missions[0]!).state).toBe('cleared');
+    expect(isLevelUnlocked(profile, missions[0]!)).toBe(true);
+  });
+
+  it('the only authored spoke is open from the start', () => {
+    expect(isSpokeUnlocked(defaultProfile(), spoke.id)).toBe(true);
+    expect(isSpokeUnlocked(defaultProfile(), 'no-such-spoke')).toBe(false);
+  });
+
+  it('spokeProgress counts missions, not the boss', () => {
+    const profile = defaultProfile();
+    expect(spokeProgress(profile, spoke.id)).toEqual({ cleared: 0, total: missions.length });
+    markLevelCleared(profile, missions[0]!);
+    expect(spokeProgress(profile, spoke.id)).toEqual({ cleared: 1, total: missions.length });
+    // Felling the boss doesn't inflate the mission count.
+    markLevelCleared(profile, boss);
+    expect(spokeProgress(profile, spoke.id).cleared).toBe(1);
+  });
+
+  it('spokeForLevel maps a level back to its branch', () => {
+    expect(spokeForLevel(missions[0]!)?.id).toBe(spoke.id);
+    expect(spokeForLevel(boss)?.id).toBe(spoke.id);
+    expect(spokeForLevel('does-not-exist')).toBeUndefined();
+  });
+
+  it('suggestedNode tracks the next thing to play', () => {
+    const profile = defaultProfile();
+    expect(suggestedNode(profile)).toEqual({ spokeId: spoke.id, levelId: missions[0] });
+
+    markLevelCleared(profile, missions[0]!);
+    expect(suggestedNode(profile).levelId).toBe(missions[1]);
+
+    for (const id of missions) markLevelCleared(profile, id);
+    expect(suggestedNode(profile).levelId, 'boss once the missions are done').toBe(boss);
+
+    // Nothing left: the cursor parks on the last reachable node, never nowhere.
+    markLevelCleared(profile, boss);
+    expect(suggestedNode(profile).levelId).toBe(boss);
+  });
+
+  it('reads identically to the pre-wheel linear rule for existing saves', () => {
+    // A profile written by the shipped build carries only cleared level ids.
+    // Under the wheel it must resolve to the same open missions, or players
+    // would lose access to realms they had already earned.
+    const profile = { ...defaultProfile(), clearedLevels: ['brood-warrens'] };
+    expect(isLevelUnlocked(profile, 'brood-warrens', MISSION_ORDER)).toBe(true);
+    expect(isLevelUnlocked(profile, 'resin-galleries', MISSION_ORDER)).toBe(true);
+    expect(isLevelCleared(profile, 'brood-warrens')).toBe(true);
   });
 });
 
