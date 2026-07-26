@@ -114,13 +114,24 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   await page.waitForTimeout(1000);
   await page.screenshot({ path: 'test-results/01-hero-select.png' });
 
-  // Enter the mission from hero select, retrying the press rather than sending
-  // it once (issue #61). The canvas turns visible as soon as Phaser creates it,
+  // Hero select hands off to the wheel, which deploys (issue #57), so reaching
+  // a mission now takes two confirms rather than one.
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: 'test-results/01b-mission-hub.png' });
+
+  // Confirm through to the mission, retrying the press rather than sending it
+  // once (issue #61). The canvas turns visible as soon as Phaser creates it,
   // but BootScene then generates every texture procedurally before
   // HeroSelectScene exists to bind `keydown-ENTER`. On a loaded machine that
   // outlasts any fixed wait, and a single press is silently swallowed — the
   // test then times out on a keypress that never landed, which no amount of
-  // extra polling can recover. Retrying is safe: once a mission is running,
+  // extra polling can recover.
+  //
+  // The retry also covers the extra hop: if the press above was dropped, this
+  // loop walks hero select → wheel → mission on its own. Safe at every step —
+  // the wheel deploys the node its cursor already sits on (`suggestedNode`, so
+  // The Brood Warrens on a fresh profile), and once a mission is running
   // MissionScene ignores Enter entirely (it binds only `M`).
   await expect
     .poll(
