@@ -164,13 +164,17 @@ export class ResultsScene extends Phaser.Scene {
         .setOrigin(0.5);
     }
 
+    // The wheel is the way back into the game now (issue #57): "next" returns
+    // to the hub with the newly-opened node under the cursor, rather than
+    // launching straight into the next realm — so a freshly-unlocked boss node
+    // is actually seen to open.
     const nav = nextName
-      ? `N — next: ${nextName}      R — replay      H — hero select`
-      : 'R — replay mission      H — hero select';
+      ? `N — the wheel: ${nextName} awaits      R — replay      H — hero select`
+      : 'W — the wheel      R — replay mission      H — hero select';
     this.add
       .text(width / 2, height - 80, nav, {
         fontFamily: 'monospace',
-        fontSize: nextName ? '17px' : '20px',
+        fontSize: nextName ? '16px' : '18px',
         color: '#64e6ff'
       })
       .setOrigin(0.5);
@@ -213,12 +217,14 @@ export class ResultsScene extends Phaser.Scene {
       audio.uiConfirm();
       this.scene.start('hero-select', { heroId: this.heroId });
     });
-    if (nextId) {
-      kb.once('keydown-N', () => {
-        audio.uiConfirm();
-        this.scene.start('mission', { heroId: this.heroId, levelId: nextId });
-      });
-    }
+    // Back to the wheel. `levelId` seeds the cursor so the hub opens on the
+    // node just unlocked (or, with nothing left, the realm just finished).
+    const toWheel = (focus: string): void => {
+      audio.uiConfirm();
+      this.scene.start('mission-hub', { heroId: this.heroId, levelId: focus });
+    };
+    kb.once('keydown-W', () => toWheel(levelId));
+    if (nextId) kb.once('keydown-N', () => toWheel(nextId));
   }
 
   private tryBuy(upgradeId: string): void {

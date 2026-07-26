@@ -45,10 +45,10 @@ export const LEVELS: Record<string, LevelDef> = {
  * Enter-default, so the first spoke's first mission must stay The Brood
  * Warrens — a content test enforces it.
  *
- * This is a compatibility view for the pre-wheel linear flow
- * (`isLevelUnlocked`, `nextLevelId`, the hero-select mission panel). It goes
- * away once `MissionHubScene` lands and those call sites move to the
- * spoke-aware rules — see issues #54 and #57.
+ * The hub navigates the wheel directly; this flat view survives for the
+ * places that still want a linear reading of it — `ResultsScene` asking
+ * `nextLevelId` what follows a clear, and the content/level tests. Prefer the
+ * spoke-aware rules in `src/meta/save.ts` for anything new.
  */
 export const MISSION_ORDER: readonly string[] = SPOKES.flatMap((s) => [...s.missions, s.boss]);
 
