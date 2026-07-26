@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "docs:combat": "UPDATE_DOCS=1 vitest run tests/combatDoc.test.ts",
+    "art:build": "UPDATE_ART=1 vitest run tests/artPack.test.ts",
     "lint": "eslint src tests e2e scripts",
     "typecheck": "tsc --noEmit"
   },
