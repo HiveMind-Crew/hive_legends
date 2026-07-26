@@ -476,6 +476,27 @@ export interface SpokeDef {
 }
 
 /**
+ * A branch announced on the wheel but not yet authored (issue #63).
+ *
+ * Deliberately a separate shape from `SpokeDef` rather than a flag on it: a
+ * teaser has no missions, no boss and no gate, so giving it those fields would
+ * mean loosening the content invariants that make a real spoke trustworthy.
+ * Promoting a teaser is then a deliberate move between two lists — author the
+ * levels, delete the teaser, add a `SpokeDef` — rather than flipping a flag and
+ * hoping the tests still mean anything.
+ */
+export interface TeaserSpokeDef {
+  id: string;
+  name: string;
+  /** Identity colour on the wheel, as for a real spoke. */
+  accent: number;
+  /** Placement on the wheel; must not collide with a real spoke's. */
+  angleDeg: number;
+  /** One line of flavour, shown at the edge of authored content. */
+  tagline: string;
+}
+
+/**
  * Temporary power-ups (issue #16): floor pickups that grant a timed buff.
  * Every def carries all three multipliers; the ones a given power-up doesn't
  * use stay at 1, so the sim can multiply uniformly with no per-kind branching.
@@ -575,6 +596,8 @@ export interface ContentDb {
   combat: CombatDef;
   /** Mission-wheel branches, in wheel order (issue #53). */
   spokes: readonly SpokeDef[];
+  /** Announced-but-unauthored branches, drawn as locked teasers (issue #63). */
+  teaserSpokes: readonly TeaserSpokeDef[];
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BROOD_WARRENS, CONTENT, LEVELS, MISSION_ORDER, SPOKES } from '../src/content';
+import { BROOD_WARRENS, CONTENT, LEVELS, MISSION_ORDER, SPOKES, TEASER_SPOKES } from '../src/content';
 import { TEXTURE_SPECS } from '../src/game/textureSpecs';
 import { DECOR_KINDS, ENEMY_FAMILIES, ENEMY_TIERS } from '../src/sim/types';
 
@@ -136,12 +136,27 @@ describe('mission wheel', () => {
     }
   });
 
-  it('spoke ids and wheel angles are unique', () => {
-    const ids = SPOKES.map((s) => s.id);
-    const angles = SPOKES.map((s) => s.angleDeg);
-    expect(new Set(ids).size, 'unique spoke ids').toBe(ids.length);
-    // Two spokes on the same bearing would draw on top of each other.
-    expect(new Set(angles).size, 'unique wheel angles').toBe(angles.length);
+  it('spoke ids and wheel angles are unique, teasers included', () => {
+    // Teasers share the wheel with real spokes, so the uniqueness that keeps
+    // branches from drawing on top of each other has to span both lists.
+    const ids = [...SPOKES.map((s) => s.id), ...TEASER_SPOKES.map((t) => t.id)];
+    const angles = [...SPOKES.map((s) => s.angleDeg), ...TEASER_SPOKES.map((t) => t.angleDeg)];
+    expect(new Set(ids).size, 'unique ids across spokes and teasers').toBe(ids.length);
+    expect(new Set(angles).size, 'unique wheel angles across spokes and teasers').toBe(angles.length);
+  });
+
+  it('the wheel announces somewhere still to go', () => {
+    // Without a teaser the hub renders a lone line and the game looks finished
+    // the moment the first spoke is done (issue #63).
+    expect(TEASER_SPOKES.length).toBeGreaterThan(0);
+    for (const t of TEASER_SPOKES) {
+      expect(t.name.length, `${t.id} name`).toBeGreaterThan(0);
+      expect(t.tagline.length, `${t.id} tagline`).toBeGreaterThan(0);
+      // A teaser has no nodes by construction; if it grows any it should have
+      // become a real SpokeDef instead.
+      expect(Object.keys(t).sort()).toEqual(['accent', 'angleDeg', 'id', 'name', 'tagline']);
+    }
+    expect(CONTENT.teaserSpokes).toBe(TEASER_SPOKES);
   });
 
   it('the spoke gate graph is well-formed and acyclic', () => {

@@ -1,4 +1,4 @@
-import type { SpokeDef } from '../sim/types';
+import type { SpokeDef, TeaserSpokeDef } from '../sim/types';
 import { BROOD_WARRENS } from './levels/broodWarrens';
 import { COBALT_COMBS } from './levels/cobaltCombs';
 import { HOLLOW_THRONE } from './levels/hollowThrone';
@@ -28,5 +28,34 @@ export const SPOKES: readonly SpokeDef[] = [
     boss: HOLLOW_THRONE.id,
     // The first spoke: no gate in front of it.
     angleDeg: 0
+  }
+];
+
+/**
+ * Branches the wheel announces but does not yet contain (issue #63).
+ *
+ * These exist so the hub reads as a wheel rather than a lone line, and so the
+ * player can see the game has somewhere to go. Keeping them in content rather
+ * than hardcoding a placeholder in `MissionHubScene` means the shape of the
+ * wheel stays data, and promoting one to a real spoke is a deliberate edit
+ * here instead of a scene change someone has to remember to make.
+ *
+ * Angles are chosen not to collide with any real spoke's; a content test
+ * enforces it across both lists.
+ */
+export const TEASER_SPOKES: readonly TeaserSpokeDef[] = [
+  {
+    id: 'ashen-spiral',
+    name: 'The Ashen Spiral',
+    accent: 0xff7a3c,
+    angleDeg: 120,
+    tagline: 'Smoke coils from the deep galleries. Something down there is still burning.'
+  },
+  {
+    id: 'glass-hollows',
+    name: 'The Glass Hollows',
+    accent: 0x8fe0c8,
+    angleDeg: 240,
+    tagline: 'Where the hive fused to glass, the echoes have not stopped moving.'
   }
 ];

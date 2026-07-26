@@ -109,13 +109,28 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
 
   await page.goto('/');
   await expect(page.locator('canvas')).toBeVisible({ timeout: 15_000 });
+  // A settle for the screenshot only — correctness must not depend on it, see
+  // the retry below.
   await page.waitForTimeout(1000);
   await page.screenshot({ path: 'test-results/01-hero-select.png' });
 
-  // Enter the mission from hero select.
-  await page.keyboard.press('Enter');
+  // Enter the mission from hero select, retrying the press rather than sending
+  // it once (issue #61). The canvas turns visible as soon as Phaser creates it,
+  // but BootScene then generates every texture procedurally before
+  // HeroSelectScene exists to bind `keydown-ENTER`. On a loaded machine that
+  // outlasts any fixed wait, and a single press is silently swallowed — the
+  // test then times out on a keypress that never landed, which no amount of
+  // extra polling can recover. Retrying is safe: once a mission is running,
+  // MissionScene ignores Enter entirely (it binds only `M`).
   await expect
-    .poll(async () => (await getState(page)) !== null, { timeout: 10_000 })
+    .poll(
+      async () => {
+        if ((await getState(page)) !== null) return true;
+        await page.keyboard.press('Enter');
+        return false;
+      },
+      { timeout: 20_000, intervals: [250] }
+    )
     .toBe(true);
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'test-results/02-mission-start.png' });
