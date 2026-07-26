@@ -30,6 +30,15 @@ tables are generated from `src/content` — after a tuning change run
 in `tests/combat.test.ts` fail when a change crosses an archetype line rather
 than a tuning line.
 
+## Mission progression
+
+Before changing how the player moves between missions — spokes, unlocks, the
+hub — read `docs/PROGRESSION.md`. The wheel is 3 sequential missions capped by
+a boss; everything derives from `Profile.clearedLevels`, so adding a realm is a
+content change in `src/content/spokes.ts` and needs no unlock code, no scene
+code, and no save migration. If a spoke change requires editing a scene,
+something has gone wrong.
+
 ## Layout
 
 - `src/sim` — deterministic simulation core (engine-free)
@@ -42,7 +51,8 @@ than a tuning line.
 - `e2e/` — Playwright gameplay playthrough (bot plays the real build)
 - `scripts/` — doc generators (not shipped in the build)
 - `docs/adr/` — architecture decision records; `docs/STATUS.md` — milestone log;
-  `docs/COMBAT.md` — hero attack/ability reference (partly generated)
+  `docs/COMBAT.md` — hero attack/ability reference (partly generated);
+  `docs/PROGRESSION.md` — the mission wheel and how to add a realm
 
 ## Verification (all must pass before committing)
 
