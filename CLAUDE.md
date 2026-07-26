@@ -49,8 +49,9 @@ something has gone wrong.
   listed in `public/art/manifest.json` (see `docs/ART.md`)
 - `tests/` — vitest unit tests for the sim
 - `e2e/` — Playwright gameplay playthrough (bot plays the real build)
-- `scripts/` — doc generators, and the pixel grids the hand-drawn art packs are
-  authored from (neither is shipped in the build)
+- `scripts/` — doc generators, and the pixel grids the Ranger art pack is drawn
+  as (neither is shipped in the build; a pack may equally be exported PNGs, as
+  the Vanguard and Arcanist ones are)
 - `docs/adr/` — architecture decision records; `docs/STATUS.md` — milestone log;
   `docs/COMBAT.md` — hero attack/ability reference (partly generated);
   `docs/PROGRESSION.md` — the mission wheel and how to add a realm
