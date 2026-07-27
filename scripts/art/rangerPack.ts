@@ -15,31 +15,33 @@ import { encodePng, mirror, rasterize, type Palette } from './pixels';
  *
  * - 36x36, transparent, no baked shadow, vignette, or player accent — the
  *   renderer layers all three, so anything baked in would double up.
- * - The silhouette carries the read at 1x: pointed hood, cloak flare, the
- *   stave's long vertical, fletchings breaking the shoulder line. Tamsin has
- *   to be tellable from Korrin's pauldrons-and-blade at a glance in a horde.
- * - Original hive-fantasy work: mossed leathers and thorn-fletched shafts, no
- *   reference to any existing game's ranger.
+ * - The silhouette carries the read at 1x: fitted hood, short mantle, compact
+ *   thornwood bow, high quiver and a runner's forward stance. Tamsin has to be
+ *   tellable from Korrin's pauldrons-and-pike at a glance in a horde.
+ * - The approved identity is a medium-dark-skinned human woman with tight dark
+ *   curls visible inside the hood, moss cloth and dark practical leathers.
+ * - Original hive-fantasy work: resin-bound thornwood and thorn-fletched darts,
+ *   with no reference to any existing game's ranger.
  *
  * Only five directions are drawn. East/west, SE/SW and NE/NW are mirrors of
  * each other — the same trick the Vanguard and Arcanist packs use, and it is
  * safe here because nothing in the design is handed.
  */
 
-/** `.` is transparent. Twelve inks, in the hive palette. */
+/** `.` is transparent. Twelve inks, tuned against the violet warren floor. */
 export const RANGER_PALETTE: Palette = {
-  O: '#14210f', // outline — near-black green, the whole figure is ringed in it
-  H: '#6faa62', // hood, lit crown
-  h: '#4c7f4a', // hood and sleeves, mid
-  d: '#2f5533', // cloak shadow, hem
-  L: '#a9773f', // jerkin leather, lit
-  l: '#6d472a', // jerkin leather, shadow
-  S: '#d7a273', // skin, lit
-  s: '#a2724d', // skin inside the hood
-  W: '#caa66a', // bow stave and shafts
-  G: '#e8e2d0', // bowstring
-  P: '#9fe06a', // spore-green thorn fletching — the one bioluminescent note
-  b: '#3a2c1e' // belt and boots
+  O: '#18160f', // outline — nearly black olive
+  H: '#9aa65f', // moss hood, lit crown
+  h: '#69824b', // hood, mantle and sleeves
+  d: '#3e5b38', // deep olive cloth shadow
+  L: '#a56e47', // fitted leather jerkin, lit
+  l: '#64402d', // jerkin and bracer shadow
+  S: '#c47b57', // warm medium-dark skin, lit
+  s: '#8c5039', // skin inside the hood
+  W: '#b9824c', // dark thornwood bow and dart shafts
+  G: '#e1d0a4', // bowstring and bone-tan edge highlights
+  P: '#e2a84b', // muted amber-resin bindings and fletching
+  b: '#2e211c' // curls, belt and light boots
 };
 
 const SIZE = 36;
@@ -63,9 +65,9 @@ const EAST: DirectionFrames = {
     '......POWO.OhhhhhHhhO...............',
     '......WOWO.OhhhhhOssO...............',
     '......WO..OhhhhhhOPsSO..............',
-    '.......OLLOhhhhhhOssSO..............',
-    '........OLLOhhhhhOsSSO..............',
-    '.........OLLOhhhhOSSO...WO..........',
+    '.......OLLOhhhhhhObssO..............',
+    '........OLLOhhhhhObsSO..............',
+    '.........OLLOhhhhOssO...WO..........',
     '.........OLOOdhhhhOSO...WO..........',
     '..........OLOddhhhhhhdO.GWO.........',
     '..........OOOddhhhhhhdO.GWO.........',
@@ -102,9 +104,9 @@ const EAST: DirectionFrames = {
     '......POWO.OhhhhhHhhO...............',
     '......WOWO.OhhhhhOssO...............',
     '......WO..OhhhhhhOPsSO..............',
-    '.......OLLOhhhhhhOssSO..............',
-    '........OLLOhhhhhOsSSO..............',
-    '.........OLLOhhhhOSSO...WO..........',
+    '.......OLLOhhhhhhObssO..............',
+    '........OLLOhhhhhObsSO..............',
+    '.........OLLOhhhhOssO...WO..........',
     '.........OLOOdhhhhOSO...WO..........',
     '..........OLOddhhhhhhdO.GWO.........',
     '..........OOOddhhhhhhdO.GWO.........',
@@ -141,8 +143,8 @@ const EAST: DirectionFrames = {
     '......POWO.OhhhhhHhhO...............',
     '......WOWO.OhhhhhOssO....OO.........',
     '......WO..OhhhhhhOPsSO..GWO.........',
-    '.......OLLOhhhhhhOssSO.G.WO.........',
-    '........OLLOhhhhhOsSSOG...WO........',
+    '.......OLLOhhhhhhObssO.G.WO.........',
+    '........OLLOhhhhhObsSOG...WO........',
     '.........OLLOhhhhOSSSO.....WO.......',
     '.........OLOOdhhhhOSSWWWWWWWWWPPO...',
     '..........OLOddhhhhhGOOOOOOOOO......',
@@ -185,9 +187,9 @@ const SOUTH_EAST: DirectionFrames = {
     '..........POPOhhHHhhO...............',
     '.........OPOOhhHHHHhhO..............',
     '.........OWOOhhhhOOOOhO.............',
-    '.........OWOOhhhhOssSOhO............',
-    '.........OWOOhhhhOsPSOhO............',
-    '.........OWOOhhhhOsSSOhO............',
+    '.........OWOOhhhhObbsOhO............',
+    '.........OWOOhhhhObsSOhO............',
+    '.........OWOOhhhhObssOhO............',
     '.........OWOOhhhhOSSSOhO............',
     '.........OO.OdhhhhOOOhdO............',
     '...........OddhhhhhhhhddO.WO........',
@@ -224,9 +226,9 @@ const SOUTH_EAST: DirectionFrames = {
     '..........POPOhhHHhhO...............',
     '.........OPOOhhHHHHhhO..............',
     '.........OWOOhhhhOOOOhO.............',
-    '.........OWOOhhhhOssSOhO............',
-    '.........OWOOhhhhOsPSOhO............',
-    '.........OWOOhhhhOsSSOhO............',
+    '.........OWOOhhhhObbsOhO............',
+    '.........OWOOhhhhObsSOhO............',
+    '.........OWOOhhhhObssOhO............',
     '.........OWOOhhhhOSSSOhO............',
     '.........OO.OdhhhhOOOhdO............',
     '...........OddhhhhhhhhddO.WO........',
@@ -263,9 +265,9 @@ const SOUTH_EAST: DirectionFrames = {
     '..........POPOhhHHhhO...............',
     '.........OPOOhhHHHHhhO..............',
     '.........OWOOhhhhOOOOhO.............',
-    '.........OWOOhhhhOssSOhO............',
-    '.........OWOOhhhhOsPSOhO............',
-    '.........OWOOhhhhOsSSOhO............',
+    '.........OWOOhhhhObbsOhO............',
+    '.........OWOOhhhhObsSOhO............',
+    '.........OWOOhhhhObssOhO............',
     '.........OWOOhhhhOSSSOhO...WO.......',
     '.........OO.OdhhhhOOOhdO...GO.......',
     '...........OddhhhhhhhhddO..GWO......',
@@ -309,9 +311,9 @@ const SOUTH: DirectionFrames = {
     '..........POP.OhhHHhhO..............',
     '.........OPOWOhhHHHHhhO.............',
     '.........OWOWOhhOOOOhhO.............',
-    '.........OWOWOhOssssOhO.............',
-    '.........OWOWOhOsPPsOhO.............',
-    '.........OWOWOhOssssOhO.............',
+    '.........OWOWOhObbbbOhO.............',
+    '.........OWOWOhObsSbOhO.............',
+    '.........OWOWOhObssbOhO.............',
     '.........OWOWOhhOSSOhhO....WO.......',
     '.........OWOOdhhhOOhhhdO...WO.......',
     '.........OOOddhhhhhhhhddO..GWO......',
@@ -348,9 +350,9 @@ const SOUTH: DirectionFrames = {
     '..........POP.OhhHHhhO..............',
     '.........OPOWOhhHHHHhhO.............',
     '.........OWOWOhhOOOOhhO.............',
-    '.........OWOWOhOssssOhO.............',
-    '.........OWOWOhOsPPsOhO.............',
-    '.........OWOWOhOssssOhO.............',
+    '.........OWOWOhObbbbOhO.............',
+    '.........OWOWOhObsSbOhO.............',
+    '.........OWOWOhObssbOhO.............',
     '.........OWOWOhhOSSOhhO....WO.......',
     '.........OWOOdhhhOOhhhdO...WO.......',
     '.........OOOddhhhhhhhhddO..GWO......',
@@ -387,9 +389,9 @@ const SOUTH: DirectionFrames = {
     '..........POP.OhhHHhhO..............',
     '.........OPOWOhhHHHHhhO.............',
     '.........OWOWOhhOOOOhhO.............',
-    '.........OWOWOhOssssOhO.............',
-    '.........OWOWOhOsPPsOhO.............',
-    '.........OWOWOhOssssOhO.....WO......',
+    '.........OWOWOhObbbbOhO.............',
+    '.........OWOWOhObsSbOhO.............',
+    '.........OWOWOhObssbOhO.....WO......',
     '.........OWOWOhhOSSOhhO.....GO......',
     '.........OWOOdhhhOOhhhdO....GWO.....',
     '.........OOOddhhhhhhhhddO..G.WO.....',
