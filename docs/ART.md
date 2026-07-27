@@ -5,9 +5,10 @@ by real drawn art **without touching any code**: drop a PNG into
 `public/art/`, list it in the manifest, refresh. This document is the
 contract.
 
-The pipeline is live and already in use — the Vanguard hero pack ships as real
-art in `public/art/` (all 8 directions × 3 poses + the portrait). Every other
-key still falls back to generated art, so partial packs are the normal state.
+The pipeline is live and already in use — the Vanguard, Arcanist and Ranger
+hero packs ship as real art in `public/art/` (all 8 directions × 3 poses + the
+portrait, each). Every other key still falls back to generated art, so partial
+packs are the normal state.
 
 ## The one hard rule: originality
 
@@ -36,6 +37,26 @@ Wrong-sized files are rejected at boot with a console warning (generated art
 is used instead), so a bad export can't silently break the game. Listing a
 key with no matching file logs a browser 404 — keep the manifest in sync.
 
+Neither of those failures stops a build, so `tests/artPack.test.ts` makes both
+structural: every manifest key must be a real texture key, must have a file
+behind it at the size `TEXTURE_SPECS` declares, and every PNG checked into
+`public/art/` must be listed. Adding art you forgot to list now fails `npm
+test` instead of shipping invisible.
+
+## Authoring a pack as pixel grids (optional)
+
+A PNG is the contract; how you make it is up to you. If you have no paint
+program to hand, the Ranger pack shows the other route: the frames are drawn
+as character grids in `scripts/art/rangerPack.ts`, one character per pixel
+against a named palette, and `npm run art:build` encodes them into
+`public/art/`. `tests/artPack.test.ts` then fails whenever the checked-in PNGs
+and the grids disagree.
+
+The point is reviewability. A silhouette change is a line in a diff rather than
+25 binary blobs a reviewer has to take on trust — worth it for character art,
+overkill for a one-off prop. Exported art from a real tool is equally welcome;
+just drop the PNG in and skip this section.
+
 ## Texture keys and sizes
 
 The machine-readable source of truth is `src/game/textureSpecs.ts`; the
@@ -58,8 +79,12 @@ Keys: `hero-<heroId>-<dir>-<pose>` for each of the four heroes — `vanguard`,
 is `w0`/`w1` (walk cycle) or `atk` (attack swing). `hero-<heroId>` (no
 suffix) is the menu portrait — usually a copy of `2-w0`.
 
-That is 25 keys per hero. **`vanguard` is already covered by a real art pack**;
-the other three are open (see #27).
+That is 25 keys per hero. **`vanguard`, `arcanist` and `ranger` are covered by
+real art packs**; `sentinel` is open (see #27).
+
+Opposite facings are mirrors in every pack that has shipped so far — east/west,
+SE/SW and NE/NW — so a hero is 5 drawn directions, not 8. Nothing in the design
+may be handed for that to hold.
 
 Do **not** bake in the player accent color, shadows, or the facing chevron —
 the renderer draws those. Keep the silhouette readable at 1× game scale.
