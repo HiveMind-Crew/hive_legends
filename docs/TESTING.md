@@ -18,9 +18,10 @@ npm run dev        # hot-reload dev server → http://localhost:5173
 
 Controls: **WASD/Arrows** move · **Space/J** attack · **Shift/K** ability ·
 **Q** quaff a potion · **Enter** confirm · **M** mute audio. On hero select,
-**←→** pick a hero, **↑↓** pick a mission, **B** recruit. In the results shop,
-**1/2** buy upgrades, **3/4** weapons, **N** next realm, **R** replay,
-**H** hero select.
+**←→** pick a hero, **B** recruit. On the wheel, **↑↓** move along a spoke,
+**←→** jump between realms, **Enter** deploy, **H** back to hero select. In
+the results shop, **1/2** buy upgrades, **3/4** weapons, **N** next mission,
+**W** back to the wheel, **R** replay, **H** hero select.
 
 To play the exact build that ships:
 
