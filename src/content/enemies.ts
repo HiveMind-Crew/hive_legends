@@ -4,7 +4,7 @@ import type { EnemyDef, GeneratorDef } from '../sim/types';
  * Enemy families of the Hive (#7 visual grammar, #23 roster):
  * - skitter: fast fragile swarmers
  * - husk: slow, tanky melee bruisers
- * - spitter: ranged attackers that keep their distance and spit hostile bolts
+ * - spitter: ranged zoners that keep their distance and fan hostile bile
  * Palette/size read from the tier (common → veteran → elite).
  */
 export const ENEMIES: Record<string, EnemyDef> = {
@@ -63,11 +63,13 @@ export const ENEMIES: Record<string, EnemyDef> = {
     goldMax: 9,
     xp: 12,
     attack: {
-      kind: 'bolt',
+      kind: 'volley',
       damage: 8,
       range: 200, // holds this distance and spits
       cooldownTicks: 105,
-      windupTicks: 16, // a visible charge before the glob leaves the sac
+      windupTicks: 20, // rear sac swells before the three-glob fan releases
+      count: 3,
+      spreadDeg: 32,
       projectileSpeed: 240,
       projectileRadius: 5,
       projectileRange: 230

@@ -16,6 +16,7 @@ import {
   type EnemyBoltAttackDef,
   type EnemyDef,
   type EnemyState,
+  type EnemyVolleyAttackDef,
   type GateState,
   type GuardAbilityDef,
   type SecretWallState,
@@ -724,10 +725,48 @@ function spawnEnemyProjectile(
   );
 }
 
+/** Spawns one evenly spaced, target-centred fan from a Spitter. */
+function spawnEnemyVolley(
+  sim: Sim,
+  e: EnemyState,
+  attack: EnemyVolleyAttackDef,
+  radius: number,
+  target: Vec2,
+  events: SimEvent[]
+): void {
+  const aim = norm(sub(target, e.pos));
+  const base = Math.atan2(aim.y, aim.x);
+  const spread = (attack.spreadDeg * Math.PI) / 180;
+  for (let i = 0; i < attack.count; i++) {
+    const fraction = attack.count > 1 ? i / (attack.count - 1) : 0.5;
+    const angle = base + (fraction - 0.5) * spread;
+    spawnHostileBolt(
+      sim,
+      e.id,
+      e.pos,
+      radius,
+      attack,
+      attack.damage,
+      { x: Math.cos(angle), y: Math.sin(angle) },
+      events,
+      pressureDamageMult(sim),
+      false
+    );
+  }
+  events.push({
+    type: 'enemy-volley',
+    enemyId: e.id,
+    pos: { ...e.pos },
+    dir: aim,
+    count: attack.count,
+    spreadDeg: attack.spreadDeg
+  });
+}
+
 /**
  * Spawns one hostile bolt from any attacker (enemy or boss) along a direction.
- * Reported as `enemy-shot` whatever the source, so the renderer and audio treat
- * a boss glob exactly like a spitter's bile.
+ * Single bolts report `enemy-shot`; a volley suppresses those per-bolt cues and
+ * emits one `enemy-volley` event so its fan reads and sounds like one attack.
  */
 function spawnHostileBolt(
   sim: Sim,
@@ -738,7 +777,8 @@ function spawnHostileBolt(
   damage: number,
   dirIn: Vec2,
   events: SimEvent[],
-  damageMult = 1
+  damageMult = 1,
+  emitShotEvent = true
 ): void {
   const dir = norm(dirIn);
   const spawnDist = originRadius + projectileDef.projectileRadius + 1;
@@ -756,13 +796,15 @@ function spawnHostileBolt(
     hostile: true
   };
   sim.state.projectiles.push(projectile);
-  events.push({
-    type: 'enemy-shot',
-    enemyId: ownerId,
-    projectileId: projectile.id,
-    pos: { ...projectile.pos },
-    vel: { ...projectile.vel }
-  });
+  if (emitShotEvent) {
+    events.push({
+      type: 'enemy-shot',
+      enemyId: ownerId,
+      projectileId: projectile.id,
+      pos: { ...projectile.pos },
+      vel: { ...projectile.vel }
+    });
+  }
 }
 
 /** Advances bolts: fly, stop at walls, damage what they touch, pierce, expire. */
@@ -972,7 +1014,8 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
     }
 
     // Attacking, only from inside its range. Melee still respects i-frames.
-    if (dist <= attack.range && e.attackCooldown === 0 && (attack.kind === 'bolt' || target.invulnTicks === 0)) {
+    const ranged = attack.kind === 'bolt' || attack.kind === 'volley';
+    if (dist <= attack.range && e.attackCooldown === 0 && (ranged || target.invulnTicks === 0)) {
       // Begin the telegraph instead of striking instantly. (No enemy ships a
       // zero windup, but a 0 would resolve the attack the same tick.)
       if (attack.windupTicks > 0) {
@@ -1001,6 +1044,10 @@ function executeEnemyAttack(sim: Sim, e: EnemyState, def: EnemyDef, target: Play
   e.attackCooldown = attack.cooldownTicks;
   if (attack.kind === 'bolt') {
     spawnEnemyProjectile(sim, e, attack, def.radius, target.pos, events);
+    return;
+  }
+  if (attack.kind === 'volley') {
+    spawnEnemyVolley(sim, e, attack, def.radius, target.pos, events);
     return;
   }
   if (attack.kind === 'line') {

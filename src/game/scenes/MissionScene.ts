@@ -668,6 +668,9 @@ export class MissionScene extends Phaser.Scene {
         case 'enemy-shot':
           this.burst(this.ichorFx, 3, ev.pos); // bile muzzle spit
           break;
+        case 'enemy-volley':
+          this.spitterVolley(ev.pos, ev.dir, ev.count, ev.spreadDeg);
+          break;
         case 'enemy-line-attack':
           this.ravagerRupture(ev.pos, ev.dir, ev.length, ev.width);
           break;
@@ -1217,6 +1220,25 @@ export class MissionScene extends Phaser.Scene {
     } });
     this.cameras.main.shake(130, 0.009);
     this.burst(this.dustFx, 10, { x: pos.x + dir.x * length, y: pos.y + dir.y * length });
+  }
+
+  /** Bile Spitter: a bright, short-lived fan that makes the spread readable. */
+  private spitterVolley(pos: Vec2, dir: Vec2, count: number, spreadDeg: number): void {
+    const base = Math.atan2(dir.y, dir.x);
+    const spread = (spreadDeg * Math.PI) / 180;
+    const fan = this.add.graphics().setDepth(DEPTH_FX);
+    fan.lineStyle(3, 0xb7ef56, 0.82);
+    for (let i = 0; i < count; i++) {
+      const fraction = count > 1 ? i / (count - 1) : 0.5;
+      const angle = base + (fraction - 0.5) * spread;
+      fan.beginPath();
+      fan.moveTo(pos.x + Math.cos(angle) * 10, pos.y + Math.sin(angle) * 10);
+      fan.lineTo(pos.x + Math.cos(angle) * 54, pos.y + Math.sin(angle) * 54);
+      fan.strokePath();
+    }
+    this.tweens.add({ targets: fan, alpha: 0, duration: 260, onComplete: () => fan.destroy() });
+    this.flashRing(pos, 20, 0xb7ef56);
+    this.burst(this.ichorFx, 7, pos);
   }
 
   /** Potion (#41): a big green hive-fire detonation — flash, shockwave, scorch. */

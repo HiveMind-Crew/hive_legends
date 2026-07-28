@@ -105,8 +105,8 @@ Tier palettes (family shape stays identical): `common` pale spore-green,
 live in `docs/design/visual-direction.md`. Readability beats richness: a
 15-enemy horde must parse at a glance by silhouette + palette alone.
 
-The **Skitter and Husk families are covered by real art packs** across all
-three tiers and animation frames. Spitter and Mireveil remain in issue #27.
+The **Skitter, Husk, and Spitter families are covered by real art packs** across
+all three tiers and animation frames. Mireveil remains in issue #27.
 
 Attack windups must make each family readable before its hit resolves:
 
@@ -115,6 +115,8 @@ Attack windups must make each family readable before its hit resolves:
 - **Husk:** plant the body and raise the forelimbs for the slow overhead bash.
   The elite Ravager uses the same family motion while the renderer adds its
   crimson line telegraph to show the committed rupture lane.
+- **Spitter:** plant all six legs, swell and illuminate the rear bile sac, and
+  brace the open funnel mouth before the three-glob fan.
 
 ### World objects
 

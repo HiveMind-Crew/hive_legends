@@ -276,13 +276,14 @@ new sim mechanic: `ProjectileState` gained a `hostile` flag, so enemy fire
 flies as deterministic sim bolts that strike players (respecting i-frames and
 Bastion Wall) while player fire still strikes enemies — the two never cross
 streams, and `updateProjectiles` shares one wall-stop path. `EnemyDef.attack`
-now holds the complete discriminated `contact` / `line` / `bolt` vocabulary,
-including shape, damage, commit range, windup, and recovery; there are no
-optional attack side channels or implied defaults. The Brood Warrens fields
-all three families from a Brood Node, a Husk Mound, and a Spitter Nest; the e2e
-bot still clears it. Renderer tints hostile bile bolts sickly-green and plays a
-distinct spit SFX; the family×tier art grammar (#7) drew every new silhouette
-with zero new texture code. Covered in `tests/sim/enemies.test.ts`.
+now holds the complete discriminated `contact` / `line` / `bolt` / `volley`
+vocabulary, including shape, damage, commit range, windup, and recovery; there
+are no optional attack side channels or implied defaults. The Brood Warrens
+fields all three families from a Brood Node, a Husk Mound, and a Spitter Nest;
+the e2e bot still clears it. Renderer tints hostile bile bolts sickly-green and
+plays a distinct spit SFX; the family×tier art grammar (#7) drew every new
+silhouette with zero new texture code. Covered in
+`tests/sim/enemies.test.ts`.
 
 The Skitter and Husk follow-up gives those silhouettes distinct attack reads.
 Skitter keeps its quick 7-damage contact nip with a 12-tick windup. The
@@ -291,6 +292,13 @@ while the Gravebound Ravager commits to a 120×28 px rupture lane for its
 30-tick windup, then deals 24 damage and pushes every player caught in the line
 36 px. Original tiered walk and windup art now ships for both families; the
 renderer supplies the Ravager's crimson lane telegraph and release fissure.
+
+The Spitter follow-up replaces its single aimed glob with a three-shot 32° bile
+fan after a 20-tick swollen-sac tell. A dedicated `volley` attack branch reuses
+the hostile-projectile plumbing, emits one presentation event for the whole
+fan, and adds a luminous release flare plus a wet pressure-burst sound. Nine
+original common/veteran/elite walk and windup sprites now complete the enemy
+family art set; Mireveil is the remaining character-art pack in #27.
 
 #16 landed: temporary power-ups — floor relics that grant a short, stacking
 timed buff. Three ship: **Emberheart** (frenzy, +damage), **Windstep Sigil**
