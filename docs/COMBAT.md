@@ -1,14 +1,19 @@
-# Hero attacks and abilities
+# Attacks: heroes, enemies, and the boss
 
-The reference for what every playable character does in a fight, why the
-numbers are what they are, and which relationships between them must not be
-broken by accident.
+The reference for what everything in a fight does, why the numbers are what
+they are, and which relationships between them must not be broken by accident.
+**This is the source of truth for every attack in the game** — if an attack is
+not described here, this document is the thing that is wrong.
 
 **Humans:** read the archetype sections for intent, then the generated tables
 for the current numbers. **Agents:** the tables below are generated — never
 hand-edit them. Every rule stated in prose here that can be machine-checked is
-checked in `tests/combat.test.ts`; if you change a hero's numbers and that
-suite fails, you have crossed an archetype line, not merely a tuning line.
+checked in `tests/combat.test.ts`; if you change a number and that suite fails,
+you have crossed an archetype line, not merely a tuning line.
+
+There are two generated regions: the hero tables under
+[Current numbers](#current-numbers) and the enemies and boss under
+[The bestiary](#the-bestiary). One `npm run docs:combat` regenerates both.
 
 ## Where the data lives
 
@@ -16,9 +21,13 @@ suite fails, you have crossed an archetype line, not merely a tuning line.
 | --- | --- | --- |
 | Base kit | `src/content/heroes.ts` | Each hero's `attack` and `ability` |
 | Weapon tiers | `src/content/weapons.ts` | `attackOverrides` merged over the base attack |
+| Enemies | `src/content/enemies.ts` | Every enemy's damage, reach, cadence and windup, plus the spawners |
+| Boss | `src/content/bosses.ts` | Phase thresholds, action cycles, and each action's payload |
 | Shared dials | `src/content/combat.ts` | Hitstun, i-frames, knockback decay |
-| Shapes | `src/sim/types.ts` | `MeleeAttackDef`, `ProjectileAttackDef`, the three ability kinds |
+| Shapes | `src/sim/types.ts` | `MeleeAttackDef`, `ProjectileAttackDef`, the three ability kinds, `EnemyDef`, `BossDef` |
 | Resolution | `src/meta/save.ts` → `src/sim/sim.ts` | Equipped weapon baked in at `createSim`, read back by `playerAttack()` |
+| Enemy resolution | `src/sim/sim.ts` (`updateEnemies`, `executeEnemyAttack`) | Windup, release, and the one melee/ranged fork |
+| Boss resolution | `src/sim/sim.ts` (`updateBoss`, `executeBossAction`) | Phase pick, telegraph, and the three action branches |
 | Scaling | `src/sim/sim.ts` (`heroDamage`) | `(base + upgrade + level) × frenzy` |
 | Presentation | `MissionScene`, `audio.ts`, `HeroSelectScene` | Per-`kind` switches, one branch per ability kind |
 
@@ -161,6 +170,30 @@ silently would change what a hero *is*, not just how strong it is.
 
 Both exception sets are now **empty**, so all nine hold unconditionally. Any
 entry appearing in either set is a regression, not a trade.
+
+### Differentiation
+
+The nine above each protect one archetype. These protect the *relationships*
+between them, which is where convergence actually happens — no single-hero rule
+fails when two heroes drift toward each other, because neither has broken its
+own. Same file, `describe('differentiation')`.
+
+| Invariant | Why |
+| --- | --- |
+| The Sentinel out-crowds the Vanguard and the Vanguard out-damages him, at every tier | The melee split of #4 stated as a machine check. Crowd *score* is the load-bearing half — swept area stays green through the exact regression this catches |
+| The Arcanist has the longest reach on the roster | The only thing separating the two ranged heroes: she out-ranges, he out-sustains |
+| No two heroes share an attack profile | Two identical stat blocks are two heroes that play identically, whatever the art says |
+| No hero is dominated by another **at the same tier** | The base-kit check is blind to weapon tracks; two heroes can start apart and converge by T3 |
+| No two enemies attack the same way — different shape, or ≥2 of reach, cadence, windup, damage | A monster that is another monster with a different HP bar is not a new monster |
+| Enemy threat rises with tier, on HP and DPS | Tier must mean something to a player who cannot read the data |
+| Every enemy windup is at least 10 ticks | The telegraph is the whole counterplay; an attack that lands faster than a player reacts is noise, not difficulty |
+| Every enemy family has at least one authored member | A family with art keys and no enemies is dead vocabulary |
+| Every boss phase has a distinct action cycle | A phase that reuses the previous cycle is a difficulty slider, not a new phase |
+
+The generated [Axis leaders](#axis-leaders) table is the companion to these: it
+answers the question a test cannot, which is whether a hero leads anything at
+all. **It currently reports the Vanguard leading none of the six core axes** —
+second on four of them. That is a live design question, not a failing build.
 
 ## Resolved issues
 
@@ -328,4 +361,168 @@ A burst that does neither that nor control is a button with no felt moment.
 | Sentinel | T2 | 0.72 | 2.51 | 0.83 | 5.74 |
 | Sentinel | T3 | 0.55 | 1.92 | 0.63 | 4.39 |
 
+### Axis leaders
+
+Who is strictly best on each core axis, at base kit. A hero leading nothing is not a
+failing test — it is a hero with no axis of its own, which is how two characters start
+to feel like one. Ties are listed together, and a tie is its own warning.
+
+| Axis | Leader | Value | Margin |
+| --- | --- | --- | --- |
+| Max HP | Sentinel | 170 | +50 over Vanguard |
+| Move speed | Ranger | 230 | +40 over Vanguard |
+| Reach | Arcanist | 420 px | +40 px over Ranger |
+| Single-target DPS | Ranger | 80.0 | +3.6 over Vanguard |
+| Crowd score | Ranger | 240.0 | +10.2 over Sentinel |
+| Knockback | Sentinel | 380 | +160 over Vanguard |
+
+**Leads nothing: Vanguard.** A hero with no axis of its own is the shape convergence takes.
+
 <!-- END GENERATED: combat-tables -->
+
+## The bestiary
+
+What fights back. The hero sections above describe output; this describes what
+that output is aimed at, and what it does to you in return.
+
+### The enemy-side combat model
+
+These rules are as load-bearing as the hero ones and are written down nowhere
+else. Several are surprising enough that tuning an enemy without knowing them
+produces a monster that does not behave the way its numbers read.
+
+**Nothing damages you by touching you.** An enemy that walks into you does
+nothing at all. Every point of damage in the game comes from a *completed*
+windup: on entering `attackRange` the enemy commits, holds still for
+`attackWindupTicks`, and only then does the blow land. Walking away during the
+telegraph beats it outright. The boss is the sole exception — she alone has
+real contact damage, rate-limited by `touchCooldownTicks`.
+
+**Enemy melee ignores facing.** A hero's swing is arc-limited; an enemy's is a
+plain centre-to-centre distance test, so it connects just as well behind it as
+in front. Getting *behind* an enemy is worth nothing today. This is a known
+asymmetry rather than a design position — the enemy data has no `arcDeg` to
+check.
+
+**A whiff still costs the enemy its full cooldown.** The cooldown is paid when
+the windup releases, before the range re-test, so a dodged attack buys the
+whole recovery — that is the reward for reading the telegraph.
+
+**Cadence cannot stunlock a player.** A player who takes a hit gets
+`playerHitInvulnTicks` of immunity, and hostile bolts pass harmlessly through
+an invulnerable player rather than being absorbed. No amount of enemy fire can
+chain-lock you; enemies threaten by *position and volume*, never by cadence.
+
+**Hostile bolts cannot hurt other enemies.** They test only against players, so
+there is no friendly fire to play around and no way to bait a spitter into
+thinning its own swarm.
+
+### Archetypes
+
+Three families, and like the heroes each is supposed to own an axis. The tier
+(`common` / `veteran` / `elite`) sets where it sits on the threat curve; the
+family sets what kind of problem it is.
+
+**Skitter — expendable pressure.** Fast, fragile, and worth almost nothing
+individually. It exists to arrive in numbers and make standing still lethal.
+Its short windup is the tell that it is the one family that punishes hesitation
+rather than positioning.
+
+**Husk — the slow bruiser.** Slow enough to walk away from and hard enough that
+ignoring it is not an option. The long windup is the point: a Husk telegraphs
+loudly and hits like a truck, so it is a *positioning* problem the way the
+Skitter is a *tempo* one. The elite Ravager is the same shape with the dial
+turned up, and bursts from a dying Husk Mound rather than being spawned
+steadily.
+
+**Spitter — the ranged zoner.** The only family that does not want to be near
+you: it holds at range, kites when crowded (`keepDistanceFraction`), and taxes
+you for standing in the open. It deals no melee damage whatsoever — its
+`touchDamage` is 0 and unread. Kiting is authored per-enemy and is a
+family-line invariant: ranged enemies kite, melee ones never do, because a
+retreating bruiser reads as cowardice rather than threat.
+
+**Mireveil — the boss.** A scripted opponent rather than a statistical one. She
+cycles her phase's actions in a strict round-robin with no randomness, each
+behind a full telegraph, and every phase transition both speeds her up and adds
+a move. The fight is meant to be learnable: the same sequence every time, so
+dying to it twice is the player's fault and not the dice's.
+
+### Changing an enemy or the boss
+
+**Tuning numbers:** edit `src/content/enemies.ts` or `src/content/bosses.ts`,
+run `npm run docs:combat`, review the regenerated tables — the diff is the
+balance review. Then `npm test`.
+
+**Adding an enemy:** add to `src/content/enemies.ts` with a `family` and `tier`
+already in `ENEMY_FAMILIES` / `ENEMY_TIERS`, and give it art keys per
+`docs/ART.md`. A ranged enemy must author `keepDistanceFraction`; a melee one
+must not. It must also differ from every existing enemy in shape or on at least
+two of reach, cadence, windup and damage — `tests/combat.test.ts` enforces it,
+because a monster that is another monster with a different HP bar is not a new
+monster.
+
+**Adding a new attack *shape*** — an arc, a multi-shot, a charge — is not a
+content change today. `EnemyDef` has no vocabulary for it and
+`executeEnemyAttack` has exactly one fork (`if (def.ranged)`), so every enemy in
+the game attacks in one of two ways. Widening that vocabulary is tracked
+separately; do not fake it with numbers.
+
+<!-- BEGIN GENERATED: bestiary-tables -->
+
+<!-- Do not edit by hand. Regenerate with `npm run docs:combat`. -->
+
+### The roster
+
+Reach is the distance at which the enemy commits to an attack — for a ranged enemy that is
+where it stops and fires, not how far the bolt flies. Damage is the bolt for ranged families
+and the swing for melee ones; nothing reads `touchDamage` on an enemy that authors a bolt.
+
+| Enemy | Family | Tier | HP | Speed | Reach | Dmg | Cadence | Windup | DPS | Kites | Gold | XP |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Skitterling | skitter | common | 40 | 120 | 28 px | 7 | 45t | 12t | 9.3 | no | 2–5 | 6 |
+| Carapace Husk | husk | veteran | 140 | 66 | 34 px | 16 | 55t | 24t | 17.5 | no | 6–12 | 18 |
+| Bile Spitter | spitter | common | 46 | 88 | 200 px | 8 | 105t | 16t | 4.6 | yes (0.6) | 4–9 | 12 |
+| Gravebound Ravager | husk | elite | 320 | 82 | 42 px | 24 | 58t | 30t | 24.8 | no | 22–34 | 55 |
+
+### Threat and readability
+
+The dodge window is the telegraph: the enemy holds still for that long before every attack,
+so it is the whole of the counterplay. The `vs` columns are seconds of unanswered attacks to
+drop each hero from full — the pressure a single one of these represents, before the swarm.
+
+| Enemy | Shape | DPS | Dodge window | vs Vanguard | vs Arcanist | vs Ranger | vs Sentinel |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Skitterling | melee | 9.3 | 0.20 s | 12.9 | 8.6 | 9.6 | 18.2 |
+| Carapace Husk | melee | 17.5 | 0.40 s | 6.9 | 4.6 | 5.2 | 9.7 |
+| Bile Spitter | bolt 240 px/s, 230 px | 4.6 | 0.27 s | 26.3 | 17.5 | 19.7 | 37.2 |
+| Gravebound Ravager | melee | 24.8 | 0.50 s | 4.8 | 3.2 | 3.6 | 6.8 |
+
+### Where they come from
+
+| Spawner | HP | Spawns | Interval | Max alive | Enrage | On death | Gold | XP |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Brood Node | 120 | Skitterling | 24t | 9 | ≤50% hp → ×0.6 for 2.50 s | — | 25 | 40 |
+| Husk Mound | 150 | Carapace Husk | 165t | 2 | — | Gravebound Ravager | 30 | 45 |
+| Spitter Nest | 110 | Bile Spitter | 150t | 2 | — | — | 30 | 45 |
+
+### Mireveil — Mother of the Brood
+
+900 hp · radius 34 px · 12 contact damage every 0.75 s · 1.00 s telegraph · 150g and 600 xp on death.
+
+| Phase | Name | HP | Speed | Action interval | Action cycle |
+| --- | --- | --- | --- | --- | --- |
+| 1 | The Brood Stirs | ≤100% | 52 | 4.00 s | brood-call |
+| 2 | The Mother Rages | ≤60% | 62 | 3.00 s | lunge → brood-call |
+| 3 | Mireveil's Last Clutch | ≤25% | 72 | 2.00 s | glob → lunge → brood-call |
+
+Phases are entered on HP thresholds and never left. Actions run as a strict round-robin
+over the cycle above — no randomness — each preceded by the full telegraph.
+
+| Action | What it does |
+| --- | --- |
+| brood-call | summons 3× skitterling |
+| lunge | 420 px/s for 0.43 s, 22 damage on contact |
+| glob | 5 bolts across 60°, 10 damage @ 230 px/s, 420 px |
+
+<!-- END GENERATED: bestiary-tables -->
