@@ -5,10 +5,10 @@ by real drawn art **without touching any code**: drop a PNG into
 `public/art/`, list it in the manifest, refresh. This document is the
 contract.
 
-The pipeline is live and already in use — the Vanguard, Arcanist and Ranger
-hero packs ship as real art in `public/art/` (all 8 directions × 3 poses + the
-portrait, each). Every other key still falls back to generated art, so partial
-packs are the normal state.
+The pipeline is live and already in use — all four hero packs ship as real art
+in `public/art/` (all 8 directions × 3 poses + the portrait, each). Every
+remaining key still falls back to generated art, so partial packs are the
+normal state.
 
 ## The one hard rule: originality
 
@@ -79,8 +79,8 @@ Keys: `hero-<heroId>-<dir>-<pose>` for each of the four heroes — `vanguard`,
 is `w0`/`w1` (walk cycle) or `atk` (attack swing). `hero-<heroId>` (no
 suffix) is the menu portrait — usually a copy of `2-w0`.
 
-That is 25 keys per hero. **`vanguard`, `arcanist` and `ranger` are covered by
-real art packs**; `sentinel` is open (see #27).
+That is 25 keys per hero. **All four heroes are covered by real art packs.**
+The remaining character-art work in #27 is the enemy families and Mireveil.
 
 Opposite facings are mirrors in every pack that has shipped so far — east/west,
 SE/SW and NE/NW — so a hero is 5 drawn directions, not 8. Nothing in the design
