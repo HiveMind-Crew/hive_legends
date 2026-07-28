@@ -440,10 +440,12 @@ Ravager bursts from a dying Husk Mound rather than spawning steadily.
 
 **Spitter — the ranged zoner.** The only family that does not want to be near
 you: it holds at range, kites when crowded (`keepDistanceFraction`), and taxes
-you for standing in the open. Its `attack.kind` is `bolt`, so it has no hidden
-melee or body-contact damage. Kiting is authored per-enemy and is a family-line
-invariant: bolt enemies kite, contact and line enemies never do, because a
-retreating bruiser reads as cowardice rather than threat.
+you for standing in the open. After a 20-tick swollen-sac tell it fires three
+8-damage globs across a 32° fan, turning one aimed lane into area denial. Its
+`attack.kind` is `volley`, so it has no hidden melee or body-contact damage.
+Kiting is authored per-enemy and is a family-line invariant: projectile
+enemies kite, contact and line enemies never do, because a retreating bruiser
+reads as cowardice rather than threat.
 
 **Mireveil — the boss.** A scripted opponent rather than a statistical one. She
 cycles her phase's actions in a strict round-robin with no randomness, each
@@ -470,7 +472,7 @@ add one release branch in `executeEnemyAttack`, add its presentation and
 generated shape text, and strengthen the differentiation tests. Shape, damage,
 commit range, windup, and recovery stay together in the `attack` object; do not
 add another optional side channel to `EnemyDef`. Issue #78 tracks the remaining
-Skitter and Spitter family attacks, while #81 is the boss-side equivalent.
+Skitter pounce, while #81 is the boss-side equivalent.
 
 <!-- BEGIN GENERATED: bestiary-tables -->
 
@@ -488,7 +490,7 @@ cycle includes both the committed telegraph and the recovery before the next win
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Skitterling | skitter | common | 40 | 120 | 28 px | 7 | 45t | 12t | 7.4 | no | 2–5 | 6 |
 | Carapace Husk | husk | veteran | 140 | 66 | 34 px | 16 | 55t | 24t | 12.2 | no | 6–12 | 18 |
-| Bile Spitter | spitter | common | 46 | 88 | 200 px | 8 | 105t | 16t | 4.0 | yes (0.6) | 4–9 | 12 |
+| Bile Spitter | spitter | common | 46 | 88 | 200 px | 8 | 105t | 20t | 3.8 | yes (0.6) | 4–9 | 12 |
 | Gravebound Ravager | husk | elite | 320 | 82 | 120 px | 24 | 70t | 30t | 14.4 | no | 22–34 | 55 |
 
 ### Threat and readability
@@ -501,7 +503,7 @@ drop each hero from full — the pressure a single one of these represents, befo
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Skitterling | contact | 7.4 | 0.20 s | 16.3 | 10.9 | 12.2 | 23.1 |
 | Carapace Husk | contact, push 28 px | 12.2 | 0.40 s | 9.9 | 6.6 | 7.4 | 14.0 |
-| Bile Spitter | bolt 240 px/s, 230 px | 4.0 | 0.27 s | 30.3 | 20.2 | 22.7 | 42.9 |
+| Bile Spitter | volley 3× / 32°, 240 px/s | 3.8 | 0.33 s | 31.3 | 20.8 | 23.4 | 44.3 |
 | Gravebound Ravager | line 120×28 px, push 36 px | 14.4 | 0.50 s | 8.3 | 5.6 | 6.3 | 11.8 |
 
 ### Where they come from

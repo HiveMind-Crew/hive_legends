@@ -99,6 +99,9 @@ class AudioEngine {
       case 'enemy-shot':
         this.spit();
         break;
+      case 'enemy-volley':
+        this.bileSpray();
+        break;
       case 'enemy-line-attack':
         this.rumble();
         break;
@@ -217,6 +220,27 @@ class AudioEngine {
   private spit(): void {
     if (!this.throttle('spit', 60)) return;
     this.tone(300, 'sawtooth', 0.1, 0.12, 120);
+  }
+
+  /** Spitter spread: a wet pressure burst followed by three descending pops. */
+  private bileSpray(): void {
+    if (!this.throttle('bile-spray', 80)) return;
+    const t = this.ctx!.currentTime;
+    const src = this.ctx!.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    const filter = this.ctx!.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1200, t);
+    filter.frequency.exponentialRampToValueAtTime(240, t + 0.18);
+    const gain = this.ctx!.createGain();
+    gain.gain.setValueAtTime(0.16, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    src.connect(filter).connect(gain).connect(this.sfxGain!);
+    src.start(t);
+    src.stop(t + 0.21);
+    this.tone(330, 'sawtooth', 0.08, 0.08, 180, t);
+    this.tone(260, 'sawtooth', 0.08, 0.07, 150, t + 0.035);
+    this.tone(200, 'sawtooth', 0.1, 0.06, 110, t + 0.07);
   }
 
   private whoosh(): void {

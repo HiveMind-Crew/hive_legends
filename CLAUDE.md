@@ -112,8 +112,7 @@ fails, either the data goes back or `docs/COMBAT.md` changes on purpose.
 Enemy attacks are authored through the discriminated `EnemyAttackDef` union.
 Shape, damage, range, windup, and recovery belong together in `EnemyDef.attack`;
 `executeEnemyAttack` owns one release branch per kind. Extend that union rather
-than adding optional side fields. Issue #78 tracks the remaining family-specific
-Skitter and Spitter shapes.
+than adding optional side fields. Issue #78 tracks the remaining Skitter pounce.
 
 ## Mission progression
 

@@ -5,6 +5,7 @@ import { buildRangerPack } from '../scripts/art/rangerPack';
 import { buildSentinelPack } from '../scripts/art/sentinelPack';
 import { buildSkitterPack } from '../scripts/art/skitterPack';
 import { buildHuskPack } from '../scripts/art/huskPack';
+import { buildSpitterPack } from '../scripts/art/spitterPack';
 import { TEXTURE_SPECS } from '../src/game/textureSpecs';
 
 /**
@@ -211,6 +212,48 @@ describe('the Husk pack', () => {
       const w0 = Buffer.from(pack.get(`enemy-husk-${tier}-w0`)!);
       const w1 = Buffer.from(pack.get(`enemy-husk-${tier}-w1`)!);
       const windup = Buffer.from(pack.get(`enemy-husk-${tier}-windup`)!);
+      expect(w0.equals(w1)).toBe(false);
+      expect(w0.equals(windup)).toBe(false);
+      expect(w1.equals(windup)).toBe(false);
+    }
+  });
+});
+
+describe('the Spitter pack', () => {
+  it('matches the pixel grids it is drawn from', () => {
+    const pack = buildSpitterPack();
+
+    if (process.env.UPDATE_ART) {
+      const listed = manifestKeys();
+      for (const [key, png] of pack) {
+        writeFileSync(`${ART_DIR}${key}.png`, png);
+        if (!listed.includes(key)) listed.push(key);
+      }
+      writeFileSync(MANIFEST, `${JSON.stringify(listed, null, 2)}\n`);
+      return;
+    }
+
+    for (const [key, png] of pack) {
+      const file = `${ART_DIR}${key}.png`;
+      expect(existsSync(file), `${key}.png is missing — run \`npm run art:build\``).toBe(true);
+      expect(readFileSync(file).equals(Buffer.from(png)), `${key}.png is stale — run \`npm run art:build\``).toBe(true);
+    }
+  });
+
+  it('covers every tier and walk / swollen-sac pose', () => {
+    const keys = [...buildSpitterPack().keys()];
+    expect(keys).toHaveLength(9);
+    for (const tier of ['common', 'veteran', 'elite']) {
+      for (const frame of ['w0', 'w1', 'windup']) expect(keys).toContain(`enemy-spitter-${tier}-${frame}`);
+    }
+  });
+
+  it('keeps both walk frames and the charged spread windup distinct', () => {
+    const pack = buildSpitterPack();
+    for (const tier of ['common', 'veteran', 'elite']) {
+      const w0 = Buffer.from(pack.get(`enemy-spitter-${tier}-w0`)!);
+      const w1 = Buffer.from(pack.get(`enemy-spitter-${tier}-w1`)!);
+      const windup = Buffer.from(pack.get(`enemy-spitter-${tier}-windup`)!);
       expect(w0.equals(w1)).toBe(false);
       expect(w0.equals(windup)).toBe(false);
       expect(w1.equals(windup)).toBe(false);

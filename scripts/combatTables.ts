@@ -66,8 +66,8 @@ export function attackForWeapon(hero: HeroDef, weapon: WeaponDef): AttackDef {
 }
 
 /**
- * Sustained damage per second an enemy puts out at its own cadence. A ranged
- * The complete repeated cycle includes both its committed windup and recovery.
+ * Sustained single-target damage per second at the enemy's own cadence. The
+ * complete repeated cycle includes both its committed windup and recovery.
  */
 export function enemyDps(def: EnemyDef): number {
   return (def.attack.damage * TICK_RATE) / (def.attack.cooldownTicks + def.attack.windupTicks);
@@ -90,6 +90,9 @@ export function enemyAttackKind(def: EnemyDef): EnemyDef['attack']['kind'] {
 export function enemyShape(def: EnemyDef): string {
   const attack = def.attack;
   if (attack.kind === 'bolt') return `bolt ${attack.projectileSpeed} px/s, ${attack.projectileRange} px`;
+  if (attack.kind === 'volley') {
+    return `volley ${attack.count}× / ${attack.spreadDeg}°, ${attack.projectileSpeed} px/s`;
+  }
   if (attack.kind === 'line') {
     return `line ${attack.length}×${attack.width} px, push ${attack.pushPx} px`;
   }

@@ -51,7 +51,7 @@ describe('enemy roster', () => {
     expect(husk.attack).toMatchObject({ kind: 'contact', pushPx: 28 });
     expect(husk.maxHp).toBeGreaterThan(CONTENT.enemies['skitterling']!.maxHp);
     expect(spitter.family).toBe('spitter');
-    expect(spitter.attack.kind).toBe('bolt');
+    expect(spitter.attack).toMatchObject({ kind: 'volley', count: 3, spreadDeg: 32 });
     expect(elite.tier).toBe('elite');
     expect(elite.maxHp).toBeGreaterThan(husk.maxHp);
     expect(elite.attack.kind).toBe('line');
@@ -70,7 +70,7 @@ describe('enemy roster', () => {
 
   it('every ranged enemy authors keep-distance kiting, and melee never does', () => {
     for (const def of Object.values(CONTENT.enemies)) {
-      if (def.attack.kind === 'bolt') {
+      if (def.attack.kind === 'bolt' || def.attack.kind === 'volley') {
         expect(def.keepDistanceFraction, `${def.id} kiting`).toBeGreaterThan(0);
         expect(def.keepDistanceFraction, `${def.id} kiting`).toBeLessThan(1);
       } else {
@@ -255,15 +255,38 @@ describe('Gravebound Ravager line rupture', () => {
   });
 });
 
-describe('spitter (ranged)', () => {
-  it('fires a hostile bolt that flies to the player and wounds them', () => {
+describe('spitter (ranged zoner)', () => {
+  it('fires a three-glob fan centred on the player', () => {
+    const sim = newSim();
+    sim.state.generators = [];
+    const p = sim.state.players[0]!;
+    const def = CONTENT.enemies['bile-spitter']!;
+    spawnEnemy(sim, 'bile-spitter', 809, p.pos.x + 150, p.pos.y);
+
+    const events = runTicks(sim, def.attack.windupTicks + 1);
+    const volley = events.find((e) => e.type === 'enemy-volley');
+
+    expect(volley).toMatchObject({ count: 3, spreadDeg: 32 });
+    expect(events.filter((event) => event.type === 'enemy-volley')).toHaveLength(1);
+    expect(events.some((event) => event.type === 'enemy-shot')).toBe(false);
+    expect(sim.state.projectiles).toHaveLength(3);
+    const headings = sim.state.projectiles.map((bolt) => Math.atan2(bolt.vel.y, bolt.vel.x));
+    const offsets = headings
+      .map((angle) => (Math.atan2(Math.sin(angle - Math.PI), Math.cos(angle - Math.PI)) * 180) / Math.PI)
+      .sort((a, b) => a - b);
+    expect(offsets[0]).toBeCloseTo(-16, 5);
+    expect(offsets[1]).toBeCloseTo(0, 5);
+    expect(offsets[2]).toBeCloseTo(16, 5);
+  });
+
+  it('the centre glob flies to the player and wounds them', () => {
     const sim = newSim();
     sim.state.generators = [];
     const p = sim.state.players[0]!;
     const before = p.hp;
     spawnEnemy(sim, 'bile-spitter', 810, p.pos.x + 150, p.pos.y); // inside attack.range (200)
     const events = runTicks(sim, 60);
-    expect(events.some((e) => e.type === 'enemy-shot')).toBe(true);
+    expect(events.some((e) => e.type === 'enemy-volley')).toBe(true);
     expect(events.some((e) => e.type === 'player-hit')).toBe(true);
     expect(p.hp).toBeLessThan(before);
   });
@@ -293,7 +316,7 @@ describe('spitter (ranged)', () => {
     p.pos = { x: c(18), y: c(3) };
     spawnEnemy(sim, 'bile-spitter', 830, c(13), c(3));
     const events = runTicks(sim, 60);
-    expect(events.some((e) => e.type === 'enemy-shot')).toBe(true);
+    expect(events.some((e) => e.type === 'enemy-volley')).toBe(true);
     expect(events.some((e) => e.type === 'projectile-expired')).toBe(true);
     expect(p.hp).toBe(before); // the wall ate the bolt
   });
@@ -346,7 +369,7 @@ describe('spitter (ranged)', () => {
     const p = sim.state.players[0]!;
     spawnEnemy(sim, 'bile-spitter', 862, p.pos.x + 50, p.pos.y); // crowded
     const events = runTicks(sim, 120);
-    expect(events.some((ev) => ev.type === 'enemy-shot')).toBe(true);
+    expect(events.some((ev) => ev.type === 'enemy-volley')).toBe(true);
   });
 
   it('a crowded melee enemy stands and fights instead of kiting', () => {

@@ -226,8 +226,17 @@ export type EnemyBoltAttackDef = EnemyAttackBase &
     kind: 'bolt';
   };
 
+export type EnemyVolleyAttackDef = EnemyAttackBase &
+  HostileProjectileDef & {
+    kind: 'volley';
+    /** Number of evenly spaced hostile bolts released in one fan. */
+    count: number;
+    /** Full angle covered by the fan, in degrees. */
+    spreadDeg: number;
+  };
+
 /** Complete, data-authored vocabulary for ordinary enemy attacks. */
-export type EnemyAttackDef = EnemyContactAttackDef | EnemyLineAttackDef | EnemyBoltAttackDef;
+export type EnemyAttackDef = EnemyContactAttackDef | EnemyLineAttackDef | EnemyBoltAttackDef | EnemyVolleyAttackDef;
 
 export interface EnemyDef {
   id: string;
@@ -248,8 +257,8 @@ export interface EnemyDef {
    * Kiting (issue #23): back away while the target is closer than this
    * fraction of `attack.range`, so an artillery enemy reopens the gap instead
    * of planting itself and firing point-blank. Omit (or 0) to hold ground —
-   * melee families never kite. A content test requires every `bolt` enemy
-   * to author it.
+   * melee families never kite. A content test requires every projectile enemy
+   * (`bolt` or `volley`) to author it.
    */
   keepDistanceFraction?: number;
 }
@@ -771,6 +780,7 @@ export type SimEvent =
   | { type: 'attack'; playerId: EntityId; pos: Vec2; facing: Vec2 }
   | { type: 'projectile-fired'; playerId: EntityId; projectileId: EntityId; pos: Vec2; vel: Vec2 }
   | { type: 'enemy-shot'; enemyId: EntityId; projectileId: EntityId; pos: Vec2; vel: Vec2 }
+  | { type: 'enemy-volley'; enemyId: EntityId; pos: Vec2; dir: Vec2; count: number; spreadDeg: number }
   | { type: 'projectile-hit'; projectileId: EntityId; pos: Vec2 }
   | { type: 'projectile-expired'; projectileId: EntityId; pos: Vec2 }
   | { type: 'ability'; playerId: EntityId; pos: Vec2; radius: number }
