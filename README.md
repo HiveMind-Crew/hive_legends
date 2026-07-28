@@ -9,10 +9,11 @@ Nodes that endlessly produce them, collect gold and artifacts, and face
 Mireveil, Mother of the Brood. Your hero levels up *mid-run* from the kills
 you make, and the gold you bank buys permanent upgrades between missions.
 
-**Currently playable:** four heroes (Vanguard, Arcanist, Ranger, Sentinel),
-three realms — The Brood Warrens, The Resin Galleries, and the finale in The
-Hollow Throne — with keys and hidden vaults, timed relics, a screen-clear
-potion, weapon tiers, and a three-phase boss.
+**Currently playable:** four heroes (Vanguard, Arcanist, Ranger, Sentinel) and
+one realm on the mission wheel, **The Azure Reach** — The Brood Warrens, The
+Resin Galleries, The Cobalt Combs, and the finale in The Hollow Throne — with
+keys and hidden vaults, timed relics, a screen-clear potion, weapon tiers, and
+a three-phase boss.
 
 ## Play
 
@@ -22,7 +23,8 @@ npm run dev        # http://localhost:5173
 ```
 
 Controls: **WASD/Arrows** move · **Space/J** attack · **Shift/K** hero ability ·
-**Q** quaff a potion · **Enter** confirm · **M** mute audio.
+**Q** quaff a potion · **Enter** confirm · **M** mute audio. Missions are
+chosen on the wheel: **↑↓** node · **←→** realm · **Enter** deploy.
 
 ## Development
 

@@ -13,6 +13,7 @@ new Phaser.Game({
   height: 720,
   backgroundColor: '#0a0a12',
   pixelArt: true,
-  // MissionHubScene is registered but not yet in the flow; #57 wires it in.
+  // Flow: boot → hero select → the wheel → mission (HudScene runs alongside)
+  // → results, which returns through the wheel.
   scene: [BootScene, HeroSelectScene, MissionHubScene, MissionScene, HudScene, ResultsScene]
 });

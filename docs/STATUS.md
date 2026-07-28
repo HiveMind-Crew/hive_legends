@@ -432,10 +432,12 @@ M1 is content-complete, and the highest-value work is **presentation
 and polish rather than systems**:
 
 1. **Original art packs — #27 (characters) and #28 (environment/UI).** The
-   drop-in pipeline is proven: the Vanguard pack (#44) replaced generated
-   frames with zero code changes. The other three heroes, the enemy families
-   and the boss are the biggest visible win available. Key list and canvas
-   sizes: `docs/ART.md`.
+   drop-in pipeline is proven end to end: all four hero packs now ship as real
+   art (Vanguard #44, Arcanist #50, Ranger #71, Sentinel #73), none of which
+   needed a code change, and `tests/artPack.test.ts` now fails a pack that is
+   mis-sized or unlisted. What remains under #27 is the **enemy families and
+   the boss** — the biggest visible win still available — then the
+   environment and UI of #28. Key list and canvas sizes: `docs/ART.md`.
 Balance note carried from #25: ranged heroes kite Mireveil noticeably more
 easily than melee (~15–17s vs ~32s to kill). Worth a tuning pass once there is
 real playtest data, rather than speculative numbers now.
