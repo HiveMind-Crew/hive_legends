@@ -813,7 +813,7 @@ export class MissionScene extends Phaser.Scene {
         frame = (Math.floor(s.tick / CRAWL_FRAME_TICKS) + e.id) % 2 === 0 ? 'w0' : 'w1';
       }
       spr.setTexture(enemyFrame(family, tier, frame));
-      const line = def?.melee?.kind === 'line' ? def.melee : undefined;
+      const line = def?.attack.kind === 'line' ? def.attack : undefined;
       let ruptureGuide = this.ruptureGuides.get(e.id);
       if (windup && line && e.windupDir) {
         const length = e.windupLength ?? line.length;

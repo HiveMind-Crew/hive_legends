@@ -133,7 +133,7 @@ describe('what a roused hive does', () => {
     const p = sim.state.players[0]!;
     const before = p.hp;
     spawnEnemy(sim, 'carapace-husk', 501, p.pos.x + 30, p.pos.y);
-    runTicks(sim, CONTENT.enemies['carapace-husk']!.attackWindupTicks + 2);
+    runTicks(sim, CONTENT.enemies['carapace-husk']!.attack.windupTicks + 2);
     return before - p.hp;
   }
 
@@ -151,7 +151,7 @@ describe('what a roused hive does', () => {
       sim.state.pressureStage = stage;
       const p = sim.state.players[0]!;
       spawnEnemy(sim, 'bile-spitter', 502, p.pos.x + 150, p.pos.y);
-      runTicks(sim, CONTENT.enemies['bile-spitter']!.attackWindupTicks + 2);
+      runTicks(sim, CONTENT.enemies['bile-spitter']!.attack.windupTicks + 2);
       return sim.state.projectiles[0]?.damage ?? 0;
     };
     const calm = boltDamage(0);

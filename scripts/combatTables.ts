@@ -67,36 +67,33 @@ export function attackForWeapon(hero: HeroDef, weapon: WeaponDef): AttackDef {
 
 /**
  * Sustained damage per second an enemy puts out at its own cadence. A ranged
- * enemy's threat is its bolt, never `touchDamage` — nothing in the sim reads
- * `touchDamage` for an enemy that authors a `ranged` block.
+ * The complete repeated cycle includes both its committed windup and recovery.
  */
 export function enemyDps(def: EnemyDef): number {
-  const damage = def.ranged?.projectileDamage ?? def.touchDamage;
-  return (damage * TICK_RATE) / (def.attackCooldownTicks + def.attackWindupTicks);
+  return (def.attack.damage * TICK_RATE) / (def.attack.cooldownTicks + def.attack.windupTicks);
 }
 
 /**
  * Seconds a player has to read a telegraph and leave. Every enemy attack —
- * including the first contact — waits out `attackWindupTicks` while the enemy
+ * including the first contact — waits out `attack.windupTicks` while the enemy
  * holds still, so this is the whole of the counterplay against one.
  */
 export function dodgeWindow(def: EnemyDef): number {
-  return def.attackWindupTicks / TICK_RATE;
+  return def.attack.windupTicks / TICK_RATE;
 }
 
 /** How an enemy delivers its damage, in one cell. */
-export function enemyAttackKind(def: EnemyDef): 'bolt' | 'contact' | 'line' {
-  if (def.ranged) return 'bolt';
-  return def.melee?.kind ?? 'contact';
+export function enemyAttackKind(def: EnemyDef): EnemyDef['attack']['kind'] {
+  return def.attack.kind;
 }
 
 export function enemyShape(def: EnemyDef): string {
-  if (def.ranged) return `bolt ${def.ranged.projectileSpeed} px/s, ${def.ranged.projectileRange} px`;
-  if (def.melee?.kind === 'line') {
-    return `line ${def.melee.length}×${def.melee.width} px, push ${def.melee.pushPx} px`;
+  const attack = def.attack;
+  if (attack.kind === 'bolt') return `bolt ${attack.projectileSpeed} px/s, ${attack.projectileRange} px`;
+  if (attack.kind === 'line') {
+    return `line ${attack.length}×${attack.width} px, push ${attack.pushPx} px`;
   }
-  const push = def.melee?.kind === 'contact' ? def.melee.pushPx : 0;
-  return push > 0 ? `contact, push ${push} px` : 'contact';
+  return attack.pushPx > 0 ? `contact, push ${attack.pushPx} px` : 'contact';
 }
 
 /**
@@ -338,10 +335,10 @@ function bestiaryTable(content: ContentDb): string {
     e.tier,
     String(e.maxHp),
     String(e.moveSpeed),
-    `${e.attackRange} px`,
-    String(e.ranged?.projectileDamage ?? e.touchDamage),
-    `${e.attackCooldownTicks}t`,
-    `${e.attackWindupTicks}t`,
+    `${e.attack.range} px`,
+    String(e.attack.damage),
+    `${e.attack.cooldownTicks}t`,
+    `${e.attack.windupTicks}t`,
     n1(enemyDps(e)),
     e.keepDistanceFraction ? `yes (${e.keepDistanceFraction})` : 'no',
     `${e.goldMin}–${e.goldMax}`,
@@ -485,8 +482,8 @@ export function renderBestiaryTables(content: ContentDb): string {
     '### The roster',
     '',
     'Reach is the distance at which the enemy commits to an attack — for a ranged enemy that is',
-    'where it stops and fires, not how far the bolt flies. Damage is the bolt for ranged families',
-    'and the swing for melee ones; nothing reads `touchDamage` on an enemy that authors a bolt.',
+    'where it stops and fires, not how far the bolt flies. Every enemy authors shape, damage,',
+    'commit range, windup, and recovery together in one discriminated `attack` definition.',
     `Enemy DPS is \`damage × ${TICK_RATE} / (cooldownTicks + windupTicks)\`: a full repeated attack`,
     'cycle includes both the committed telegraph and the recovery before the next windup.',
     '',

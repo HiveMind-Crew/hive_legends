@@ -109,11 +109,11 @@ when a change crosses an archetype line rather than a tuning line. The
 attack sameness, tier threat ordering. Neither is a balance assertion; if one
 fails, either the data goes back or `docs/COMBAT.md` changes on purpose.
 
-Enemy melee shape is partly data-driven through `EnemyMeleeDef`: the default
-contact strike and the Ravager's committed line rupture are distinct sim
-branches. Ranged attacks still use the optional `ranged` block rather than one
-unified discriminated attack union. Issue #77 tracks finishing that vocabulary;
-#78 tracks the remaining family-specific Skitter and Spitter shapes.
+Enemy attacks are authored through the discriminated `EnemyAttackDef` union.
+Shape, damage, range, windup, and recovery belong together in `EnemyDef.attack`;
+`executeEnemyAttack` owns one release branch per kind. Extend that union rather
+than adding optional side fields. Issue #78 tracks the remaining family-specific
+Skitter and Spitter shapes.
 
 ## Mission progression
 

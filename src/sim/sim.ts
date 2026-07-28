@@ -13,8 +13,8 @@ import {
   type BossDef,
   type BossState,
   type EntityId,
+  type EnemyBoltAttackDef,
   type EnemyDef,
-  type EnemyRangedDef,
   type EnemyState,
   type GateState,
   type GuardAbilityDef,
@@ -22,6 +22,7 @@ import {
   type GeneratorDef,
   type GeneratorState,
   type InputCommand,
+  type HostileProjectileDef,
   type PickupState,
   type PlayerState,
   type ProjectileAttackDef,
@@ -653,7 +654,7 @@ function spawnOnGeneratorDeath(sim: Sim, g: GeneratorState, def: GeneratorDef | 
     typeId: enemyDef.id,
     pos: { ...g.pos },
     hp: enemyDef.maxHp,
-    attackCooldown: enemyDef.attackCooldownTicks,
+    attackCooldown: enemyDef.attack.cooldownTicks,
     windupTicksLeft: 0,
     hitstunTicks: 0,
     knockback: { x: 0, y: 0 },
@@ -699,11 +700,28 @@ function spawnProjectile(sim: Sim, p: PlayerState, atk: ProjectileAttackDef, dir
 }
 
 /** Spawns one hostile bolt from an enemy toward a target position. */
-function spawnEnemyProjectile(sim: Sim, e: EnemyState, ranged: EnemyRangedDef, radius: number, target: Vec2, events: SimEvent[]): void {
+function spawnEnemyProjectile(
+  sim: Sim,
+  e: EnemyState,
+  attack: EnemyBoltAttackDef,
+  radius: number,
+  target: Vec2,
+  events: SimEvent[]
+): void {
   // A roused hive spits harder. Scaled here, at the enemy call site, so the
   // boss's glob — which shares this bolt plumbing — keeps its authored damage
   // and escalates through her own phase script instead (#41 x #25).
-  spawnHostileBolt(sim, e.id, e.pos, radius, ranged, norm(sub(target, e.pos)), events, pressureDamageMult(sim));
+  spawnHostileBolt(
+    sim,
+    e.id,
+    e.pos,
+    radius,
+    attack,
+    attack.damage,
+    norm(sub(target, e.pos)),
+    events,
+    pressureDamageMult(sim)
+  );
 }
 
 /**
@@ -716,22 +734,23 @@ function spawnHostileBolt(
   ownerId: EntityId,
   origin: Vec2,
   originRadius: number,
-  ranged: EnemyRangedDef,
+  projectileDef: HostileProjectileDef,
+  damage: number,
   dirIn: Vec2,
   events: SimEvent[],
   damageMult = 1
 ): void {
   const dir = norm(dirIn);
-  const spawnDist = originRadius + ranged.projectileRadius + 1;
+  const spawnDist = originRadius + projectileDef.projectileRadius + 1;
   const projectile: ProjectileState = {
     id: sim.state.nextEntityId++,
     ownerId,
     pos: { x: origin.x + dir.x * spawnDist, y: origin.y + dir.y * spawnDist },
-    vel: { x: dir.x * ranged.projectileSpeed, y: dir.y * ranged.projectileSpeed },
-    radius: ranged.projectileRadius,
-    distanceLeft: ranged.projectileRange,
+    vel: { x: dir.x * projectileDef.projectileSpeed, y: dir.y * projectileDef.projectileSpeed },
+    radius: projectileDef.projectileRadius,
+    distanceLeft: projectileDef.projectileRange,
     pierceLeft: 0,
-    damage: ranged.projectileDamage * damageMult,
+    damage: damage * damageMult,
     knockback: 0,
     hitIds: [],
     hostile: true
@@ -902,6 +921,7 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
   for (const e of s.enemies) {
     const def = content.enemies[e.typeId];
     if (!def) continue;
+    const attack = def.attack;
     if (e.attackCooldown > 0) e.attackCooldown--;
     if (e.slowTicks > 0) e.slowTicks--;
 
@@ -942,26 +962,26 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
     // ground while the target is inside their comfort band (issue #23), so
     // artillery reopens the range rather than firing point-blank. Steering and
     // attacking are independent, so a spitter can shoot while backing off.
-    const keepDistance = def.attackRange * (def.keepDistanceFraction ?? 0);
+    const keepDistance = attack.range * (def.keepDistanceFraction ?? 0);
     const step =
       def.moveSpeed * pressureSpeedMult(sim, sim.config.content.pressure) * (e.slowTicks > 0 ? e.slowMult : 1) * TICK_DT;
-    if (dist > def.attackRange) {
+    if (dist > attack.range) {
       moveCircle(level, e.pos, def.radius, (d.x / dist) * step, (d.y / dist) * step, blk);
     } else if (dist < keepDistance && dist > 1e-6) {
       moveCircle(level, e.pos, def.radius, (-d.x / dist) * step, (-d.y / dist) * step, blk);
     }
 
     // Attacking, only from inside its range. Melee still respects i-frames.
-    if (dist <= def.attackRange && e.attackCooldown === 0 && (def.ranged || target.invulnTicks === 0)) {
+    if (dist <= attack.range && e.attackCooldown === 0 && (attack.kind === 'bolt' || target.invulnTicks === 0)) {
       // Begin the telegraph instead of striking instantly. (No enemy ships a
       // zero windup, but a 0 would resolve the attack the same tick.)
-      if (def.attackWindupTicks > 0) {
-        e.windupTicksLeft = def.attackWindupTicks;
-        if (def.melee?.kind === 'line' && dist > 1e-6) {
+      if (attack.windupTicks > 0) {
+        e.windupTicksLeft = attack.windupTicks;
+        if (attack.kind === 'line' && dist > 1e-6) {
           e.windupDir = { x: d.x / dist, y: d.y / dist };
-          e.windupLength = wallClippedEnemyLineLength(sim, e.pos, e.windupDir, def.melee.length);
+          e.windupLength = wallClippedEnemyLineLength(sim, e.pos, e.windupDir, attack.length);
         }
-        events.push({ type: 'enemy-windup', enemyId: e.id, pos: { ...e.pos }, durationTicks: def.attackWindupTicks });
+        events.push({ type: 'enemy-windup', enemyId: e.id, pos: { ...e.pos }, durationTicks: attack.windupTicks });
       } else {
         executeEnemyAttack(sim, e, def, target, events);
       }
@@ -977,29 +997,33 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
  * damage reduction and Bastion Wall knockback-reflect of the old inline strike.
  */
 function executeEnemyAttack(sim: Sim, e: EnemyState, def: EnemyDef, target: PlayerState, events: SimEvent[]): void {
-  e.attackCooldown = def.attackCooldownTicks;
-  if (def.ranged) {
-    spawnEnemyProjectile(sim, e, def.ranged, def.radius, target.pos, events);
+  const attack = def.attack;
+  e.attackCooldown = attack.cooldownTicks;
+  if (attack.kind === 'bolt') {
+    spawnEnemyProjectile(sim, e, attack, def.radius, target.pos, events);
     return;
   }
-  if (def.melee?.kind === 'line') {
-    executeEnemyLineAttack(sim, e, def, events);
+  if (attack.kind === 'line') {
+    executeEnemyLineAttack(sim, e, attack, events);
     return;
   }
   const d = sub(target.pos, e.pos);
   const dist = Math.hypot(d.x, d.y);
-  if (dist > def.attackRange || target.invulnTicks > 0) return; // whiffed, or target immune
-  damagePlayerFromEnemy(sim, e, def, target, d, dist, def.melee?.pushPx ?? 0, events);
+  if (dist > attack.range || target.invulnTicks > 0) return; // whiffed, or target immune
+  damagePlayerFromEnemy(sim, e, attack.damage, target, d, dist, attack.pushPx, events);
 }
 
 /** Resolves the Ravager's committed, wall-clipped line rupture. */
-function executeEnemyLineAttack(sim: Sim, e: EnemyState, def: EnemyDef, events: SimEvent[]): void {
-  const melee = def.melee;
-  if (melee?.kind !== 'line') return;
+function executeEnemyLineAttack(
+  sim: Sim,
+  e: EnemyState,
+  attack: Extract<EnemyDef['attack'], { kind: 'line' }>,
+  events: SimEvent[]
+): void {
   const dir = e.windupDir ?? { x: 1, y: 0 };
   e.windupDir = undefined;
-  const halfWidth = melee.width / 2;
-  const length = e.windupLength ?? wallClippedEnemyLineLength(sim, e.pos, dir, melee.length);
+  const halfWidth = attack.width / 2;
+  const length = e.windupLength ?? wallClippedEnemyLineLength(sim, e.pos, dir, attack.length);
   e.windupLength = undefined;
   events.push({
     type: 'enemy-line-attack',
@@ -1007,7 +1031,7 @@ function executeEnemyLineAttack(sim: Sim, e: EnemyState, def: EnemyDef, events: 
     pos: { ...e.pos },
     dir: { ...dir },
     length,
-    width: melee.width
+    width: attack.width
   });
 
   for (const player of sim.state.players) {
@@ -1019,7 +1043,7 @@ function executeEnemyLineAttack(sim: Sim, e: EnemyState, def: EnemyDef, events: 
     const playerRadius = sim.config.content.heroes[player.heroId]?.radius ?? 12;
     if (perpendicular > halfWidth + playerRadius) continue;
     const dist = Math.hypot(rel.x, rel.y);
-    damagePlayerFromEnemy(sim, e, def, player, rel, dist, melee.pushPx, events, dir);
+    damagePlayerFromEnemy(sim, e, attack.damage, player, rel, dist, attack.pushPx, events, dir);
   }
 }
 
@@ -1037,7 +1061,7 @@ function wallClippedEnemyLineLength(sim: Sim, pos: Vec2, dir: Vec2, maxLength: n
 function damagePlayerFromEnemy(
   sim: Sim,
   e: EnemyState,
-  def: EnemyDef,
+  attackDamage: number,
   target: PlayerState,
   d: Vec2,
   dist: number,
@@ -1047,7 +1071,7 @@ function damagePlayerFromEnemy(
 ): void {
   const guard = guardDefFor(sim, target);
   const damage =
-    def.touchDamage * pressureDamageMult(sim) * (guard ? guard.damageMult : 1) * powerMult(sim, target, 'damageTakenMult');
+    attackDamage * pressureDamageMult(sim) * (guard ? guard.damageMult : 1) * powerMult(sim, target, 'damageTakenMult');
   target.hp -= damage;
   target.invulnTicks = sim.config.content.combat.playerHitInvulnTicks;
   if (pushPx > 0) {
@@ -1265,7 +1289,16 @@ function executeBossAction(sim: Sim, boss: BossState, def: BossDef, action: Boss
     for (let i = 0; i < def.glob.count; i++) {
       const frac = def.glob.count > 1 ? i / (def.glob.count - 1) : 0.5;
       const angle = base + (frac - 0.5) * spread;
-      spawnHostileBolt(sim, boss.id, boss.pos, def.radius, def.glob, { x: Math.cos(angle), y: Math.sin(angle) }, events);
+      spawnHostileBolt(
+        sim,
+        boss.id,
+        boss.pos,
+        def.radius,
+        def.glob,
+        def.glob.projectileDamage,
+        { x: Math.cos(angle), y: Math.sin(angle) },
+        events
+      );
     }
     return;
   }

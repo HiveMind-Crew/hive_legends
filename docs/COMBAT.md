@@ -21,12 +21,12 @@ There are two generated regions: the hero tables under
 | --- | --- | --- |
 | Base kit | `src/content/heroes.ts` | Each hero's `attack` and `ability` |
 | Weapon tiers | `src/content/weapons.ts` | `attackOverrides` merged over the base attack |
-| Enemies | `src/content/enemies.ts` | Every enemy's damage, reach, cadence and windup, plus the spawners |
+| Enemies | `src/content/enemies.ts` | Every enemy's attack shape and numbers, plus the spawners |
 | Boss | `src/content/bosses.ts` | Phase thresholds, action cycles, and each action's payload |
 | Shared dials | `src/content/combat.ts` | Hitstun, i-frames, knockback decay |
-| Shapes | `src/sim/types.ts` | `MeleeAttackDef`, `ProjectileAttackDef`, the three ability kinds, `EnemyDef`, `BossDef` |
+| Shapes | `src/sim/types.ts` | Hero attack/ability unions, `EnemyAttackDef`, `EnemyDef`, `BossDef` |
 | Resolution | `src/meta/save.ts` → `src/sim/sim.ts` | Equipped weapon baked in at `createSim`, read back by `playerAttack()` |
-| Enemy resolution | `src/sim/sim.ts` (`updateEnemies`, `executeEnemyAttack`) | Windup, release, and the one melee/ranged fork |
+| Enemy resolution | `src/sim/sim.ts` (`updateEnemies`, `executeEnemyAttack`) | Shared windup/recovery and one release branch per `attack.kind` |
 | Boss resolution | `src/sim/sim.ts` (`updateBoss`, `executeBossAction`) | Phase pick, telegraph, and the three action branches |
 | Scaling | `src/sim/sim.ts` (`heroDamage`) | `(base + upgrade + level) × frenzy` |
 | Presentation | `MissionScene`, `audio.ts`, `HeroSelectScene` | Per-`kind` switches, one branch per ability kind |
@@ -68,7 +68,7 @@ plane and "get behind them" stops existing, so 180° is the hard ceiling.
 
 **Player i-frames bound incoming damage, not outgoing.** A player is immune for
 `combat.playerHitInvulnTicks` after any hit, which caps how fast a crowd can
-burn them down and is why enemy `touchDamage` can be as high as it is.
+burn them down and is why enemy `attack.damage` can be as high as it is.
 
 **The swarm threshold is the unit of felt power.** The roster's cheapest enemy
 (currently the 40 hp Skitterling) is the yardstick for every burst: a button
@@ -392,11 +392,12 @@ else. Several are surprising enough that tuning an enemy without knowing them
 produces a monster that does not behave the way its numbers read.
 
 **Nothing damages you merely by touching you.** An enemy that walks into you
-does nothing until it completes a windup. On entering `attackRange` it commits,
-holds still for `attackWindupTicks`, and only then releases its authored
-attack. Contact strikes are beaten by leaving their range; the Ravager's locked
-line is beaten by stepping sideways. The boss is the sole exception — she has
-real body-contact damage, rate-limited by `touchCooldownTicks`.
+does nothing until it completes a windup. On entering `attack.range` it
+commits, holds still for `attack.windupTicks`, and only then releases its
+authored attack. Contact strikes are beaten by leaving their range; the
+Ravager's locked line is beaten by stepping sideways. The boss is the sole
+exception — she has real body-contact damage, rate-limited by
+`touchCooldownTicks`.
 
 **Contact melee ignores facing; line melee commits it.** The Skitter and
 Carapace use a centre-to-centre range check, so getting behind them changes
@@ -439,9 +440,9 @@ Ravager bursts from a dying Husk Mound rather than spawning steadily.
 
 **Spitter — the ranged zoner.** The only family that does not want to be near
 you: it holds at range, kites when crowded (`keepDistanceFraction`), and taxes
-you for standing in the open. It deals no melee damage whatsoever — its
-`touchDamage` is 0 and unread. Kiting is authored per-enemy and is a
-family-line invariant: ranged enemies kite, melee ones never do, because a
+you for standing in the open. Its `attack.kind` is `bolt`, so it has no hidden
+melee or body-contact damage. Kiting is authored per-enemy and is a family-line
+invariant: bolt enemies kite, contact and line enemies never do, because a
 retreating bruiser reads as cowardice rather than threat.
 
 **Mireveil — the boss.** A scripted opponent rather than a statistical one. She
@@ -464,13 +465,12 @@ two of reach, cadence, windup and damage — `tests/combat.test.ts` enforces it,
 because a monster that is another monster with a different HP bar is not a new
 monster.
 
-**Adding a new attack shape:** melee currently supports the default contact
-strike plus the data-authored `contact` push and `line` rupture shapes in
-`EnemyMeleeDef`. Adding another melee shape means extending that union, one sim
-branch, presentation, generated shape text, and differentiation tests. Ranged
-attacks still sit in a separate optional block; issue #77 tracks unifying and
-finishing the vocabulary. Issue #78 tracks the remaining Skitter and Spitter
-family attacks, while #81 is the boss-side equivalent.
+**Adding a new attack shape:** extend the discriminated `EnemyAttackDef` union,
+add one release branch in `executeEnemyAttack`, add its presentation and
+generated shape text, and strengthen the differentiation tests. Shape, damage,
+commit range, windup, and recovery stay together in the `attack` object; do not
+add another optional side channel to `EnemyDef`. Issue #78 tracks the remaining
+Skitter and Spitter family attacks, while #81 is the boss-side equivalent.
 
 <!-- BEGIN GENERATED: bestiary-tables -->
 
@@ -479,8 +479,8 @@ family attacks, while #81 is the boss-side equivalent.
 ### The roster
 
 Reach is the distance at which the enemy commits to an attack — for a ranged enemy that is
-where it stops and fires, not how far the bolt flies. Damage is the bolt for ranged families
-and the swing for melee ones; nothing reads `touchDamage` on an enemy that authors a bolt.
+where it stops and fires, not how far the bolt flies. Every enemy authors shape, damage,
+commit range, windup, and recovery together in one discriminated `attack` definition.
 Enemy DPS is `damage × 60 / (cooldownTicks + windupTicks)`: a full repeated attack
 cycle includes both the committed telegraph and the recovery before the next windup.
 

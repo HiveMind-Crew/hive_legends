@@ -16,10 +16,14 @@ export const ENEMIES: Record<string, EnemyDef> = {
     maxHp: 40,
     moveSpeed: 120,
     radius: 10,
-    touchDamage: 7,
-    attackRange: 28,
-    attackCooldownTicks: 45,
-    attackWindupTicks: 12, // quick nip — telegraphed but hard to punish
+    attack: {
+      kind: 'contact',
+      damage: 7,
+      range: 28,
+      cooldownTicks: 45,
+      windupTicks: 12, // quick nip — telegraphed but hard to punish
+      pushPx: 0
+    },
     goldMin: 2,
     goldMax: 5,
     xp: 6
@@ -32,12 +36,12 @@ export const ENEMIES: Record<string, EnemyDef> = {
     maxHp: 140,
     moveSpeed: 66, // slow bruiser
     radius: 15,
-    touchDamage: 16,
-    attackRange: 34,
-    attackCooldownTicks: 55,
-    attackWindupTicks: 24, // heavy overhead — clearly readable, punishing if it lands
-    melee: {
+    attack: {
       kind: 'contact',
+      damage: 16,
+      range: 34,
+      cooldownTicks: 55,
+      windupTicks: 24, // heavy overhead — clearly readable, punishing if it lands
       pushPx: 28
     },
     goldMin: 6,
@@ -52,20 +56,20 @@ export const ENEMIES: Record<string, EnemyDef> = {
     maxHp: 46,
     moveSpeed: 88,
     radius: 12,
-    touchDamage: 0, // never melees; fights at range
-    attackRange: 200, // holds this distance and spits
-    attackCooldownTicks: 105,
-    attackWindupTicks: 16, // a visible charge before the glob leaves the sac
     // Backs off inside 120 px (60% of its 200 px range) so it keeps plinking
     // from a distance instead of planting itself in your face (#23).
     keepDistanceFraction: 0.6,
     goldMin: 4,
     goldMax: 9,
     xp: 12,
-    ranged: {
+    attack: {
+      kind: 'bolt',
+      damage: 8,
+      range: 200, // holds this distance and spits
+      cooldownTicks: 105,
+      windupTicks: 16, // a visible charge before the glob leaves the sac
       projectileSpeed: 240,
       projectileRadius: 5,
-      projectileDamage: 8,
       projectileRange: 230
     }
   },
@@ -77,12 +81,12 @@ export const ENEMIES: Record<string, EnemyDef> = {
     maxHp: 320,
     moveSpeed: 82,
     radius: 19,
-    touchDamage: 24,
-    attackRange: 120,
-    attackCooldownTicks: 70,
-    attackWindupTicks: 30, // locks a line for 0.5 s, then tears the ground forward
-    melee: {
+    attack: {
       kind: 'line',
+      damage: 24,
+      range: 120,
+      cooldownTicks: 70,
+      windupTicks: 30, // locks a line for 0.5 s, then tears the ground forward
       length: 120,
       width: 28,
       pushPx: 36
