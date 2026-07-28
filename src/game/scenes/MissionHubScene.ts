@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { CONTENT, LEVELS } from '../../content';
 import { loadProfile, nodeLockState, spokeProgress, suggestedNode, type Profile } from '../../meta/save';
-import { statusCopy } from '../hubCopy';
+import { endOfContentCopy, spokeDisplayState, statusCopy } from '../hubCopy';
 import { audio } from '../audio';
 import { TEX } from '../textures';
 
@@ -48,9 +48,10 @@ export class MissionHubScene extends Phaser.Scene {
   private heroId = 'vanguard';
   private infoName!: Phaser.GameObjects.Text;
   private infoStatus!: Phaser.GameObjects.Text;
-  /** Node markers + selection ring, torn down and redrawn on every refresh. */
+  /** Node markers, halos and the selection ring — all torn down each refresh. */
   private markers: Phaser.GameObjects.Arc[] = [];
-  private ring: Phaser.GameObjects.Arc | null = null;
+  /** Pulse tweens driving those markers; removed before their targets are. */
+  private pulses: Phaser.Tweens.Tween[] = [];
 
   constructor() {
     super('mission-hub');
@@ -70,6 +71,7 @@ export class MissionHubScene extends Phaser.Scene {
     this.drawTeasers(cx, cy);
     this.drawSpokes(cx, cy);
     this.drawHub(cx, cy);
+    this.drawEndOfContent(cx, cy);
 
     // Park the cursor on whatever the player should play next, so a single
     // confirm always does the obvious thing (and the e2e default holds).
@@ -112,6 +114,34 @@ export class MissionHubScene extends Phaser.Scene {
       .setOrigin(0.5);
   }
 
+  /**
+   * The edge of the authored game, once every node is cleared (#63). Without
+   * this the finished wheel is a board of green markers with no way to tell
+   * "you have reached the end of what exists" from "something is broken" —
+   * Results says it on the run that earns it, this says it every time after.
+   */
+  private drawEndOfContent(cx: number, cy: number): void {
+    const end = endOfContentCopy(this.profile);
+    if (!end) return;
+    const d = MissionHubScene.dir(end.teaser.angleDeg);
+    // Below the teaser arms and their taglines: the line is wide enough to
+    // cross both arms if it sits level with them.
+    this.add
+      .text(cx, cy + 160, end.line, { fontFamily: 'monospace', fontSize: '12px', color: '#c9a227' })
+      .setOrigin(0.5);
+    // The tagline sits on the arm it belongs to, which is what `TeaserSpokeDef`
+    // documents it as being for and what the hub never showed until now.
+    this.add
+      .text(cx + d.x * TEASER_RADIUS, cy + d.y * TEASER_RADIUS + 44, end.teaser.tagline, {
+        fontFamily: 'monospace',
+        fontSize: '10px',
+        color: '#6b6280',
+        align: 'center',
+        wordWrap: { width: 230 }
+      })
+      .setOrigin(0.5, 0);
+  }
+
   /** Announced-but-unauthored branches: a stub arm and a dimmed marker. */
   private drawTeasers(cx: number, cy: number): void {
     for (const teaser of CONTENT.teaserSpokes) {
@@ -133,10 +163,13 @@ export class MissionHubScene extends Phaser.Scene {
     for (const spoke of CONTENT.spokes) {
       const d = MissionHubScene.dir(spoke.angleDeg);
       const last = NODE_RADII[NODE_RADII.length - 1]!;
+      // A gated realm reads as a teaser arm: same faint line, same muted label
+      // (#56). The decision is `spokeDisplayState`, not a check inlined here.
+      const gated = spokeDisplayState(this.profile, spoke.id) === 'gated';
       this.add
-        .line(0, 0, cx, cy, cx + d.x * last, cy + d.y * last, spoke.accent, 0.5)
+        .line(0, 0, cx, cy, cx + d.x * last, cy + d.y * last, spoke.accent, gated ? 0.16 : 0.5)
         .setOrigin(0, 0)
-        .setLineWidth(3);
+        .setLineWidth(gated ? 2 : 3);
 
       const levelIds = [...spoke.missions, spoke.boss];
       levelIds.forEach((levelId, i) => {
@@ -162,7 +195,7 @@ export class MissionHubScene extends Phaser.Scene {
         .text(cx + d.x * last + perp.x * 34, cy + d.y * last + perp.y * 34, spoke.name, {
           fontFamily: 'monospace',
           fontSize: '13px',
-          color: '#a89bb8'
+          color: gated ? '#4e4661' : '#a89bb8'
         })
         .setOrigin(perp.x >= 0 ? 0 : 1, 0.5);
     }
@@ -197,6 +230,10 @@ export class MissionHubScene extends Phaser.Scene {
 
   /** Redraws node markers and the info panel for the current cursor. */
   private refresh(): void {
+    // Kill the pulses before their targets go: a tween outlives the object it
+    // drives, and refresh runs on every cursor move.
+    for (const t of this.pulses) t.remove();
+    this.pulses = [];
     for (const m of this.markers) m.destroy();
     this.markers = [];
 
@@ -209,10 +246,26 @@ export class MissionHubScene extends Phaser.Scene {
       marker.setStrokeStyle(node.isBoss ? 3 : 2, stroke, lock.state === 'locked' ? 0.5 : 1);
       this.markers.push(marker);
 
+      // An available node pulses so the eye lands on what you can actually play
+      // (#56) — the one state that is an invitation rather than a status.
+      if (lock.state === 'available') {
+        const halo = this.add.circle(node.x, node.y, size + 4).setStrokeStyle(2, COLOR.available, 0.9);
+        this.markers.push(halo);
+        this.pulses.push(
+          this.tweens.add({
+            targets: halo,
+            scale: 1.18,
+            alpha: 0.3,
+            duration: 750,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.InOut'
+          })
+        );
+      }
+
       if (i === this.cursor) {
-        this.ring?.destroy();
-        this.ring = this.add.circle(node.x, node.y, size + 8).setStrokeStyle(2, 0xffffff, 0.8);
-        this.markers.push(this.ring);
+        this.markers.push(this.add.circle(node.x, node.y, size + 8).setStrokeStyle(2, 0xffffff, 0.8));
       }
     });
 

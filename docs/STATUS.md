@@ -1,8 +1,9 @@
 # Project status
 
-Updated: 2026-07-24 — **the M1 vertical slice is content-complete** (boss #25,
+Updated: 2026-07-28 — **the M1 vertical slice is content-complete** (boss #25,
 XP levelling #46, combat-feel pass #38/#39/#40, screen-clear potion #41, and
-the first real art pack #44 all landed).
+the first real art pack #44 all landed), and the mission wheel (#59) is
+finished and closed.
 
 ## Milestones
 
@@ -55,8 +56,10 @@ the code on 2026-07-24 and corrected; everything below is now landed):
       spat globs), a >= 1 s telegraph before every damaging action, a HUD
       finale bar, and a multi-stage death spectacle. The exit stays sealed
       while she lives.
-- [x] Hub polish (hero select → mission select flow) — attract-mode title and
-      hero cards (#9), plus the mission-select panel and unlock gating (#24).
+- [x] Hub polish (hero select → mission flow) — attract-mode title and hero
+      cards (#9), plus unlock gating (#24). The mission-select *panel* this
+      once described was replaced by the spoke-and-wheel hub in #57; hero
+      select now picks only who goes.
 - [x] Audio (original SFX/music) — synthesized SFX, a procedural combat loop,
       and the Herald announcer (#8).
 - [x] XP/level progression in addition to gold upgrades — XP from kills and
@@ -69,10 +72,11 @@ work is the original-art track (#27, #28) and the M2 board (#29).
 
 ## Verification state
 
-`lint`, `typecheck`, **166 unit tests across 17 files**, the production build,
-and the Playwright gameplay playthrough (bot clears The Brood Warrens, banks
-gold and XP, buys an upgrade, and replays with both the upgrade and the earned
-level applied; screenshots in `test-results/`) all pass. Run the whole gate
+`lint`, `typecheck`, **249 unit tests across 23 files**, the production build,
+and the Playwright gameplay playthrough (bot confirms through hero select and
+the wheel, clears The Brood Warrens, banks gold and XP, buys an upgrade, and
+replays with both the upgrade and the earned level applied; screenshots in
+`test-results/`) all pass. Run the whole gate
 with the one-liner in `CLAUDE.md`; layer-by-layer detail is in
 `docs/TESTING.md`.
 

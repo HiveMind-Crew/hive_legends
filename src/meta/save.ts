@@ -340,11 +340,28 @@ export function nextTeaser(profile: Profile): TeaserSpokeDef | undefined {
   return isWheelComplete(profile) ? TEASER_SPOKES[0] : undefined;
 }
 
-/** The next mission after `levelId` in `order`, or null if it's the last. */
-export function nextLevelId(levelId: string, order: readonly string[]): string | null {
+/**
+ * What "next" should offer after clearing `levelId`, or null when nothing
+ * follows — which is the signal Results uses to announce the end of content.
+ *
+ * Spoke-aware rather than a walk along the flat `MISSION_ORDER`: inside a
+ * realm it is the following node, and after a boss it is the next realm's
+ * first mission *only once that realm has actually opened*. The flat view
+ * happened to give the same answer while one spoke existed, because clearing a
+ * boss is exactly what unlocks the spoke behind it — but it would have walked
+ * a player straight into a locked realm the moment two spokes shared a gate.
+ */
+export function nextNodeAfter(profile: Profile, levelId: string): string | null {
+  const spoke = spokeForLevel(levelId);
+  if (!spoke) return null;
+
+  const order = [...spoke.missions, spoke.boss];
   const idx = order.indexOf(levelId);
-  if (idx < 0 || idx + 1 >= order.length) return null;
-  return order[idx + 1]!;
+  if (idx >= 0 && idx + 1 < order.length) return order[idx + 1]!;
+
+  // The realm is finished; hand over to whatever it gates, if that is now open.
+  const opened = SPOKES.find((s) => s.requiresSpoke === spoke.id && isSpokeUnlocked(profile, s.id));
+  return opened?.missions[0] ?? null;
 }
 
 // ---------------------------------------------------------------------------

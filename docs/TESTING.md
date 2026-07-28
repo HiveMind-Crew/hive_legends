@@ -20,8 +20,10 @@ Controls: **WASD/Arrows** move · **Space/J** attack · **Shift/K** ability ·
 **Q** quaff a potion · **Enter** confirm · **M** mute audio. On hero select,
 **←→** pick a hero, **B** recruit. On the wheel, **↑↓** move along a spoke,
 **←→** jump between realms, **Enter** deploy, **H** back to hero select. In
-the results shop, **1/2** buy upgrades, **3/4** weapons, **N** next mission,
-**W** back to the wheel, **R** replay, **H** hero select.
+the results shop, **1/2** buy upgrades, **3/4** weapons, **N** the wheel
+focused on the next node, **W** the wheel where you are, **R** replay,
+**H** hero select. Both **N** and **W** return through the wheel — nothing
+launches a mission straight from results.
 
 To play the exact build that ships:
 
@@ -63,8 +65,8 @@ npm run lint && npm run typecheck && npm test && npm run build && npm run test:e
   starts `npm run preview` automatically).
 - Watch it play in a real window: `npx playwright test --headed`.
 - Screenshots of each stage land in `test-results/`:
-  `01-hero-select` → `02-mission-start` → `03-horde-combat` →
-  `03b-combat-juice` (moment of the first kill) →
+  `01-hero-select` → `01b-mission-hub` (the wheel, #57) → `02-mission-start` →
+  `03-horde-combat` → `03b-combat-juice` (moment of the first kill) →
   `03c-node-damaged` (generator damage tiers) → `04-results` →
   `05-replay-upgraded`. CI uploads these as artifacts on every run.
 - The bot reads game state through a read-only debug handle the game exposes

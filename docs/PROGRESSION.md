@@ -73,9 +73,9 @@ because a finished level stays enterable — Results offers a replay.
 | Wheel shape | `src/content/spokes.ts` | `SPOKES`, `TEASER_SPOKES` |
 | Shapes | `src/sim/types.ts` | `SpokeDef`, `TeaserSpokeDef` |
 | Levels | `src/content/levels/` | The maps a spoke points at |
-| Unlock rules | `src/meta/save.ts` | `nodeLockState`, `isSpokeUnlocked`, `spokeProgress`, `suggestedNode`, `spokeForLevel`, `isWheelComplete`, `nextTeaser` |
+| Unlock rules | `src/meta/save.ts` | `nodeLockState`, `isSpokeUnlocked`, `spokeProgress`, `suggestedNode`, `spokeForLevel`, `nextNodeAfter`, `isWheelComplete`, `nextTeaser` |
 | Rendering | `src/game/scenes/MissionHubScene.ts` | Drawing only — no progression logic |
-| Node copy | `src/game/hubCopy.ts` | `statusCopy`, kept out of the scene so it is testable |
+| Presentation rules | `src/game/hubCopy.ts` | `statusCopy`, `spokeDisplayState`, `endOfContentCopy` — kept out of the scene so they are testable |
 
 `MissionHubScene` reads positions from each spoke's `angleDeg`, states from
 `nodeLockState`, its cursor default from `suggestedNode`, and its teaser arms
@@ -172,6 +172,22 @@ finished and dangles what is coming, instead of going quiet.
 
 The realm name is derived from the boss that was felled, not hardcoded — a
 second spoke must not leave that line announcing the first.
+
+The wheel says it too, via `endOfContentCopy`: Results announces the end on the
+run that earns it, but a player who comes back later sees only a board of
+cleared nodes, and "this is the edge of the authored game" has to be
+distinguishable from "something is broken". Both read `nextTeaser`, so they
+cannot disagree about whether the wheel is finished.
+
+## What "next" means after a clear
+
+`nextNodeAfter` answers it, and it is spoke-aware rather than a walk along the
+flat `MISSION_ORDER`: inside a realm it is the following node, and after a boss
+it is the next realm's first mission **only once that realm has actually
+opened**. The flat walk gave the same answer while one spoke existed — clearing
+a boss is exactly what unlocks the spoke behind it — but it would have offered
+a locked realm the moment two spokes shared a gate. `tests/spokeGate.test.ts`
+holds that case against the two-spoke fixture.
 
 ## A note on generated tables
 

@@ -7,7 +7,7 @@ import {
   equippedWeaponId,
   loadProfile,
   markLevelCleared,
-  nextLevelId,
+  nextNodeAfter,
   nextTeaser,
   ownedWeapons,
   saveProfile,
@@ -67,9 +67,10 @@ export class ResultsScene extends Phaser.Scene {
     }
     saveProfile(this.profile);
 
-    // Next realm to offer on victory (only once it's unlocked, which a clear
-    // of this realm guarantees).
-    const nextId = data.victory ? nextLevelId(levelId, MISSION_ORDER) : null;
+    // Next node to offer on victory. Spoke-aware, so a boss clear hands over
+    // to the realm it just opened rather than to whatever sits next in the
+    // flat order (`nextNodeAfter`, unit-tested in tests/meta.test.ts).
+    const nextId = data.victory ? nextNodeAfter(this.profile, levelId) : null;
     const nextName = nextId ? LEVELS[nextId]?.name : undefined;
     // Edge of the authored game: instead of going quiet, name what is coming
     // (issue #63). The rule lives in meta so it is unit-tested; this only draws.

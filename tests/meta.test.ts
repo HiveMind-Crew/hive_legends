@@ -21,7 +21,7 @@ import {
   loadProfile,
   bankXp,
   markLevelCleared,
-  nextLevelId,
+  nextNodeAfter,
   ownedWeapons,
   profileLevel,
   resolveWeaponAttack,
@@ -215,10 +215,23 @@ describe('mission progression', () => {
     expect(profile.clearedLevels.filter((id) => id === first)).toHaveLength(1);
   });
 
-  it('nextLevelId walks the order and stops at the end', () => {
-    expect(nextLevelId(first, MISSION_ORDER)).toBe(second ?? null);
-    expect(nextLevelId(MISSION_ORDER[MISSION_ORDER.length - 1]!, MISSION_ORDER)).toBeNull();
-    expect(nextLevelId('does-not-exist', MISSION_ORDER)).toBeNull();
+  it('nextNodeAfter walks the wheel and stops at the end', () => {
+    const profile = defaultProfile();
+    expect(nextNodeAfter(profile, first)).toBe(second ?? null);
+    expect(nextNodeAfter(profile, MISSION_ORDER[MISSION_ORDER.length - 1]!)).toBeNull();
+    expect(nextNodeAfter(profile, 'does-not-exist')).toBeNull();
+  });
+
+  it('nextNodeAfter offers the next realm only once its boss has opened it', () => {
+    // The flat order gave the right answer here by luck — clearing a boss is
+    // exactly what unlocks the spoke behind it. The spoke-aware rule has to be
+    // right on purpose, so assert the boss of the last authored spoke leads
+    // nowhere rather than into an unauthored realm. `tests/spokeGate.test.ts`
+    // covers the two-spoke hand-off against a fixture.
+    const profile = defaultProfile();
+    const lastSpoke = SPOKES[SPOKES.length - 1]!;
+    for (const id of [...lastSpoke.missions, lastSpoke.boss]) markLevelCleared(profile, id);
+    expect(nextNodeAfter(profile, lastSpoke.boss)).toBeNull();
   });
 
   it('loadProfile backfills clearedLevels for older saves', () => {

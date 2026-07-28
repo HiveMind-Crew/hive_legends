@@ -28,17 +28,24 @@ vi.mock('../src/content/spokes', () => ({
       requiresSpoke: 'alpha',
       angleDeg: 90
     }
-  ]
+  ],
+  // `src/meta/save.ts` imports both names; mocking only SPOKES leaves the
+  // module half-defined and fails confusingly the moment anything here touches
+  // an end-of-content path.
+  TEASER_SPOKES: []
 }));
 
 const {
   defaultProfile,
   isSpokeUnlocked,
   markLevelCleared,
+  nextNodeAfter,
   nodeLockState,
   spokeProgress,
   suggestedNode
 } = await import('../src/meta/save');
+
+const { spokeDisplayState } = await import('../src/game/hubCopy');
 
 type Profile = ReturnType<typeof defaultProfile>;
 
@@ -105,5 +112,54 @@ describe('spoke gating', () => {
     markLevelCleared(profile, 'a-one');
     expect(spokeProgress(profile, 'alpha')).toEqual({ cleared: 1, total: 2 });
     expect(spokeProgress(profile, 'beta')).toEqual({ cleared: 0, total: 2 });
+  });
+});
+
+/**
+ * The wheel's two-spoke presentation and hand-off rules (#56, #57).
+ *
+ * Neither can be exercised by the real content — one spoke is authored, so a
+ * gated realm and a cross-realm "next" are both unreachable today. They are
+ * exactly the reads that must already work the day a second realm ships, which
+ * is why they live against the fixture rather than going untested until then.
+ */
+describe('a gated realm on the wheel', () => {
+  let profile: Profile;
+
+  beforeEach(() => {
+    profile = defaultProfile();
+  });
+
+  it('dims to the teaser treatment until its gate falls', () => {
+    expect(spokeDisplayState(profile, 'alpha')).toBe('open');
+    expect(spokeDisplayState(profile, 'beta')).toBe('gated');
+
+    // Clearing the missions is not enough — the gate is the boss.
+    markLevelCleared(profile, 'a-one');
+    markLevelCleared(profile, 'a-two');
+    expect(spokeDisplayState(profile, 'beta')).toBe('gated');
+
+    markLevelCleared(profile, 'a-boss');
+    expect(spokeDisplayState(profile, 'beta')).toBe('open');
+  });
+
+  it('an unknown spoke reads as gated rather than throwing', () => {
+    expect(spokeDisplayState(profile, 'no-such-spoke')).toBe('gated');
+  });
+
+  it('hands "next" across the boundary only once the boss has opened it', () => {
+    // Within a realm, "next" is the following node.
+    expect(nextNodeAfter(profile, 'a-one')).toBe('a-two');
+    expect(nextNodeAfter(profile, 'a-two')).toBe('a-boss');
+
+    // The boss of a realm whose successor is still shut leads nowhere: the
+    // flat-order walk would have offered 'b-one' here, into a locked realm.
+    expect(nextNodeAfter(profile, 'a-boss')).toBeNull();
+
+    markLevelCleared(profile, 'a-boss');
+    expect(nextNodeAfter(profile, 'a-boss')).toBe('b-one');
+
+    // The last authored realm still ends the line.
+    expect(nextNodeAfter(profile, 'b-boss')).toBeNull();
   });
 });

@@ -115,7 +115,13 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   await page.screenshot({ path: 'test-results/01-hero-select.png' });
 
   // Hero select hands off to the wheel, which deploys (issue #57), so reaching
-  // a mission now takes two confirms rather than one.
+  // a mission takes two confirms rather than one.
+  //
+  // That count is *not* enforced here: the retry poll below presses Enter until
+  // a sim exists, so a third confirm would be absorbed silently. The "fewest
+  // confirms" constraint is pinned where it can actually be checked — the wheel
+  // opening on The Brood Warrens (`tests/content.test.ts`) and the Vanguard
+  // being the always-available default (`tests/meta.test.ts`).
   await page.keyboard.press('Enter');
   await page.waitForTimeout(800);
   await page.screenshot({ path: 'test-results/01b-mission-hub.png' });

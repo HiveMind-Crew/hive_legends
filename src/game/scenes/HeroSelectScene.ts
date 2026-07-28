@@ -98,7 +98,7 @@ export class HeroSelectScene extends Phaser.Scene {
     this.tweens.add({ targets: prompt, alpha: 0.35, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
 
     this.add.rectangle(width / 2, height - 62, 760, 42, 0x120c1a, 0.8).setStrokeStyle(1, 0x3a2f4a);
-    const footer = '←→ switch hero   B recruit   Enter choose mission   Attack Space   Ability Shift   Mute M';
+    const footer = '←→ switch hero   B recruit   Enter to the wheel   Attack Space   Ability Shift   Mute M';
     this.add
       .text(width / 2, height - 62, footer, {
         fontFamily: 'monospace',
@@ -222,8 +222,10 @@ export class HeroSelectScene extends Phaser.Scene {
       .setAlpha(0.14);
     this.tweens.add({ targets: glow, alpha: 0.26, duration: 1600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
 
+    // Naming a realm here would go stale the moment the player clears it — the
+    // wheel owns "where next" since #57, and it answers with the real profile.
     this.add
-      .text(width / 2, 116, 'The Brood Warrens await', {
+      .text(width / 2, 116, 'Choose your champion', {
         fontFamily: 'monospace',
         fontSize: '18px',
         color: '#a89bb8'
@@ -233,8 +235,8 @@ export class HeroSelectScene extends Phaser.Scene {
 
   private drawHeroCard(width: number, hero: HeroDef, mods: HeroModifiers, lock: HeroLockState, rosterSize: number): void {
     const unlocked = lock.state === 'unlocked';
-    // Sit left of centre when teaser slots or the mission panel share the row;
-    // centre when the card is alone.
+    // Sit left of centre when teaser slots share the row; centre when the card
+    // is alone, which is the shipped case while every class is playable.
     const cardX = LOCKED_ROLES.length > 0 ? width / 2 - 200 : width / 2;
     this.add.rectangle(cardX, 320, 300, 320, 0x231a30).setStrokeStyle(2, unlocked ? 0xd9a441 : 0x544868);
 
