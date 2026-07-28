@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { buildRangerPack } from '../scripts/art/rangerPack';
+import { buildSentinelPack } from '../scripts/art/sentinelPack';
 import { TEXTURE_SPECS } from '../src/game/textureSpecs';
 
 /**
@@ -89,5 +90,39 @@ describe('the Ranger pack', () => {
       for (const pose of ['w0', 'w1', 'atk']) expect(keys).toContain(`hero-ranger-${dir}-${pose}`);
     }
     expect(keys).toContain('hero-ranger');
+  });
+});
+
+describe('the Sentinel pack', () => {
+  it('matches the pixel grids it is drawn from', () => {
+    const pack = buildSentinelPack();
+
+    if (process.env.UPDATE_ART) {
+      const listed = manifestKeys();
+      for (const [key, png] of pack) {
+        writeFileSync(`${ART_DIR}${key}.png`, png);
+        if (!listed.includes(key)) listed.push(key);
+      }
+      writeFileSync(MANIFEST, `${JSON.stringify(listed, null, 2)}\n`);
+      return;
+    }
+
+    for (const [key, png] of pack) {
+      const file = `${ART_DIR}${key}.png`;
+      expect(existsSync(file), `${key}.png is missing — run \`npm run art:build\``).toBe(true);
+      expect(
+        readFileSync(file).equals(Buffer.from(png)),
+        `${key}.png is stale — run \`npm run art:build\``
+      ).toBe(true);
+    }
+  });
+
+  it('covers all eight facings, both walk frames, the sweep, and the portrait', () => {
+    const keys = [...buildSentinelPack().keys()];
+    expect(keys).toHaveLength(25);
+    for (let dir = 0; dir < 8; dir++) {
+      for (const pose of ['w0', 'w1', 'atk']) expect(keys).toContain(`hero-sentinel-${dir}-${pose}`);
+    }
+    expect(keys).toContain('hero-sentinel');
   });
 });
