@@ -305,10 +305,10 @@ describe('differentiation', () => {
         if (a.id >= b.id) continue;
         if (enemyAttackKind(a) !== enemyAttackKind(b)) continue; // different shape outright
         const dials = [
-          a.attackRange !== b.attackRange,
-          a.attackCooldownTicks !== b.attackCooldownTicks,
-          a.attackWindupTicks !== b.attackWindupTicks,
-          (a.ranged?.projectileDamage ?? a.touchDamage) !== (b.ranged?.projectileDamage ?? b.touchDamage)
+          a.attack.range !== b.attack.range,
+          a.attack.cooldownTicks !== b.attack.cooldownTicks,
+          a.attack.windupTicks !== b.attack.windupTicks,
+          a.attack.damage !== b.attack.damage
         ].filter(Boolean).length;
         expect(dials, `${a.id} and ${b.id} attack too much alike`).toBeGreaterThanOrEqual(2);
       }
@@ -337,7 +337,7 @@ describe('differentiation', () => {
     // faster than a player can react to is not difficulty, it is noise.
     const MIN_WINDUP_TICKS = 10;
     for (const enemy of Object.values(CONTENT.enemies)) {
-      expect(enemy.attackWindupTicks, `${enemy.id} windup`).toBeGreaterThanOrEqual(MIN_WINDUP_TICKS);
+      expect(enemy.attack.windupTicks, `${enemy.id} windup`).toBeGreaterThanOrEqual(MIN_WINDUP_TICKS);
     }
   });
 

@@ -48,14 +48,13 @@ describe('enemy roster', () => {
     const spitter = CONTENT.enemies['bile-spitter']!;
     const elite = CONTENT.enemies['gravebound-ravager']!;
     expect(husk.family).toBe('husk');
-    expect(husk.ranged).toBeUndefined();
-    expect(husk.melee).toEqual({ kind: 'contact', pushPx: 28 });
+    expect(husk.attack).toMatchObject({ kind: 'contact', pushPx: 28 });
     expect(husk.maxHp).toBeGreaterThan(CONTENT.enemies['skitterling']!.maxHp);
     expect(spitter.family).toBe('spitter');
-    expect(spitter.ranged).toBeDefined();
+    expect(spitter.attack.kind).toBe('bolt');
     expect(elite.tier).toBe('elite');
     expect(elite.maxHp).toBeGreaterThan(husk.maxHp);
-    expect(elite.melee?.kind).toBe('line');
+    expect(elite.attack.kind).toBe('line');
   });
 
   it('the level fields all three families from its spawners', () => {
@@ -71,7 +70,7 @@ describe('enemy roster', () => {
 
   it('every ranged enemy authors keep-distance kiting, and melee never does', () => {
     for (const def of Object.values(CONTENT.enemies)) {
-      if (def.ranged) {
+      if (def.attack.kind === 'bolt') {
         expect(def.keepDistanceFraction, `${def.id} kiting`).toBeGreaterThan(0);
         expect(def.keepDistanceFraction, `${def.id} kiting`).toBeLessThan(1);
       } else {
@@ -125,7 +124,7 @@ describe('elite on generator death (#40)', () => {
 });
 
 describe('attack windup (#39)', () => {
-  const HUSK_WINDUP = CONTENT.enemies['carapace-husk']!.attackWindupTicks;
+  const HUSK_WINDUP = CONTENT.enemies['carapace-husk']!.attack.windupTicks;
 
   it('telegraphs the first strike instead of hitting on contact', () => {
     const sim = newSim();
@@ -196,7 +195,7 @@ describe('husk (melee bruiser)', () => {
     const beforeX = p.pos.x;
     spawnEnemy(sim, 'carapace-husk', 801, p.pos.x + 30, p.pos.y);
 
-    const events = runTicks(sim, CONTENT.enemies['carapace-husk']!.attackWindupTicks + 1);
+    const events = runTicks(sim, CONTENT.enemies['carapace-husk']!.attack.windupTicks + 1);
 
     expect(events.some((e) => e.type === 'player-hit')).toBe(true);
     expect(p.pos.x).toBeLessThan(beforeX);
@@ -214,7 +213,7 @@ describe('Gravebound Ravager line rupture', () => {
     const beforeX = p.pos.x;
     const ravager = spawnEnemy(sim, 'gravebound-ravager', 802, c(7), c(5));
 
-    const events = runTicks(sim, CONTENT.enemies['gravebound-ravager']!.attackWindupTicks + 1);
+    const events = runTicks(sim, CONTENT.enemies['gravebound-ravager']!.attack.windupTicks + 1);
     const rupture = events.find((e) => e.type === 'enemy-line-attack');
 
     expect(rupture).toMatchObject({ enemyId: ravager.id, length: 120, width: 28 });
@@ -231,7 +230,7 @@ describe('Gravebound Ravager line rupture', () => {
     runTicks(sim, 1); // lock the eastward rupture
     p.pos.y += 80;
 
-    const events = runTicks(sim, CONTENT.enemies['gravebound-ravager']!.attackWindupTicks + 1);
+    const events = runTicks(sim, CONTENT.enemies['gravebound-ravager']!.attack.windupTicks + 1);
 
     expect(events.some((e) => e.type === 'enemy-line-attack')).toBe(true);
     expect(events.some((e) => e.type === 'player-hit')).toBe(false);
@@ -247,7 +246,7 @@ describe('Gravebound Ravager line rupture', () => {
     p.pos = { x: c(16), y: c(3) };
     spawnEnemy(sim, 'gravebound-ravager', 804, c(13), c(3));
 
-    const events = runTicks(sim, CONTENT.enemies['gravebound-ravager']!.attackWindupTicks + 1);
+    const events = runTicks(sim, CONTENT.enemies['gravebound-ravager']!.attack.windupTicks + 1);
     const rupture = events.find((e) => e.type === 'enemy-line-attack');
 
     expect(rupture?.type === 'enemy-line-attack' ? rupture.length : Infinity).toBeLessThan(96);
@@ -262,7 +261,7 @@ describe('spitter (ranged)', () => {
     sim.state.generators = [];
     const p = sim.state.players[0]!;
     const before = p.hp;
-    spawnEnemy(sim, 'bile-spitter', 810, p.pos.x + 150, p.pos.y); // inside attackRange (200)
+    spawnEnemy(sim, 'bile-spitter', 810, p.pos.x + 150, p.pos.y); // inside attack.range (200)
     const events = runTicks(sim, 60);
     expect(events.some((e) => e.type === 'enemy-shot')).toBe(true);
     expect(events.some((e) => e.type === 'player-hit')).toBe(true);
@@ -309,7 +308,7 @@ describe('spitter (ranged)', () => {
     const events = runTicks(sim, 60, input({ ability: true })); // hold Bastion Wall up
     expect(events.some((e) => e.type === 'guard-block')).toBe(true);
     // Damage taken is the reduced (guarded) fraction of the bolt's damage.
-    expect(before - p.hp).toBeLessThanOrEqual(spitter.ranged!.projectileDamage);
+    expect(before - p.hp).toBeLessThanOrEqual(spitter.attack.damage);
   });
 
   it('backs away when the player crowds it, reopening the gap (#23)', () => {
@@ -317,7 +316,7 @@ describe('spitter (ranged)', () => {
     sim.state.generators = []; // isolate
     const p = sim.state.players[0]!;
     const def = CONTENT.enemies['bile-spitter']!;
-    const keepDistance = def.attackRange * def.keepDistanceFraction!;
+    const keepDistance = def.attack.range * def.keepDistanceFraction!;
     // Stand well inside its comfort band, on open floor with room behind it.
     const start = { x: p.pos.x + 60, y: p.pos.y };
     expect(60).toBeLessThan(keepDistance);
@@ -332,9 +331,9 @@ describe('spitter (ranged)', () => {
     sim.state.generators = [];
     const p = sim.state.players[0]!;
     const def = CONTENT.enemies['bile-spitter']!;
-    const keepDistance = def.attackRange * def.keepDistanceFraction!;
+    const keepDistance = def.attack.range * def.keepDistanceFraction!;
     // Comfortably inside range but outside the retreat band.
-    const gap = (keepDistance + def.attackRange) / 2;
+    const gap = (keepDistance + def.attack.range) / 2;
     const e = spawnEnemy(sim, 'bile-spitter', 861, p.pos.x + gap, p.pos.y);
     const before = { ...e.pos };
     runTicks(sim, 60);

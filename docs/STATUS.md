@@ -176,7 +176,7 @@ the transition).
 Solo-clear attrition after enrage shipped was over-tuned: the e2e bot (now
 playing competently — heal-seeking incl. smashing amber clutches, early
 Sunder Slams) still died in ~half its runs, always to sustained contact
-pressure near the second node. Data-side tune: skitterling touchDamage
+pressure near the second node. Data-side tune: Skitterling `attack.damage`
 8 → 7, enrage intervalMult 0.5 → 0.6, enrage duration 180 → 150 ticks
 (2.5 s), and a third health pickup on the mid-map route (16,6). Enrage
 urgency is preserved; attrition ceiling drops ~20%.
@@ -272,15 +272,17 @@ no locked teaser slots left.
 #23 landed: the enemy roster expands past the lone Skitterling into three
 families — the **Carapace Husk** (slow, tanky melee bruiser), the **Bile
 Spitter** (ranged), and the elite **Gravebound Ravager**. The Spitter needed a
-new sim mechanic: `ProjectileState` gained a `hostile` flag and `EnemyDef` an
-optional `ranged` def, so enemy fire flies as deterministic sim bolts that
-strike players (respecting i-frames and Bastion Wall) while player fire still
-strikes enemies — the two never cross streams, and `updateProjectiles` shares
-one wall-stop path. The Brood Warrens now fields all three from a Brood Node, a
-Husk Mound, and a Spitter Nest; the e2e bot still clears it. Renderer tints
-hostile bile bolts sickly-green and plays a distinct spit SFX; the family×tier
-art grammar (#7) drew every new silhouette with zero new texture code. Covered
-in `tests/sim/enemies.test.ts`.
+new sim mechanic: `ProjectileState` gained a `hostile` flag, so enemy fire
+flies as deterministic sim bolts that strike players (respecting i-frames and
+Bastion Wall) while player fire still strikes enemies — the two never cross
+streams, and `updateProjectiles` shares one wall-stop path. `EnemyDef.attack`
+now holds the complete discriminated `contact` / `line` / `bolt` vocabulary,
+including shape, damage, commit range, windup, and recovery; there are no
+optional attack side channels or implied defaults. The Brood Warrens fields
+all three families from a Brood Node, a Husk Mound, and a Spitter Nest; the e2e
+bot still clears it. Renderer tints hostile bile bolts sickly-green and plays a
+distinct spit SFX; the family×tier art grammar (#7) drew every new silhouette
+with zero new texture code. Covered in `tests/sim/enemies.test.ts`.
 
 The Skitter and Husk follow-up gives those silhouettes distinct attack reads.
 Skitter keeps its quick 7-damage contact nip with a 12-tick windup. The

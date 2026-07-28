@@ -67,10 +67,10 @@ describe('bastion wall', () => {
     const sim = newSentinelSim();
     sim.state.generators = []; // isolate from the horde
     const p = sim.state.players[0]!;
-    spawnEnemy(sim, 900, p.pos.x + 20, p.pos.y); // inside attackRange (28)
+    spawnEnemy(sim, 900, p.pos.x + 20, p.pos.y); // inside attack.range (28)
     const before = p.hp;
     simTick(sim, [guard ? input({ ability: true }) : EMPTY_INPUT]); // raise the stance on the first tick
-    runTicks(sim, CONTENT.enemies['skitterling']!.attackWindupTicks + 2); // let the enemy's windup land
+    runTicks(sim, CONTENT.enemies['skitterling']!.attack.windupTicks + 2); // let the enemy's windup land
     return before - p.hp;
   }
 
@@ -102,7 +102,7 @@ describe('bastion wall', () => {
     p.facing = { x: 1, y: 0 };
     const e = spawnEnemy(sim, 901, p.pos.x + 20, p.pos.y);
     simTick(sim, [input({ ability: true })]); // raise the stance
-    const events = runTicks(sim, CONTENT.enemies['skitterling']!.attackWindupTicks + 2); // block lands as the windup resolves
+    const events = runTicks(sim, CONTENT.enemies['skitterling']!.attack.windupTicks + 2); // block lands as the windup resolves
     expect(events.some((ev) => ev.type === 'guard-block')).toBe(true);
     // The enemy sits at +x, so the reflected impulse pushes it further +x.
     expect(e.knockback.x).toBeGreaterThan(100);
@@ -123,8 +123,8 @@ describe('bastion wall', () => {
     const before = p.hp;
     spawnEnemy(sim, 902, p.pos.x + 20, p.pos.y);
     p.invulnTicks = 0;
-    runTicks(sim, CONTENT.enemies['skitterling']!.attackWindupTicks + 2); // unguarded windup lands at full strength
-    expect(before - p.hp).toBeCloseTo(CONTENT.enemies['skitterling']!.touchDamage, 5);
+    runTicks(sim, CONTENT.enemies['skitterling']!.attack.windupTicks + 2); // unguarded windup lands at full strength
+    expect(before - p.hp).toBeCloseTo(CONTENT.enemies['skitterling']!.attack.damage, 5);
   });
 
   it('the guard sim stays deterministic', () => {

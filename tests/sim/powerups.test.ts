@@ -137,9 +137,9 @@ describe('ward (incoming damage)', () => {
     const sim = newSim();
     const p = sim.state.players[0]!;
     if (ward) p.power.ward = CONTENT.powerups.ward.durationTicks;
-    spawnEnemy(sim, 910, p.pos.x + 20, p.pos.y); // inside attackRange
+    spawnEnemy(sim, 910, p.pos.x + 20, p.pos.y); // inside attack.range
     const before = p.hp;
-    runTicks(sim, CONTENT.enemies['skitterling']!.attackWindupTicks + 2); // let the enemy windup land
+    runTicks(sim, CONTENT.enemies['skitterling']!.attack.windupTicks + 2); // let the enemy windup land
     return before - p.hp;
   }
 

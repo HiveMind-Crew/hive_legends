@@ -183,32 +183,51 @@ export type EnemyFamily = (typeof ENEMY_FAMILIES)[number];
 export const ENEMY_TIERS = ['common', 'veteran', 'elite'] as const;
 export type EnemyTier = (typeof ENEMY_TIERS)[number];
 
-/** A ranged enemy attack: at attackRange, the enemy spits a hostile bolt. */
-export interface EnemyRangedDef {
+/** Motion and collision authored for a hostile projectile. */
+export interface HostileProjectileDef {
   /** Bolt speed in px/s. */
   projectileSpeed: number;
   /** Bolt collision radius in px. */
   projectileRadius: number;
-  projectileDamage: number;
   /** Max flight distance in px. */
   projectileRange: number;
 }
 
-/** Optional melee shape beyond the default single-target contact strike. */
-export type EnemyMeleeDef =
-  | {
-      kind: 'contact';
-      /** Immediate wall-clipped displacement applied away from the attacker. */
-      pushPx: number;
-    }
-  | {
-      kind: 'line';
-      /** Length and full width of the committed ground rupture, in pixels. */
-      length: number;
-      width: number;
-      /** Immediate wall-clipped displacement along the rupture direction. */
-      pushPx: number;
-    };
+interface EnemyAttackBase {
+  damage: number;
+  /** Distance at which the enemy commits to the attack. */
+  range: number;
+  /** Recovery after release before another windup may begin. */
+  cooldownTicks: number;
+  /**
+   * Telegraph before release. The enemy holds position while this counts down,
+   * so every attack — including the first — remains dodgeable.
+   */
+  windupTicks: number;
+}
+
+export type EnemyContactAttackDef = EnemyAttackBase & {
+  kind: 'contact';
+  /** Immediate wall-clipped displacement applied away from the attacker. */
+  pushPx: number;
+};
+
+export type EnemyLineAttackDef = EnemyAttackBase & {
+  kind: 'line';
+  /** Length and full width of the committed ground rupture, in pixels. */
+  length: number;
+  width: number;
+  /** Immediate wall-clipped displacement along the rupture direction. */
+  pushPx: number;
+};
+
+export type EnemyBoltAttackDef = EnemyAttackBase &
+  HostileProjectileDef & {
+    kind: 'bolt';
+  };
+
+/** Complete, data-authored vocabulary for ordinary enemy attacks. */
+export type EnemyAttackDef = EnemyContactAttackDef | EnemyLineAttackDef | EnemyBoltAttackDef;
 
 export interface EnemyDef {
   id: string;
@@ -220,29 +239,16 @@ export interface EnemyDef {
   maxHp: number;
   moveSpeed: number;
   radius: number;
-  touchDamage: number;
-  attackRange: number;
-  attackCooldownTicks: number;
-  /**
-   * Telegraph before a strike lands, in ticks. On entering attack range the
-   * enemy commits (holds position) and winds up for this long; the hit resolves
-   * only when it elapses, so every attack — including the first contact — is
-   * dodgeable. Author longer for heavy hitters (readability rule, #39).
-   */
-  attackWindupTicks: number;
+  attack: EnemyAttackDef;
   goldMin: number;
   goldMax: number;
   /** XP awarded to the killer (issue #46). */
   xp: number;
-  /** If present, the enemy fires hostile bolts at attackRange instead of meleeing. */
-  ranged?: EnemyRangedDef;
-  /** Melee geometry; omitted for the default single-target contact strike. */
-  melee?: EnemyMeleeDef;
   /**
    * Kiting (issue #23): back away while the target is closer than this
-   * fraction of `attackRange`, so an artillery enemy reopens the gap instead
+   * fraction of `attack.range`, so an artillery enemy reopens the gap instead
    * of planting itself and firing point-blank. Omit (or 0) to hold ground —
-   * melee families never kite. A content test requires every `ranged` enemy
+   * melee families never kite. A content test requires every `bolt` enemy
    * to author it.
    */
   keepDistanceFraction?: number;
@@ -329,7 +335,7 @@ export interface BossDef {
   /** Lunge: a fast, wall-stopped charge along a locked-in direction. */
   lunge: { speed: number; durationTicks: number; damage: number };
   /** Glob: a fan of hostile bolts. */
-  glob: { count: number; spreadDeg: number } & EnemyRangedDef;
+  glob: { count: number; spreadDeg: number; projectileDamage: number } & HostileProjectileDef;
   goldDrop: number;
   /** XP awarded for felling her (issue #46). */
   xp: number;
