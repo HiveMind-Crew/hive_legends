@@ -36,6 +36,10 @@ export const ENEMIES: Record<string, EnemyDef> = {
     attackRange: 34,
     attackCooldownTicks: 55,
     attackWindupTicks: 24, // heavy overhead — clearly readable, punishing if it lands
+    melee: {
+      kind: 'contact',
+      pushPx: 28
+    },
     goldMin: 6,
     goldMax: 12,
     xp: 18
@@ -74,9 +78,15 @@ export const ENEMIES: Record<string, EnemyDef> = {
     moveSpeed: 82,
     radius: 19,
     touchDamage: 24,
-    attackRange: 42,
-    attackCooldownTicks: 58,
-    attackWindupTicks: 30, // the elite's big tell — reactable, in the boss-bar spirit (#25)
+    attackRange: 120,
+    attackCooldownTicks: 70,
+    attackWindupTicks: 30, // locks a line for 0.5 s, then tears the ground forward
+    melee: {
+      kind: 'line',
+      length: 120,
+      width: 28,
+      pushPx: 36
+    },
     goldMin: 22,
     goldMax: 34,
     xp: 55

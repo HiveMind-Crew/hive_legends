@@ -105,8 +105,8 @@ Tier palettes (family shape stays identical): `common` pale spore-green,
 live in `docs/design/visual-direction.md`. Readability beats richness: a
 15-enemy horde must parse at a glance by silhouette + palette alone.
 
-The **Skitter family is covered by a real art pack** across all three tiers
-and animation frames. Husk, Spitter and Mireveil remain in issue #27.
+The **Skitter and Husk families are covered by real art packs** across all
+three tiers and animation frames. Spitter and Mireveil remain in issue #27.
 
 ### World objects
 

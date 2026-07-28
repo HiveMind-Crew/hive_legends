@@ -99,6 +99,9 @@ class AudioEngine {
       case 'enemy-shot':
         this.spit();
         break;
+      case 'enemy-line-attack':
+        this.rumble();
+        break;
       case 'enemy-hit':
         this.thud(220, 0.06, 0.12);
         break;

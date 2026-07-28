@@ -107,5 +107,14 @@
   "enemy-skitter-veteran-windup",
   "enemy-skitter-elite-w0",
   "enemy-skitter-elite-w1",
-  "enemy-skitter-elite-windup"
+  "enemy-skitter-elite-windup",
+  "enemy-husk-common-w0",
+  "enemy-husk-common-w1",
+  "enemy-husk-common-windup",
+  "enemy-husk-veteran-w0",
+  "enemy-husk-veteran-w1",
+  "enemy-husk-veteran-windup",
+  "enemy-husk-elite-w0",
+  "enemy-husk-elite-w1",
+  "enemy-husk-elite-windup"
 ]

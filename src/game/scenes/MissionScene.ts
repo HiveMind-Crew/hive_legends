@@ -128,6 +128,7 @@ export class MissionScene extends Phaser.Scene {
   private slowedIds = new Set<EntityId>();
   private guardGlow = new Map<EntityId, Phaser.GameObjects.Image>();
   private powerAura = new Map<EntityId, Phaser.GameObjects.Image>();
+  private ruptureGuides = new Map<EntityId, Phaser.GameObjects.Rectangle>();
   private ended = false;
   private hitStopMs = 0;
   private camFollow = { x: 0, y: 0 };
@@ -183,6 +184,7 @@ export class MissionScene extends Phaser.Scene {
     this.slowedIds.clear();
     this.guardGlow.clear();
     this.powerAura.clear();
+    this.ruptureGuides.clear();
     this.hitStopMs = 0;
     this.camKick = { x: 0, y: 0 };
     this.trailCount = 0;
@@ -666,6 +668,9 @@ export class MissionScene extends Phaser.Scene {
         case 'enemy-shot':
           this.burst(this.ichorFx, 3, ev.pos); // bile muzzle spit
           break;
+        case 'enemy-line-attack':
+          this.ravagerRupture(ev.pos, ev.dir, ev.length, ev.width);
+          break;
         case 'projectile-expired':
           this.burst(this.dustFx, 2, ev.pos);
           break;
@@ -808,6 +813,24 @@ export class MissionScene extends Phaser.Scene {
         frame = (Math.floor(s.tick / CRAWL_FRAME_TICKS) + e.id) % 2 === 0 ? 'w0' : 'w1';
       }
       spr.setTexture(enemyFrame(family, tier, frame));
+      const line = def?.melee?.kind === 'line' ? def.melee : undefined;
+      let ruptureGuide = this.ruptureGuides.get(e.id);
+      if (windup && line && e.windupDir) {
+        const length = e.windupLength ?? line.length;
+        const angle = Math.atan2(e.windupDir.y, e.windupDir.x);
+        if (!ruptureGuide) {
+          ruptureGuide = this.add.rectangle(0, 0, 1, 1, 0xff5a4d, 0.28).setDepth(DEPTH_DECAL + 1);
+          this.ruptureGuides.set(e.id, ruptureGuide);
+        }
+        ruptureGuide
+          .setPosition(e.pos.x + e.windupDir.x * (length / 2), e.pos.y + e.windupDir.y * (length / 2))
+          .setSize(length, line.width)
+          .setRotation(angle)
+          .setAlpha(0.18 + 0.12 * Math.sin(this.time.now / 55));
+      } else if (ruptureGuide) {
+        ruptureGuide.destroy();
+        this.ruptureGuides.delete(e.id);
+      }
       // Resin-caged enemies read amber; clear the tint exactly once on expiry
       // so hit flashes aren't stomped every frame.
       if (e.slowTicks > 0) {
@@ -1019,7 +1042,7 @@ export class MissionScene extends Phaser.Scene {
         this.genPopAt.delete(id);
         this.hatchAtTick.delete(id);
         this.slowedIds.delete(id);
-        for (const map of [this.shadows, this.rings, this.chevrons, this.guardGlow, this.powerAura]) {
+        for (const map of [this.shadows, this.rings, this.chevrons, this.guardGlow, this.powerAura, this.ruptureGuides]) {
           map.get(id)?.destroy();
           map.delete(id);
         }
@@ -1172,6 +1195,28 @@ export class MissionScene extends Phaser.Scene {
     const scorch = this.add.circle(pos.x, pos.y, radius * 0.55, 0x000000, 0.18).setDepth(DEPTH_DECAL + 1);
     this.tweens.add({ targets: scorch, alpha: 0, duration: 1200, onComplete: () => scorch.destroy() });
     this.burst(this.dustFx, 12, pos);
+  }
+
+  /** Gravebound Ravager: an instant wall-clipped fissure along its committed facing. */
+  private ravagerRupture(pos: Vec2, dir: Vec2, length: number, width: number): void {
+    if (length <= 0) return;
+    const angle = Math.atan2(dir.y, dir.x);
+    const cx = pos.x + dir.x * (length / 2);
+    const cy = pos.y + dir.y * (length / 2);
+    const crack = this.add
+      .rectangle(cx, cy, length, Math.max(5, width * 0.35), 0x8f2f30, 0.72)
+      .setRotation(angle)
+      .setDepth(DEPTH_FX);
+    const core = this.add
+      .rectangle(cx, cy, length, 3, 0xff8a7a, 0.9)
+      .setRotation(angle)
+      .setDepth(DEPTH_FX + 1);
+    this.tweens.add({ targets: [crack, core], alpha: 0, duration: 360, onComplete: () => {
+      crack.destroy();
+      core.destroy();
+    } });
+    this.cameras.main.shake(130, 0.009);
+    this.burst(this.dustFx, 10, { x: pos.x + dir.x * length, y: pos.y + dir.y * length });
   }
 
   /** Potion (#41): a big green hive-fire detonation — flash, shockwave, scorch. */

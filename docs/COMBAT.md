@@ -68,6 +68,12 @@ on a sliver feels like a nudge, no matter what the damage number says — which
 is exactly the trap Resin Cage fell into at 25 damage. A burst should either
 clear that threshold or apply real control. Both is a luxury, neither is a bug.
 
+**Husks own enemy-side space control.** The Carapace Husk's deliberate
+single-target overhead bash pushes its victim away. The elite Gravebound
+Ravager commits its facing for 0.5 seconds, then tears a 120×28 px line through
+the ground. The rupture stops at walls, can hit multiple players, and is
+avoided by sidestepping rather than retreating.
+
 ## Archetypes
 
 Four heroes, and the roster only works if each owns an axis outright.
