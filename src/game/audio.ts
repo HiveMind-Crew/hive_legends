@@ -102,6 +102,9 @@ class AudioEngine {
       case 'enemy-volley':
         this.bileSpray();
         break;
+      case 'enemy-pounce':
+        this.skitterPounce();
+        break;
       case 'enemy-line-attack':
         this.rumble();
         break;
@@ -241,6 +244,26 @@ class AudioEngine {
     this.tone(330, 'sawtooth', 0.08, 0.08, 180, t);
     this.tone(260, 'sawtooth', 0.08, 0.07, 150, t + 0.035);
     this.tone(200, 'sawtooth', 0.1, 0.06, 110, t + 0.07);
+  }
+
+  /** Skitter pounce: a dry leg-scrape snapping into a high chitin click. */
+  private skitterPounce(): void {
+    if (!this.throttle('skitter-pounce', 45)) return;
+    const t = this.ctx!.currentTime;
+    const src = this.ctx!.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    const filter = this.ctx!.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(900, t);
+    filter.frequency.exponentialRampToValueAtTime(2600, t + 0.12);
+    filter.Q.value = 1.4;
+    const gain = this.ctx!.createGain();
+    gain.gain.setValueAtTime(0.13, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+    src.connect(filter).connect(gain).connect(this.sfxGain!);
+    src.start(t);
+    src.stop(t + 0.15);
+    this.tone(680, 'square', 0.06, 0.1, 1180, t + 0.07);
   }
 
   private whoosh(): void {

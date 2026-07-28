@@ -17,12 +17,13 @@ export const ENEMIES: Record<string, EnemyDef> = {
     moveSpeed: 120,
     radius: 10,
     attack: {
-      kind: 'contact',
+      kind: 'pounce',
       damage: 7,
-      range: 28,
-      cooldownTicks: 45,
-      windupTicks: 12, // quick nip — telegraphed but hard to punish
-      pushPx: 0
+      range: 72,
+      cooldownTicks: 48,
+      windupTicks: 18, // compresses, locks a lane, then springs through it
+      distance: 72,
+      width: 20
     },
     goldMin: 2,
     goldMax: 5,

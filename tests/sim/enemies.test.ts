@@ -44,9 +44,11 @@ function spawnEnemy(sim: Sim, typeId: string, id: number, x: number, y: number):
 
 describe('enemy roster', () => {
   it('defines a tanky melee husk, a ranged spitter, and an elite husk', () => {
+    const skitter = CONTENT.enemies['skitterling']!;
     const husk = CONTENT.enemies['carapace-husk']!;
     const spitter = CONTENT.enemies['bile-spitter']!;
     const elite = CONTENT.enemies['gravebound-ravager']!;
+    expect(skitter.attack).toMatchObject({ kind: 'pounce', distance: 72, width: 20 });
     expect(husk.family).toBe('husk');
     expect(husk.attack).toMatchObject({ kind: 'contact', pushPx: 28 });
     expect(husk.maxHp).toBeGreaterThan(CONTENT.enemies['skitterling']!.maxHp);
@@ -172,6 +174,99 @@ describe('attack windup (#39)', () => {
     });
     for (let i = 0; i < 200; i++) for (const sim of sims) simTick(sim, [input({ attack: true })]);
     expect(hashState(sims[0]!.state)).toBe(hashState(sims[1]!.state));
+  });
+});
+
+describe('Skitter committed pounce', () => {
+  const def = CONTENT.enemies['skitterling']!;
+  const c = (t: number): number => t * BROOD_WARRENS.tileSize + BROOD_WARRENS.tileSize / 2;
+
+  it('locks a lane, sweeps through it, and moves the Skitter on release', () => {
+    const sim = newSim();
+    sim.state.generators = [];
+    const p = sim.state.players[0]!;
+    p.pos = { x: c(10), y: c(5) };
+    const beforeHp = p.hp;
+    const skitter = spawnEnemy(sim, 'skitterling', 700, c(8), c(5));
+    const from = { ...skitter.pos };
+
+    const events = runTicks(sim, def.attack.windupTicks + 1);
+    const pounce = events.find((event) => event.type === 'enemy-pounce');
+
+    expect(pounce).toMatchObject({ enemyId: skitter.id, from, width: 20 });
+    expect(skitter.pos.x).toBeCloseTo(from.x + 72, 5);
+    expect(skitter.pos.y).toBeCloseTo(from.y, 5);
+    expect(events.some((event) => event.type === 'player-hit')).toBe(true);
+    expect(p.hp).toBeLessThan(beforeHp);
+  });
+
+  it('can be sidestepped after its direction is committed', () => {
+    const sim = newSim();
+    sim.state.generators = [];
+    const p = sim.state.players[0]!;
+    p.pos = { x: c(10), y: c(5) };
+    const beforeHp = p.hp;
+    const skitter = spawnEnemy(sim, 'skitterling', 701, c(8), c(5));
+
+    runTicks(sim, 1);
+    expect(skitter.windupDir).toEqual({ x: 1, y: 0 });
+    p.pos.y += 50;
+    const events = runTicks(sim, def.attack.windupTicks);
+
+    expect(events.some((event) => event.type === 'enemy-pounce')).toBe(true);
+    expect(events.some((event) => event.type === 'player-hit')).toBe(false);
+    expect(p.hp).toBe(beforeHp);
+  });
+
+  it('stops its whole body at a wall instead of tunnelling through', () => {
+    const sim = newSim();
+    sim.state.generators = [];
+    const p = sim.state.players[0]!;
+    p.pos = { x: c(16), y: c(3) };
+    const beforeHp = p.hp;
+    const skitter = spawnEnemy(sim, 'skitterling', 702, 470, c(3));
+    const from = { ...skitter.pos };
+
+    const events = runTicks(sim, def.attack.windupTicks + 1);
+    const pounce = events.find((event) => event.type === 'enemy-pounce');
+
+    expect(pounce).toMatchObject({ from, to: from });
+    expect(skitter.pos).toEqual(from);
+    expect(events.some((event) => event.type === 'player-hit')).toBe(false);
+    expect(p.hp).toBe(beforeHp);
+  });
+
+  it('passes through an invulnerable player without dealing damage', () => {
+    const sim = newSim();
+    sim.state.generators = [];
+    const p = sim.state.players[0]!;
+    p.pos = { x: c(10), y: c(5) };
+    const beforeHp = p.hp;
+    spawnEnemy(sim, 'skitterling', 703, c(8), c(5));
+
+    runTicks(sim, 1);
+    p.invulnTicks = 999;
+    const events = runTicks(sim, def.attack.windupTicks);
+
+    expect(events.some((event) => event.type === 'enemy-pounce')).toBe(true);
+    expect(events.some((event) => event.type === 'player-hit')).toBe(false);
+    expect(p.hp).toBe(beforeHp);
+  });
+
+  it('stays deterministic', () => {
+    const build = (): Sim => {
+      const sim = newSim('vanguard', 704);
+      sim.state.generators = [];
+      spawnEnemy(sim, 'skitterling', 704, sim.state.players[0]!.pos.x + 60, sim.state.players[0]!.pos.y);
+      return sim;
+    };
+    const a = build();
+    const b = build();
+    for (let i = 0; i < 240; i++) {
+      simTick(a, [EMPTY_INPUT]);
+      simTick(b, [EMPTY_INPUT]);
+    }
+    expect(hashState(a.state)).toBe(hashState(b.state));
   });
 });
 

@@ -286,12 +286,13 @@ silhouette with zero new texture code. Covered in
 `tests/sim/enemies.test.ts`.
 
 The Skitter and Husk follow-up gives those silhouettes distinct attack reads.
-Skitter keeps its quick 7-damage contact nip with a 12-tick windup. The
-Carapace Husk's slow overhead bash now adds 28 px of wall-clipped knockback,
-while the Gravebound Ravager commits to a 120×28 px rupture lane for its
-30-tick windup, then deals 24 damage and pushes every player caught in the line
-36 px. Original tiered walk and windup art now ships for both families; the
-renderer supplies the Ravager's crimson lane telegraph and release fissure.
+Skitter compresses for 18 ticks, locks a 72×20 px lane, then pounces through it
+for 7 damage; the body stops at walls and lateral movement beats the committed
+direction. The Carapace Husk's slow overhead bash adds 28 px of wall-clipped
+knockback, while the Gravebound Ravager commits to a 120×28 px rupture lane for
+its 30-tick windup, then deals 24 damage and pushes every player caught in the
+line 36 px. Original tiered walk and windup art ships for both families; the
+renderer supplies shape-specific lane tells and release effects.
 
 The Spitter follow-up replaces its single aimed glob with a three-shot 32° bile
 fan after a 20-tick swollen-sac tell. A dedicated `volley` attack branch reuses
@@ -450,12 +451,11 @@ M1 is content-complete, and the highest-value work is **presentation
 and polish rather than systems**:
 
 1. **Original art packs — #27 (characters) and #28 (environment/UI).** The
-   drop-in pipeline is proven end to end: all four hero packs now ship as real
-   art (Vanguard #44, Arcanist #50, Ranger #71, Sentinel #73), none of which
-   needed a code change, and `tests/artPack.test.ts` now fails a pack that is
-   mis-sized or unlisted. What remains under #27 is the **enemy families and
-   the boss** — the biggest visible win still available — then the
-   environment and UI of #28. Key list and canvas sizes: `docs/ART.md`.
+   drop-in pipeline is proven end to end: all four heroes and all three enemy
+   families now ship as real art, and `tests/artPack.test.ts` fails a pack that
+   is mis-sized or unlisted. The remaining character pack is **Mireveil's three
+   boss damage states**; after that, the environment and UI of #28 are the
+   largest visible gap. Key list and canvas sizes: `docs/ART.md`.
 Balance note carried from #25: ranged heroes kite Mireveil noticeably more
 easily than melee (~15–17s vs ~32s to kill). Worth a tuning pass once there is
 real playtest data, rather than speculative numbers now.

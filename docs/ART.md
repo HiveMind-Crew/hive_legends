@@ -111,7 +111,7 @@ all three tiers and animation frames. Mireveil remains in issue #27.
 Attack windups must make each family readable before its hit resolves:
 
 - **Skitter:** compress the abdomen, spread the forelegs, open the mandibles,
-  and flare the eyes before the quick contact nip.
+  and flare the eyes before the committed forward pounce.
 - **Husk:** plant the body and raise the forelimbs for the slow overhead bash.
   The elite Ravager uses the same family motion while the renderer adds its
   crimson line telegraph to show the committed rupture lane.

@@ -144,6 +144,22 @@ describe('what a roused hive does', () => {
     expect(roused).toBeCloseTo(calm * (1 + P.damagePerStage * P.maxStage), 4);
   });
 
+  it('scales committed pounce damage', () => {
+    const pounceDamage = (stage: number): number => {
+      const sim = newSim();
+      sim.state.generators = [];
+      sim.state.pressureStage = stage;
+      const p = sim.state.players[0]!;
+      const before = p.hp;
+      spawnEnemy(sim, 'skitterling', 504, p.pos.x + 60, p.pos.y);
+      runTicks(sim, CONTENT.enemies['skitterling']!.attack.windupTicks + 1);
+      return before - p.hp;
+    };
+    const calm = pounceDamage(0);
+    expect(calm).toBeGreaterThan(0);
+    expect(pounceDamage(P.maxStage)).toBeCloseTo(calm * (1 + P.damagePerStage * P.maxStage), 4);
+  });
+
   it('spits harder', () => {
     const boltDamage = (stage: number): number => {
       const sim = newSim();

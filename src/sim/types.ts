@@ -221,6 +221,13 @@ export type EnemyLineAttackDef = EnemyAttackBase & {
   pushPx: number;
 };
 
+export type EnemyPounceAttackDef = EnemyAttackBase & {
+  kind: 'pounce';
+  /** Forward travel and full collision width of the committed leap, in pixels. */
+  distance: number;
+  width: number;
+};
+
 export type EnemyBoltAttackDef = EnemyAttackBase &
   HostileProjectileDef & {
     kind: 'bolt';
@@ -236,7 +243,12 @@ export type EnemyVolleyAttackDef = EnemyAttackBase &
   };
 
 /** Complete, data-authored vocabulary for ordinary enemy attacks. */
-export type EnemyAttackDef = EnemyContactAttackDef | EnemyLineAttackDef | EnemyBoltAttackDef | EnemyVolleyAttackDef;
+export type EnemyAttackDef =
+  | EnemyContactAttackDef
+  | EnemyLineAttackDef
+  | EnemyPounceAttackDef
+  | EnemyBoltAttackDef
+  | EnemyVolleyAttackDef;
 
 export interface EnemyDef {
   id: string;
@@ -674,9 +686,9 @@ export interface EnemyState {
   attackCooldown: number;
   /** Ticks left in a committed attack windup (0 = not winding up). See #39. */
   windupTicksLeft: number;
-  /** Locked release direction for committed line attacks. */
+  /** Locked release direction for committed line and pounce attacks. */
   windupDir?: Vec2;
-  /** Wall-clipped length of a committed line attack. */
+  /** Wall-clipped length of a committed line or pounce attack. */
   windupLength?: number;
   hitstunTicks: number;
   knockback: Vec2;
@@ -788,6 +800,7 @@ export type SimEvent =
   | { type: 'ability-guard'; playerId: EntityId; pos: Vec2; durationTicks: number }
   | { type: 'guard-block'; playerId: EntityId; enemyId: EntityId; pos: Vec2 }
   | { type: 'enemy-windup'; enemyId: EntityId; pos: Vec2; durationTicks: number }
+  | { type: 'enemy-pounce'; enemyId: EntityId; from: Vec2; to: Vec2; width: number }
   | { type: 'enemy-line-attack'; enemyId: EntityId; pos: Vec2; dir: Vec2; length: number; width: number }
   | { type: 'enemy-hit'; enemyId: EntityId; pos: Vec2; damage: number }
   | { type: 'enemy-died'; enemyId: EntityId; typeId: string; pos: Vec2; byPlayer: EntityId; damage: number }
