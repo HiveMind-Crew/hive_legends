@@ -194,6 +194,22 @@ export interface EnemyRangedDef {
   projectileRange: number;
 }
 
+/** Optional melee shape beyond the default single-target contact strike. */
+export type EnemyMeleeDef =
+  | {
+      kind: 'contact';
+      /** Immediate wall-clipped displacement applied away from the attacker. */
+      pushPx: number;
+    }
+  | {
+      kind: 'line';
+      /** Length and full width of the committed ground rupture, in pixels. */
+      length: number;
+      width: number;
+      /** Immediate wall-clipped displacement along the rupture direction. */
+      pushPx: number;
+    };
+
 export interface EnemyDef {
   id: string;
   name: string;
@@ -220,6 +236,8 @@ export interface EnemyDef {
   xp: number;
   /** If present, the enemy fires hostile bolts at attackRange instead of meleeing. */
   ranged?: EnemyRangedDef;
+  /** Melee geometry; omitted for the default single-target contact strike. */
+  melee?: EnemyMeleeDef;
   /**
    * Kiting (issue #23): back away while the target is closer than this
    * fraction of `attackRange`, so an artillery enemy reopens the gap instead
@@ -641,6 +659,10 @@ export interface EnemyState {
   attackCooldown: number;
   /** Ticks left in a committed attack windup (0 = not winding up). See #39. */
   windupTicksLeft: number;
+  /** Locked release direction for committed line attacks. */
+  windupDir?: Vec2;
+  /** Wall-clipped length of a committed line attack. */
+  windupLength?: number;
   hitstunTicks: number;
   knockback: Vec2;
   /** Ticks of movement slow remaining (0 = unslowed) and its multiplier. */
@@ -750,6 +772,7 @@ export type SimEvent =
   | { type: 'ability-guard'; playerId: EntityId; pos: Vec2; durationTicks: number }
   | { type: 'guard-block'; playerId: EntityId; enemyId: EntityId; pos: Vec2 }
   | { type: 'enemy-windup'; enemyId: EntityId; pos: Vec2; durationTicks: number }
+  | { type: 'enemy-line-attack'; enemyId: EntityId; pos: Vec2; dir: Vec2; length: number; width: number }
   | { type: 'enemy-hit'; enemyId: EntityId; pos: Vec2; damage: number }
   | { type: 'enemy-died'; enemyId: EntityId; typeId: string; pos: Vec2; byPlayer: EntityId; damage: number }
   | { type: 'enemy-spawned'; enemyId: EntityId; typeId: string; pos: Vec2 }

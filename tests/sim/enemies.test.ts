@@ -49,11 +49,13 @@ describe('enemy roster', () => {
     const elite = CONTENT.enemies['gravebound-ravager']!;
     expect(husk.family).toBe('husk');
     expect(husk.ranged).toBeUndefined();
+    expect(husk.melee).toEqual({ kind: 'contact', pushPx: 28 });
     expect(husk.maxHp).toBeGreaterThan(CONTENT.enemies['skitterling']!.maxHp);
     expect(spitter.family).toBe('spitter');
     expect(spitter.ranged).toBeDefined();
     expect(elite.tier).toBe('elite');
     expect(elite.maxHp).toBeGreaterThan(husk.maxHp);
+    expect(elite.melee?.kind).toBe('line');
   });
 
   it('the level fields all three families from its spawners', () => {
@@ -186,6 +188,72 @@ describe('husk (melee bruiser)', () => {
     expect(sim.state.projectiles).toHaveLength(0);
     expect(p.hp).toBeLessThan(p.maxHp);
   });
+
+  it('the Carapace Husk overhead knocks its target away', () => {
+    const sim = newSim();
+    sim.state.generators = [];
+    const p = sim.state.players[0]!;
+    const beforeX = p.pos.x;
+    spawnEnemy(sim, 'carapace-husk', 801, p.pos.x + 30, p.pos.y);
+
+    const events = runTicks(sim, CONTENT.enemies['carapace-husk']!.attackWindupTicks + 1);
+
+    expect(events.some((e) => e.type === 'player-hit')).toBe(true);
+    expect(p.pos.x).toBeLessThan(beforeX);
+  });
+});
+
+describe('Gravebound Ravager line rupture', () => {
+  it('commits a line, hits along it, and pushes in its travel direction', () => {
+    const sim = newSim();
+    sim.state.generators = [];
+    const p = sim.state.players[0]!;
+    const c = (t: number): number => t * BROOD_WARRENS.tileSize + BROOD_WARRENS.tileSize / 2;
+    p.pos = { x: c(10), y: c(5) };
+    const beforeHp = p.hp;
+    const beforeX = p.pos.x;
+    const ravager = spawnEnemy(sim, 'gravebound-ravager', 802, c(7), c(5));
+
+    const events = runTicks(sim, CONTENT.enemies['gravebound-ravager']!.attackWindupTicks + 1);
+    const rupture = events.find((e) => e.type === 'enemy-line-attack');
+
+    expect(rupture).toMatchObject({ enemyId: ravager.id, length: 120, width: 28 });
+    expect(p.hp).toBeLessThan(beforeHp);
+    expect(p.pos.x).toBeGreaterThan(beforeX);
+  });
+
+  it('can be sidestepped after the direction is committed', () => {
+    const sim = newSim();
+    sim.state.generators = [];
+    const p = sim.state.players[0]!;
+    const before = p.hp;
+    spawnEnemy(sim, 'gravebound-ravager', 803, p.pos.x - 100, p.pos.y);
+    runTicks(sim, 1); // lock the eastward rupture
+    p.pos.y += 80;
+
+    const events = runTicks(sim, CONTENT.enemies['gravebound-ravager']!.attackWindupTicks + 1);
+
+    expect(events.some((e) => e.type === 'enemy-line-attack')).toBe(true);
+    expect(events.some((e) => e.type === 'player-hit')).toBe(false);
+    expect(p.hp).toBe(before);
+  });
+
+  it('stops the rupture at a wall', () => {
+    const sim = newSim();
+    sim.state.generators = [];
+    const p = sim.state.players[0]!;
+    const before = p.hp;
+    const c = (t: number): number => t * BROOD_WARRENS.tileSize + BROOD_WARRENS.tileSize / 2;
+    p.pos = { x: c(16), y: c(3) };
+    spawnEnemy(sim, 'gravebound-ravager', 804, c(13), c(3));
+
+    const events = runTicks(sim, CONTENT.enemies['gravebound-ravager']!.attackWindupTicks + 1);
+    const rupture = events.find((e) => e.type === 'enemy-line-attack');
+
+    expect(rupture?.type === 'enemy-line-attack' ? rupture.length : Infinity).toBeLessThan(96);
+    expect(events.some((e) => e.type === 'player-hit')).toBe(false);
+    expect(p.hp).toBe(before);
+  });
 });
 
 describe('spitter (ranged)', () => {
@@ -288,10 +356,11 @@ describe('spitter (ranged)', () => {
     const p = sim.state.players[0]!;
     // A husk pressed right up against the player must not give ground.
     const e = spawnEnemy(sim, 'carapace-husk', 863, p.pos.x + 20, p.pos.y);
-    const before = Math.hypot(e.pos.x - p.pos.x, e.pos.y - p.pos.y);
+    const beforeX = e.pos.x;
     runTicks(sim, 60);
-    const after = Math.hypot(e.pos.x - p.pos.x, e.pos.y - p.pos.y);
-    expect(after).toBeLessThanOrEqual(before + 1);
+    // Its bash may push the player away, but the Husk itself never retreats;
+    // it holds or advances toward the displaced target.
+    expect(e.pos.x).toBeLessThanOrEqual(beforeX + 1);
   });
 
   it('spitter fights stay deterministic', () => {

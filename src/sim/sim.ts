@@ -957,6 +957,10 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
       // zero windup, but a 0 would resolve the attack the same tick.)
       if (def.attackWindupTicks > 0) {
         e.windupTicksLeft = def.attackWindupTicks;
+        if (def.melee?.kind === 'line' && dist > 1e-6) {
+          e.windupDir = { x: d.x / dist, y: d.y / dist };
+          e.windupLength = wallClippedEnemyLineLength(sim, e.pos, e.windupDir, def.melee.length);
+        }
         events.push({ type: 'enemy-windup', enemyId: e.id, pos: { ...e.pos }, durationTicks: def.attackWindupTicks });
       } else {
         executeEnemyAttack(sim, e, def, target, events);
@@ -978,14 +982,86 @@ function executeEnemyAttack(sim: Sim, e: EnemyState, def: EnemyDef, target: Play
     spawnEnemyProjectile(sim, e, def.ranged, def.radius, target.pos, events);
     return;
   }
+  if (def.melee?.kind === 'line') {
+    executeEnemyLineAttack(sim, e, def, events);
+    return;
+  }
   const d = sub(target.pos, e.pos);
   const dist = Math.hypot(d.x, d.y);
   if (dist > def.attackRange || target.invulnTicks > 0) return; // whiffed, or target immune
+  damagePlayerFromEnemy(sim, e, def, target, d, dist, def.melee?.pushPx ?? 0, events);
+}
+
+/** Resolves the Ravager's committed, wall-clipped line rupture. */
+function executeEnemyLineAttack(sim: Sim, e: EnemyState, def: EnemyDef, events: SimEvent[]): void {
+  const melee = def.melee;
+  if (melee?.kind !== 'line') return;
+  const dir = e.windupDir ?? { x: 1, y: 0 };
+  e.windupDir = undefined;
+  const halfWidth = melee.width / 2;
+  const length = e.windupLength ?? wallClippedEnemyLineLength(sim, e.pos, dir, melee.length);
+  e.windupLength = undefined;
+  events.push({
+    type: 'enemy-line-attack',
+    enemyId: e.id,
+    pos: { ...e.pos },
+    dir: { ...dir },
+    length,
+    width: melee.width
+  });
+
+  for (const player of sim.state.players) {
+    if (!player.alive || player.invulnTicks > 0) continue;
+    const rel = sub(player.pos, e.pos);
+    const along = rel.x * dir.x + rel.y * dir.y;
+    if (along < 0 || along > length) continue;
+    const perpendicular = Math.abs(rel.x * -dir.y + rel.y * dir.x);
+    const playerRadius = sim.config.content.heroes[player.heroId]?.radius ?? 12;
+    if (perpendicular > halfWidth + playerRadius) continue;
+    const dist = Math.hypot(rel.x, rel.y);
+    damagePlayerFromEnemy(sim, e, def, player, rel, dist, melee.pushPx, events, dir);
+  }
+}
+
+function wallClippedEnemyLineLength(sim: Sim, pos: Vec2, dir: Vec2, maxLength: number): number {
+  const blk = blockOf(sim, true);
+  for (let distance = 4; distance <= maxLength; distance += 4) {
+    const probe = { x: pos.x + dir.x * distance, y: pos.y + dir.y * distance };
+    // Clip on the centre seam. The full visual width may brush an adjacent
+    // wall without the committed line actually crossing it.
+    if (circleHitsWall(sim.config.level, probe, 2, blk)) return Math.max(0, distance - 4);
+  }
+  return maxLength;
+}
+
+function damagePlayerFromEnemy(
+  sim: Sim,
+  e: EnemyState,
+  def: EnemyDef,
+  target: PlayerState,
+  d: Vec2,
+  dist: number,
+  pushPx: number,
+  events: SimEvent[],
+  pushDir?: Vec2
+): void {
   const guard = guardDefFor(sim, target);
   const damage =
     def.touchDamage * pressureDamageMult(sim) * (guard ? guard.damageMult : 1) * powerMult(sim, target, 'damageTakenMult');
   target.hp -= damage;
   target.invulnTicks = sim.config.content.combat.playerHitInvulnTicks;
+  if (pushPx > 0) {
+    const dir = pushDir ?? (dist > 1e-6 ? { x: d.x / dist, y: d.y / dist } : { x: 0, y: 0 });
+    const guardedPush = pushPx * (guard ? guard.damageMult : 1);
+    moveCircle(
+      sim.config.level,
+      target.pos,
+      sim.config.content.heroes[target.heroId]?.radius ?? 12,
+      dir.x * guardedPush,
+      dir.y * guardedPush,
+      blockOf(sim, true)
+    );
+  }
   events.push({ type: 'player-hit', playerId: target.id, damage, pos: { ...target.pos } });
   if (guard) {
     if (guard.reflectKnockback > 0 && dist > 1e-6) {

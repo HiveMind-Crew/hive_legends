@@ -1,5 +1,5 @@
 import { TICK_RATE } from '../src/sim/types';
-import type { AttackDef, ContentDb, HeroDef, WeaponDef } from '../src/sim/types';
+import type { AttackDef, BossDef, ContentDb, EnemyDef, GeneratorDef, HeroDef, WeaponDef } from '../src/sim/types';
 
 /**
  * Derives every combat table in docs/COMBAT.md from src/content, so the
@@ -10,8 +10,17 @@ import type { AttackDef, ContentDb, HeroDef, WeaponDef } from '../src/sim/types'
  * when the checked-in block no longer matches this output.
  */
 
-export const BEGIN_MARKER = '<!-- BEGIN GENERATED: combat-tables -->';
-export const END_MARKER = '<!-- END GENERATED: combat-tables -->';
+/**
+ * A doc holds one generated region per name, fenced by these markers. Keeping
+ * the name a parameter is what lets COMBAT.md carry the hero tables and the
+ * bestiary as two independently spliced blocks with prose in between.
+ */
+export function markersFor(region: string): { begin: string; end: string } {
+  return { begin: `<!-- BEGIN GENERATED: ${region} -->`, end: `<!-- END GENERATED: ${region} -->` };
+}
+
+export const COMBAT_REGION = 'combat-tables';
+export const BESTIARY_REGION = 'bestiary-tables';
 
 // ---------------------------------------------------------------------------
 // Derived quantities
@@ -54,6 +63,50 @@ export function stunlocks(atk: AttackDef, enemyHitstunTicks: number): boolean {
 /** The hero's attack with a weapon tier's overrides applied. */
 export function attackForWeapon(hero: HeroDef, weapon: WeaponDef): AttackDef {
   return { ...hero.attack, ...weapon.attackOverrides } as AttackDef;
+}
+
+/**
+ * Sustained damage per second an enemy puts out at its own cadence. A ranged
+ * enemy's threat is its bolt, never `touchDamage` — nothing in the sim reads
+ * `touchDamage` for an enemy that authors a `ranged` block.
+ */
+export function enemyDps(def: EnemyDef): number {
+  const damage = def.ranged?.projectileDamage ?? def.touchDamage;
+  return (damage * TICK_RATE) / (def.attackCooldownTicks + def.attackWindupTicks);
+}
+
+/**
+ * Seconds a player has to read a telegraph and leave. Every enemy attack —
+ * including the first contact — waits out `attackWindupTicks` while the enemy
+ * holds still, so this is the whole of the counterplay against one.
+ */
+export function dodgeWindow(def: EnemyDef): number {
+  return def.attackWindupTicks / TICK_RATE;
+}
+
+/** How an enemy delivers its damage, in one cell. */
+export function enemyAttackKind(def: EnemyDef): 'bolt' | 'contact' | 'line' {
+  if (def.ranged) return 'bolt';
+  return def.melee?.kind ?? 'contact';
+}
+
+export function enemyShape(def: EnemyDef): string {
+  if (def.ranged) return `bolt ${def.ranged.projectileSpeed} px/s, ${def.ranged.projectileRange} px`;
+  if (def.melee?.kind === 'line') {
+    return `line ${def.melee.length}×${def.melee.width} px, push ${def.melee.pushPx} px`;
+  }
+  const push = def.melee?.kind === 'contact' ? def.melee.pushPx : 0;
+  return push > 0 ? `contact, push ${push} px` : 'contact';
+}
+
+/**
+ * The comparator `throughputTable` uses, lifted out so the axis-leader table
+ * and `tests/combat.test.ts` rank crowd reach the same way. Coarse by
+ * construction: pierce count for bolts, swept area per 1000 px² for arcs.
+ */
+export function crowdScore(atk: AttackDef): number {
+  const targets = targetsPerUse(atk);
+  return targets !== null ? dps(atk) * targets : dps(atk) * ((sweptArea(atk) ?? 0) / 1000);
 }
 
 /** Weapon tiers for a hero, tier 1 first. */
@@ -232,6 +285,131 @@ function swarmThresholdTable(content: ContentDb): string {
   return table(['Source', 'Burst', 'Damage', `${baseline.name} hp`, 'Result', 'Control'], rows);
 }
 
+/**
+ * Who leads each core axis, and by how much. `tests/combat.test.ts` asserts the
+ * specific archetype lines (the Sentinel is toughest, the Ranger fastest); this
+ * table exists for the question a test cannot answer — whether a hero leads
+ * anything at all.
+ */
+function axisLeaderTable(content: ContentDb): string {
+  const heroes = heroList(content);
+  const axes: { name: string; of: (h: HeroDef) => number; fmt: (v: number) => string }[] = [
+    { name: 'Max HP', of: (h) => h.maxHp, fmt: (v) => String(v) },
+    { name: 'Move speed', of: (h) => h.moveSpeed, fmt: (v) => String(v) },
+    { name: 'Reach', of: (h) => h.attack.range, fmt: (v) => `${v} px` },
+    { name: 'Single-target DPS', of: (h) => dps(h.attack), fmt: n1 },
+    { name: 'Crowd score', of: (h) => crowdScore(h.attack), fmt: n1 },
+    { name: 'Knockback', of: (h) => h.attack.knockback, fmt: (v) => String(v) }
+  ];
+  const rows = axes.map((axis) => {
+    const scored = heroes.map((h) => ({ hero: h, v: axis.of(h) })).sort((a, b) => b.v - a.v);
+    const best = scored[0]!.v;
+    const leaders = scored.filter((s) => s.v === best);
+    const next = scored.find((s) => s.v < best);
+    return [
+      axis.name,
+      leaders.map((s) => s.hero.role).join(' + ') + (leaders.length > 1 ? ' (tied)' : ''),
+      axis.fmt(best),
+      next ? `+${axis.fmt(best - next.v)} over ${next.hero.role}` : '—'
+    ];
+  });
+  // A hero absent from every leader cell owns no axis of its own.
+  const leading = new Set(rows.flatMap((r) => r[1]!.replace(' (tied)', '').split(' + ')));
+  const orphans = heroes.filter((h) => !leading.has(h.role)).map((h) => h.role);
+  const note =
+    orphans.length === 0
+      ? 'Every hero leads at least one axis.'
+      : `**Leads nothing: ${orphans.join(', ')}.** A hero with no axis of its own is the shape convergence takes.`;
+  return `${table(['Axis', 'Leader', 'Value', 'Margin'], rows)}\n\n${note}`;
+}
+
+// ---------------------------------------------------------------------------
+// Bestiary — enemies, their spawners, and the boss
+// ---------------------------------------------------------------------------
+
+function enemyList(content: ContentDb): EnemyDef[] {
+  return Object.values(content.enemies);
+}
+
+function bestiaryTable(content: ContentDb): string {
+  const rows = enemyList(content).map((e) => [
+    e.name,
+    e.family,
+    e.tier,
+    String(e.maxHp),
+    String(e.moveSpeed),
+    `${e.attackRange} px`,
+    String(e.ranged?.projectileDamage ?? e.touchDamage),
+    `${e.attackCooldownTicks}t`,
+    `${e.attackWindupTicks}t`,
+    n1(enemyDps(e)),
+    e.keepDistanceFraction ? `yes (${e.keepDistanceFraction})` : 'no',
+    `${e.goldMin}–${e.goldMax}`,
+    String(e.xp)
+  ]);
+  return table(
+    ['Enemy', 'Family', 'Tier', 'HP', 'Speed', 'Reach', 'Dmg', 'Recovery', 'Windup', 'DPS', 'Kites', 'Gold', 'XP'],
+    rows
+  );
+}
+
+/** Enemy output measured against what it is shooting at: the heroes. */
+function threatTable(content: ContentDb): string {
+  const heroes = heroList(content);
+  const rows = enemyList(content).map((e) => [
+    e.name,
+    enemyShape(e),
+    n1(enemyDps(e)),
+    `${dodgeWindow(e).toFixed(2)} s`,
+    ...heroes.map((h) => n1(h.maxHp / enemyDps(e)))
+  ]);
+  return table(['Enemy', 'Shape', 'DPS', 'Dodge window', ...heroes.map((h) => `vs ${h.role}`)], rows);
+}
+
+function spawnerTable(content: ContentDb): string {
+  const gens = Object.values(content.generators) as GeneratorDef[];
+  const rows = gens.map((g) => [
+    g.name,
+    String(g.maxHp),
+    content.enemies[g.spawnsEnemyId]?.name ?? g.spawnsEnemyId,
+    `${g.spawnIntervalTicks}t`,
+    String(g.maxAlive),
+    g.enrage ? `≤${pct(g.enrage.hpFraction)} hp → ×${g.enrage.intervalMult} for ${secs(g.enrage.durationTicks)}` : '—',
+    g.onDeathSpawn ? (content.enemies[g.onDeathSpawn.enemyId]?.name ?? g.onDeathSpawn.enemyId) : '—',
+    String(g.goldDrop),
+    String(g.xp)
+  ]);
+  return table(['Spawner', 'HP', 'Spawns', 'Interval', 'Max alive', 'Enrage', 'On death', 'Gold', 'XP'], rows);
+}
+
+function bossPhaseTable(boss: BossDef): string {
+  const rows = boss.phases.map((p, i) => [
+    `${i + 1}`,
+    p.name,
+    `≤${pct(p.hpFraction)}`,
+    String(p.moveSpeed),
+    secs(p.actionIntervalTicks),
+    p.actions.join(' → ')
+  ]);
+  return table(['Phase', 'Name', 'HP', 'Speed', 'Action interval', 'Action cycle'], rows);
+}
+
+function bossActionTable(boss: BossDef): string {
+  const rows = [
+    ['brood-call', `summons ${boss.broodCall.count}× ${boss.broodCall.enemyId}`],
+    [
+      'lunge',
+      `${boss.lunge.speed} px/s for ${secs(boss.lunge.durationTicks)}, ${boss.lunge.damage} damage on contact`
+    ],
+    [
+      'glob',
+      `${boss.glob.count} bolts across ${boss.glob.spreadDeg}°, ` +
+        `${boss.glob.projectileDamage} damage @ ${boss.glob.projectileSpeed} px/s, ${boss.glob.projectileRange} px`
+    ]
+  ];
+  return table(['Action', 'What it does'], rows);
+}
+
 // ---------------------------------------------------------------------------
 // Assembly
 // ---------------------------------------------------------------------------
@@ -239,8 +417,9 @@ function swarmThresholdTable(content: ContentDb): string {
 /** The full generated markdown block, marker lines included. */
 export function renderCombatTables(content: ContentDb): string {
   const hitstun = content.combat.enemyHitstunTicks;
+  const marker = markersFor(COMBAT_REGION);
   const sections = [
-    BEGIN_MARKER,
+    marker.begin,
     '',
     '<!-- Do not edit by hand. Regenerate with `npm run docs:combat`. -->',
     '',
@@ -282,17 +461,79 @@ export function renderCombatTables(content: ContentDb): string {
     '',
     ttkTable(content),
     '',
-    END_MARKER
+    '### Axis leaders',
+    '',
+    'Who is strictly best on each core axis, at base kit. A hero leading nothing is not a',
+    'failing test — it is a hero with no axis of its own, which is how two characters start',
+    'to feel like one. Ties are listed together, and a tie is its own warning.',
+    '',
+    axisLeaderTable(content),
+    '',
+    marker.end
   ];
   return sections.join('\n');
 }
 
-/** Replaces the generated block in an existing doc, preserving the prose. */
-export function spliceGeneratedBlock(doc: string, block: string): string {
-  const start = doc.indexOf(BEGIN_MARKER);
-  const end = doc.indexOf(END_MARKER);
-  if (start < 0 || end < 0) {
-    throw new Error(`docs/COMBAT.md is missing the ${BEGIN_MARKER} / ${END_MARKER} markers`);
+/** The generated bestiary block — enemies, spawners and every boss. */
+export function renderBestiaryTables(content: ContentDb): string {
+  const marker = markersFor(BESTIARY_REGION);
+  const sections = [
+    marker.begin,
+    '',
+    '<!-- Do not edit by hand. Regenerate with `npm run docs:combat`. -->',
+    '',
+    '### The roster',
+    '',
+    'Reach is the distance at which the enemy commits to an attack — for a ranged enemy that is',
+    'where it stops and fires, not how far the bolt flies. Damage is the bolt for ranged families',
+    'and the swing for melee ones; nothing reads `touchDamage` on an enemy that authors a bolt.',
+    `Enemy DPS is \`damage × ${TICK_RATE} / (cooldownTicks + windupTicks)\`: a full repeated attack`,
+    'cycle includes both the committed telegraph and the recovery before the next windup.',
+    '',
+    bestiaryTable(content),
+    '',
+    '### Threat and readability',
+    '',
+    'The dodge window is the telegraph: the enemy holds still for that long before every attack,',
+    'so it is the whole of the counterplay. The `vs` columns are seconds of unanswered attacks to',
+    'drop each hero from full — the pressure a single one of these represents, before the swarm.',
+    '',
+    threatTable(content),
+    '',
+    '### Where they come from',
+    '',
+    spawnerTable(content),
+    '',
+    ...Object.values(content.bosses).flatMap((boss) => [
+      `### ${boss.name} — ${boss.title}`,
+      '',
+      `${boss.maxHp} hp · radius ${boss.radius} px · ${boss.touchDamage} contact damage every ` +
+        `${secs(boss.touchCooldownTicks)} · ${secs(boss.telegraphTicks)} telegraph · ` +
+        `${boss.goldDrop}g and ${boss.xp} xp on death.`,
+      '',
+      bossPhaseTable(boss),
+      '',
+      'Phases are entered on HP thresholds and never left. Actions run as a strict round-robin',
+      'over the cycle above — no randomness — each preceded by the full telegraph.',
+      '',
+      bossActionTable(boss),
+      ''
+    ]),
+    marker.end
+  ];
+  return sections.join('\n');
+}
+
+/** Replaces one named generated region in an existing doc, preserving the prose. */
+export function spliceGeneratedBlock(doc: string, block: string, region: string): string {
+  const { begin, end } = markersFor(region);
+  const start = doc.indexOf(begin);
+  const stop = doc.indexOf(end);
+  if (start < 0 || stop < 0) {
+    throw new Error(`docs/COMBAT.md is missing the ${begin} / ${end} markers`);
   }
-  return doc.slice(0, start) + block + doc.slice(end + END_MARKER.length);
+  if (stop < start) {
+    throw new Error(`docs/COMBAT.md has ${end} before ${begin}`);
+  }
+  return doc.slice(0, start) + block + doc.slice(stop + end.length);
 }

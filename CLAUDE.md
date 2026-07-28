@@ -88,16 +88,32 @@ Anything a test or the e2e bot needs to observe goes through `SimState`, not
 through Phaser objects; the game exposes a read-only `__hive.getState()` handle
 on `globalThis` for that (see `docs/TESTING.md`).
 
-## Hero combat
+## Combat
 
-Before changing any hero attack, ability, or weapon tier, read
-`docs/COMBAT.md`. It states the archetype each hero owns and the shared combat
-rules they are tuned against (no armour exists, so per-hit damage buys nothing;
-cadence at or below the hitstun window is a permanent stunlock). Its number
-tables are generated from `src/content` — after a tuning change run
-`npm run docs:combat` and review the regenerated diff. The archetype invariants
-in `tests/combat.test.ts` fail when a change crosses an archetype line rather
-than a tuning line.
+`docs/COMBAT.md` is the source of truth for **every attack in the game** —
+heroes, enemies, and the boss. Read it before changing any attack, ability,
+weapon tier, enemy, or boss phase. It states the archetype each actor owns and
+the combat rules they are tuned against, and those rules are not guessable from
+the code: no armour exists, so per-hit damage buys nothing; a cadence at or
+below the hitstun window is a permanent stunlock; merely overlapping an enemy
+deals no damage, so a completed windup is the only way anything touches the
+player.
+
+It carries two generated regions — the hero tables and the bestiary — both
+rebuilt by `npm run docs:combat`. After any tuning change, run it and review
+the diff: that diff *is* the balance review.
+
+`tests/combat.test.ts` holds two layers of invariant. The archetype ones fail
+when a change crosses an archetype line rather than a tuning line. The
+`differentiation` ones fail when two actors converge — the melee split, enemy
+attack sameness, tier threat ordering. Neither is a balance assertion; if one
+fails, either the data goes back or `docs/COMBAT.md` changes on purpose.
+
+Enemy melee shape is partly data-driven through `EnemyMeleeDef`: the default
+contact strike and the Ravager's committed line rupture are distinct sim
+branches. Ranged attacks still use the optional `ranged` block rather than one
+unified discriminated attack union. Issue #77 tracks finishing that vocabulary;
+#78 tracks the remaining family-specific Skitter and Spitter shapes.
 
 ## Mission progression
 
