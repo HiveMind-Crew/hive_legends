@@ -98,5 +98,14 @@
   "hero-sentinel-7-w0",
   "hero-sentinel-7-w1",
   "hero-sentinel-7-atk",
-  "hero-sentinel"
+  "hero-sentinel",
+  "enemy-skitter-common-w0",
+  "enemy-skitter-common-w1",
+  "enemy-skitter-common-windup",
+  "enemy-skitter-veteran-w0",
+  "enemy-skitter-veteran-w1",
+  "enemy-skitter-veteran-windup",
+  "enemy-skitter-elite-w0",
+  "enemy-skitter-elite-w1",
+  "enemy-skitter-elite-windup"
 ]

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { buildRangerPack } from '../scripts/art/rangerPack';
 import { buildSentinelPack } from '../scripts/art/sentinelPack';
+import { buildSkitterPack } from '../scripts/art/skitterPack';
 import { TEXTURE_SPECS } from '../src/game/textureSpecs';
 
 /**
@@ -124,5 +125,52 @@ describe('the Sentinel pack', () => {
       for (const pose of ['w0', 'w1', 'atk']) expect(keys).toContain(`hero-sentinel-${dir}-${pose}`);
     }
     expect(keys).toContain('hero-sentinel');
+  });
+});
+
+describe('the Skitter pack', () => {
+  it('matches the pixel grids it is drawn from', () => {
+    const pack = buildSkitterPack();
+
+    if (process.env.UPDATE_ART) {
+      const listed = manifestKeys();
+      for (const [key, png] of pack) {
+        writeFileSync(`${ART_DIR}${key}.png`, png);
+        if (!listed.includes(key)) listed.push(key);
+      }
+      writeFileSync(MANIFEST, `${JSON.stringify(listed, null, 2)}\n`);
+      return;
+    }
+
+    for (const [key, png] of pack) {
+      const file = `${ART_DIR}${key}.png`;
+      expect(existsSync(file), `${key}.png is missing — run \`npm run art:build\``).toBe(true);
+      expect(
+        readFileSync(file).equals(Buffer.from(png)),
+        `${key}.png is stale — run \`npm run art:build\``
+      ).toBe(true);
+    }
+  });
+
+  it('covers every tier and crawl / nip pose', () => {
+    const keys = [...buildSkitterPack().keys()];
+    expect(keys).toHaveLength(9);
+    for (const tier of ['common', 'veteran', 'elite']) {
+      for (const frame of ['w0', 'w1', 'windup']) {
+        expect(keys).toContain(`enemy-skitter-${tier}-${frame}`);
+      }
+    }
+  });
+
+  it('keeps both crawl frames and the telegraphed nip visually distinct', () => {
+    const pack = buildSkitterPack();
+    for (const tier of ['common', 'veteran', 'elite']) {
+      const w0 = Buffer.from(pack.get(`enemy-skitter-${tier}-w0`)!);
+      const w1 = Buffer.from(pack.get(`enemy-skitter-${tier}-w1`)!);
+      const windup = Buffer.from(pack.get(`enemy-skitter-${tier}-windup`)!);
+      expect(w0.equals(w1)).toBe(false);
+      expect(w0.equals(windup)).toBe(false);
+      expect(w1.equals(windup)).toBe(false);
+    }
   });
 });
