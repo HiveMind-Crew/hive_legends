@@ -391,18 +391,18 @@ These rules are as load-bearing as the hero ones and are written down nowhere
 else. Several are surprising enough that tuning an enemy without knowing them
 produces a monster that does not behave the way its numbers read.
 
-**Nothing damages you by touching you.** An enemy that walks into you does
-nothing at all. Every point of damage in the game comes from a *completed*
-windup: on entering `attackRange` the enemy commits, holds still for
-`attackWindupTicks`, and only then does the blow land. Walking away during the
-telegraph beats it outright. The boss is the sole exception — she alone has
-real contact damage, rate-limited by `touchCooldownTicks`.
+**Nothing damages you merely by touching you.** An enemy that walks into you
+does nothing until it completes a windup. On entering `attackRange` it commits,
+holds still for `attackWindupTicks`, and only then releases its authored
+attack. Contact strikes are beaten by leaving their range; the Ravager's locked
+line is beaten by stepping sideways. The boss is the sole exception — she has
+real body-contact damage, rate-limited by `touchCooldownTicks`.
 
-**Enemy melee ignores facing.** A hero's swing is arc-limited; an enemy's is a
-plain centre-to-centre distance test, so it connects just as well behind it as
-in front. Getting *behind* an enemy is worth nothing today. This is a known
-asymmetry rather than a design position — the enemy data has no `arcDeg` to
-check.
+**Contact melee ignores facing; line melee commits it.** The Skitter and
+Carapace use a centre-to-centre range check, so getting behind them changes
+nothing. The Ravager instead snapshots a direction when its windup begins and
+cannot rotate the rupture afterward. Its line can hit multiple players but
+stops at the first wall.
 
 **A whiff still costs the enemy its full cooldown.** The cooldown is paid when
 the windup releases, before the range re-test, so a dodged attack buys the
@@ -424,16 +424,18 @@ Three families, and like the heroes each is supposed to own an axis. The tier
 family sets what kind of problem it is.
 
 **Skitter — expendable pressure.** Fast, fragile, and worth almost nothing
-individually. It exists to arrive in numbers and make standing still lethal.
-Its short windup is the tell that it is the one family that punishes hesitation
-rather than positioning.
+individually. It arrives in numbers and attacks with a quick 7-damage contact
+nip after a 12-tick (0.2-second) windup. The nip has no displacement and misses
+if the target leaves its 28 px reach, making the family punish hesitation
+rather than poor lane positioning.
 
-**Husk — the slow bruiser.** Slow enough to walk away from and hard enough that
-ignoring it is not an option. The long windup is the point: a Husk telegraphs
-loudly and hits like a truck, so it is a *positioning* problem the way the
-Skitter is a *tempo* one. The elite Ravager is the same shape with the dial
-turned up, and bursts from a dying Husk Mound rather than being spawned
-steadily.
+**Husk — armored space control.** The Carapace Husk uses a slow 24-tick
+overhead bash for 16 damage and 28 px of wall-clipped knockback: retreat during
+the tell or be driven out of position. The elite Gravebound Ravager is a
+different decision, not merely a larger number. It locks a 120×28 px lane for
+30 ticks, then ruptures that wall-clipped line for 24 damage and a 36 px
+forward push. The lane can hit multiple players and must be sidestepped. The
+Ravager bursts from a dying Husk Mound rather than spawning steadily.
 
 **Spitter — the ranged zoner.** The only family that does not want to be near
 you: it holds at range, kites when crowded (`keepDistanceFraction`), and taxes
@@ -462,12 +464,13 @@ two of reach, cadence, windup and damage — `tests/combat.test.ts` enforces it,
 because a monster that is another monster with a different HP bar is not a new
 monster.
 
-**Adding a new attack *shape*** — an arc, a multi-shot, a charge — is not a
-content change today. `EnemyDef` has no vocabulary for it and
-`executeEnemyAttack` has exactly one fork (`if (def.ranged)`), so every enemy in
-the game attacks in one of two ways. Widening that vocabulary is issue #77, the
-per-family attacks that depend on it are #78, and the boss's equivalent closed
-action union is #81. Until #77 lands, do not fake a new attack with numbers.
+**Adding a new attack shape:** melee currently supports the default contact
+strike plus the data-authored `contact` push and `line` rupture shapes in
+`EnemyMeleeDef`. Adding another melee shape means extending that union, one sim
+branch, presentation, generated shape text, and differentiation tests. Ranged
+attacks still sit in a separate optional block; issue #77 tracks unifying and
+finishing the vocabulary. Issue #78 tracks the remaining Skitter and Spitter
+family attacks, while #81 is the boss-side equivalent.
 
 <!-- BEGIN GENERATED: bestiary-tables -->
 
@@ -478,13 +481,15 @@ action union is #81. Until #77 lands, do not fake a new attack with numbers.
 Reach is the distance at which the enemy commits to an attack — for a ranged enemy that is
 where it stops and fires, not how far the bolt flies. Damage is the bolt for ranged families
 and the swing for melee ones; nothing reads `touchDamage` on an enemy that authors a bolt.
+Enemy DPS is `damage × 60 / (cooldownTicks + windupTicks)`: a full repeated attack
+cycle includes both the committed telegraph and the recovery before the next windup.
 
-| Enemy | Family | Tier | HP | Speed | Reach | Dmg | Cadence | Windup | DPS | Kites | Gold | XP |
+| Enemy | Family | Tier | HP | Speed | Reach | Dmg | Recovery | Windup | DPS | Kites | Gold | XP |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Skitterling | skitter | common | 40 | 120 | 28 px | 7 | 45t | 12t | 9.3 | no | 2–5 | 6 |
-| Carapace Husk | husk | veteran | 140 | 66 | 34 px | 16 | 55t | 24t | 17.5 | no | 6–12 | 18 |
-| Bile Spitter | spitter | common | 46 | 88 | 200 px | 8 | 105t | 16t | 4.6 | yes (0.6) | 4–9 | 12 |
-| Gravebound Ravager | husk | elite | 320 | 82 | 42 px | 24 | 58t | 30t | 24.8 | no | 22–34 | 55 |
+| Skitterling | skitter | common | 40 | 120 | 28 px | 7 | 45t | 12t | 7.4 | no | 2–5 | 6 |
+| Carapace Husk | husk | veteran | 140 | 66 | 34 px | 16 | 55t | 24t | 12.2 | no | 6–12 | 18 |
+| Bile Spitter | spitter | common | 46 | 88 | 200 px | 8 | 105t | 16t | 4.0 | yes (0.6) | 4–9 | 12 |
+| Gravebound Ravager | husk | elite | 320 | 82 | 120 px | 24 | 70t | 30t | 14.4 | no | 22–34 | 55 |
 
 ### Threat and readability
 
@@ -494,10 +499,10 @@ drop each hero from full — the pressure a single one of these represents, befo
 
 | Enemy | Shape | DPS | Dodge window | vs Vanguard | vs Arcanist | vs Ranger | vs Sentinel |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Skitterling | melee | 9.3 | 0.20 s | 12.9 | 8.6 | 9.6 | 18.2 |
-| Carapace Husk | melee | 17.5 | 0.40 s | 6.9 | 4.6 | 5.2 | 9.7 |
-| Bile Spitter | bolt 240 px/s, 230 px | 4.6 | 0.27 s | 26.3 | 17.5 | 19.7 | 37.2 |
-| Gravebound Ravager | melee | 24.8 | 0.50 s | 4.8 | 3.2 | 3.6 | 6.8 |
+| Skitterling | contact | 7.4 | 0.20 s | 16.3 | 10.9 | 12.2 | 23.1 |
+| Carapace Husk | contact, push 28 px | 12.2 | 0.40 s | 9.9 | 6.6 | 7.4 | 14.0 |
+| Bile Spitter | bolt 240 px/s, 230 px | 4.0 | 0.27 s | 30.3 | 20.2 | 22.7 | 42.9 |
+| Gravebound Ravager | line 120×28 px, push 36 px | 14.4 | 0.50 s | 8.3 | 5.6 | 6.3 | 11.8 |
 
 ### Where they come from
 

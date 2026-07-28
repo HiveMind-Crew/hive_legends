@@ -95,8 +95,9 @@ heroes, enemies, and the boss. Read it before changing any attack, ability,
 weapon tier, enemy, or boss phase. It states the archetype each actor owns and
 the combat rules they are tuned against, and those rules are not guessable from
 the code: no armour exists, so per-hit damage buys nothing; a cadence at or
-below the hitstun window is a permanent stunlock; enemies deal no contact
-damage, so a completed windup is the only way anything touches the player.
+below the hitstun window is a permanent stunlock; merely overlapping an enemy
+deals no damage, so a completed windup is the only way anything touches the
+player.
 
 It carries two generated regions — the hero tables and the bestiary — both
 rebuilt by `npm run docs:combat`. After any tuning change, run it and review
@@ -108,10 +109,11 @@ when a change crosses an archetype line rather than a tuning line. The
 attack sameness, tier threat ordering. Neither is a balance assertion; if one
 fails, either the data goes back or `docs/COMBAT.md` changes on purpose.
 
-Enemy attack *shape* is not yet data: `executeEnemyAttack` has a single
-`if (def.ranged)` fork, so every enemy attacks in one of two ways and variety is
-numeric only. Widening that vocabulary is issue #77 — do not fake a new attack
-with numbers in the meantime.
+Enemy melee shape is partly data-driven through `EnemyMeleeDef`: the default
+contact strike and the Ravager's committed line rupture are distinct sim
+branches. Ranged attacks still use the optional `ranged` block rather than one
+unified discriminated attack union. Issue #77 tracks finishing that vocabulary;
+#78 tracks the remaining family-specific Skitter and Spitter shapes.
 
 ## Mission progression
 

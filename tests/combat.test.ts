@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { attackForWeapon, crowdScore, dps, enemyDps, stunlocks, sweptArea, targetsPerUse } from '../scripts/combatTables';
+import {
+  attackForWeapon,
+  crowdScore,
+  dps,
+  enemyAttackKind,
+  enemyDps,
+  stunlocks,
+  sweptArea,
+  targetsPerUse
+} from '../scripts/combatTables';
 import { CONTENT } from '../src/content';
 import { ENEMY_FAMILIES, ENEMY_TIERS, type AttackDef, type HeroDef, type WeaponDef } from '../src/sim/types';
 
@@ -294,7 +303,7 @@ describe('differentiation', () => {
     for (const a of enemies) {
       for (const b of enemies) {
         if (a.id >= b.id) continue;
-        if (!!a.ranged !== !!b.ranged) continue; // different shape outright
+        if (enemyAttackKind(a) !== enemyAttackKind(b)) continue; // different shape outright
         const dials = [
           a.attackRange !== b.attackRange,
           a.attackCooldownTicks !== b.attackCooldownTicks,

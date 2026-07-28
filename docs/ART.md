@@ -108,6 +108,14 @@ live in `docs/design/visual-direction.md`. Readability beats richness: a
 The **Skitter and Husk families are covered by real art packs** across all
 three tiers and animation frames. Spitter and Mireveil remain in issue #27.
 
+Attack windups must make each family readable before its hit resolves:
+
+- **Skitter:** compress the abdomen, spread the forelegs, open the mandibles,
+  and flare the eyes before the quick contact nip.
+- **Husk:** plant the body and raise the forelimbs for the slow overhead bash.
+  The elite Ravager uses the same family motion while the renderer adds its
+  crimson line telegraph to show the committed rupture lane.
+
 ### World objects
 
 | Key | Size | Notes |

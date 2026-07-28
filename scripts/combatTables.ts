@@ -72,7 +72,7 @@ export function attackForWeapon(hero: HeroDef, weapon: WeaponDef): AttackDef {
  */
 export function enemyDps(def: EnemyDef): number {
   const damage = def.ranged?.projectileDamage ?? def.touchDamage;
-  return (damage * TICK_RATE) / def.attackCooldownTicks;
+  return (damage * TICK_RATE) / (def.attackCooldownTicks + def.attackWindupTicks);
 }
 
 /**
@@ -85,9 +85,18 @@ export function dodgeWindow(def: EnemyDef): number {
 }
 
 /** How an enemy delivers its damage, in one cell. */
+export function enemyAttackKind(def: EnemyDef): 'bolt' | 'contact' | 'line' {
+  if (def.ranged) return 'bolt';
+  return def.melee?.kind ?? 'contact';
+}
+
 export function enemyShape(def: EnemyDef): string {
-  if (!def.ranged) return 'melee';
-  return `bolt ${def.ranged.projectileSpeed} px/s, ${def.ranged.projectileRange} px`;
+  if (def.ranged) return `bolt ${def.ranged.projectileSpeed} px/s, ${def.ranged.projectileRange} px`;
+  if (def.melee?.kind === 'line') {
+    return `line ${def.melee.length}×${def.melee.width} px, push ${def.melee.pushPx} px`;
+  }
+  const push = def.melee?.kind === 'contact' ? def.melee.pushPx : 0;
+  return push > 0 ? `contact, push ${push} px` : 'contact';
 }
 
 /**
@@ -339,7 +348,7 @@ function bestiaryTable(content: ContentDb): string {
     String(e.xp)
   ]);
   return table(
-    ['Enemy', 'Family', 'Tier', 'HP', 'Speed', 'Reach', 'Dmg', 'Cadence', 'Windup', 'DPS', 'Kites', 'Gold', 'XP'],
+    ['Enemy', 'Family', 'Tier', 'HP', 'Speed', 'Reach', 'Dmg', 'Recovery', 'Windup', 'DPS', 'Kites', 'Gold', 'XP'],
     rows
   );
 }
@@ -478,6 +487,8 @@ export function renderBestiaryTables(content: ContentDb): string {
     'Reach is the distance at which the enemy commits to an attack — for a ranged enemy that is',
     'where it stops and fires, not how far the bolt flies. Damage is the bolt for ranged families',
     'and the swing for melee ones; nothing reads `touchDamage` on an enemy that authors a bolt.',
+    `Enemy DPS is \`damage × ${TICK_RATE} / (cooldownTicks + windupTicks)\`: a full repeated attack`,
+    'cycle includes both the committed telegraph and the recovery before the next windup.',
     '',
     bestiaryTable(content),
     '',

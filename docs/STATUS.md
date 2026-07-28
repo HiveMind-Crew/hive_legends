@@ -282,6 +282,14 @@ hostile bile bolts sickly-green and plays a distinct spit SFX; the family×tier
 art grammar (#7) drew every new silhouette with zero new texture code. Covered
 in `tests/sim/enemies.test.ts`.
 
+The Skitter and Husk follow-up gives those silhouettes distinct attack reads.
+Skitter keeps its quick 7-damage contact nip with a 12-tick windup. The
+Carapace Husk's slow overhead bash now adds 28 px of wall-clipped knockback,
+while the Gravebound Ravager commits to a 120×28 px rupture lane for its
+30-tick windup, then deals 24 damage and pushes every player caught in the line
+36 px. Original tiered walk and windup art now ships for both families; the
+renderer supplies the Ravager's crimson lane telegraph and release fissure.
+
 #16 landed: temporary power-ups — floor relics that grant a short, stacking
 timed buff. Three ship: **Emberheart** (frenzy, +damage), **Windstep Sigil**
 (swiftness, +move speed), and **Aegis Bloom** (ward, −damage taken). Buff
