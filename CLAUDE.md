@@ -110,8 +110,8 @@ fails, either the data goes back or `docs/COMBAT.md` changes on purpose.
 
 Enemy attack *shape* is not yet data: `executeEnemyAttack` has a single
 `if (def.ranged)` fork, so every enemy attacks in one of two ways and variety is
-numeric only. Widening that vocabulary is tracked in its own issue — do not fake
-a new attack with numbers.
+numeric only. Widening that vocabulary is issue #77 — do not fake a new attack
+with numbers in the meantime.
 
 ## Mission progression
 

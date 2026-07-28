@@ -465,8 +465,9 @@ monster.
 **Adding a new attack *shape*** — an arc, a multi-shot, a charge — is not a
 content change today. `EnemyDef` has no vocabulary for it and
 `executeEnemyAttack` has exactly one fork (`if (def.ranged)`), so every enemy in
-the game attacks in one of two ways. Widening that vocabulary is tracked
-separately; do not fake it with numbers.
+the game attacks in one of two ways. Widening that vocabulary is issue #77, the
+per-family attacks that depend on it are #78, and the boss's equivalent closed
+action union is #81. Until #77 lands, do not fake a new attack with numbers.
 
 <!-- BEGIN GENERATED: bestiary-tables -->
 
