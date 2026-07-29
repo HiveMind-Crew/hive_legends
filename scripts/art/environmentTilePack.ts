@@ -36,6 +36,32 @@ export type EnvironmentTileKey =
   | 'tile-floor-2'
   | 'tile-floor-3';
 
+export type AmberResinTileKey =
+  | 'tile-amber-resin-wall'
+  | 'tile-amber-resin-wall-inner'
+  | 'tile-amber-resin-wall-face'
+  | 'tile-amber-resin-floor-0'
+  | 'tile-amber-resin-floor-1'
+  | 'tile-amber-resin-floor-2'
+  | 'tile-amber-resin-floor-3';
+
+const AMBER = {
+  floor: 0x1b1510,
+  floorLow: 0x120e0b,
+  floorMid: 0x2a2117,
+  floorHigh: 0x3b2d1b,
+  resin: 0x5c3d16,
+  resinGlow: 0x9a651d,
+  inclusion: 0x765426,
+  inclusionLight: 0xb88735,
+  wallLow: 0x24170d,
+  wall: 0x3d2813,
+  wallMid: 0x5b3a18,
+  wallHigh: 0x7a521f,
+  wallGlow: 0xc4852d,
+  shadow: 0x0d0906
+} as const;
+
 function rgb(n: number): readonly [number, number, number, number] {
   return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff, 0xff];
 }
@@ -297,6 +323,181 @@ function wallFace(): Bitmap {
   return image;
 }
 
+function amberMottle(image: Bitmap, seed: number, density: number): void {
+  for (let y = 0; y < image.h; y++) {
+    for (let x = 0; x < image.w; x++) {
+      const n = hash(x, y, seed) % 100;
+      if (n < density) put(image, x, y, AMBER.floorMid);
+      else if (n > 97) put(image, x, y, AMBER.floorLow);
+    }
+  }
+}
+
+/** Dark resin pools with restrained highlights, kept below actor luminance. */
+function amberFloorPools(): Bitmap {
+  const image = bitmap(32, 32, AMBER.floor);
+  amberMottle(image, 43, 12);
+  for (const [x, y, rx, ry] of [
+    [5, 6, 8, 5],
+    [22, 13, 10, 7],
+    [10, 27, 9, 6],
+    [31, 29, 7, 5]
+  ] as const) {
+    ellipseOutline(image, x, y, rx, ry, AMBER.resin);
+    ellipseOutline(image, x + 1, y, Math.max(2, rx - 3), Math.max(2, ry - 2), AMBER.floorHigh);
+  }
+  for (const [x, y] of [
+    [3, 4],
+    [20, 10],
+    [8, 25]
+  ] as const) {
+    put(image, x, y, AMBER.resinGlow, true);
+  }
+  sealOppositeEdges(image);
+  return image;
+}
+
+/** Hairline golden fissures under a quiet, mottled walking surface. */
+function amberFloorFissures(): Bitmap {
+  const image = bitmap(32, 32, AMBER.floor);
+  amberMottle(image, 47, 9);
+  for (const points of [
+    [
+      [0, 8],
+      [7, 11],
+      [13, 17],
+      [10, 24],
+      [17, 31]
+    ],
+    [
+      [22, 0],
+      [20, 7],
+      [26, 13],
+      [31, 15]
+    ]
+  ] as const) {
+    for (let i = 0; i < points.length - 1; i++) {
+      line(image, points[i]![0], points[i]![1], points[i + 1]![0], points[i + 1]![1], AMBER.resin);
+    }
+  }
+  line(image, 13, 17, 20, 14, AMBER.resinGlow);
+  line(image, 10, 24, 4, 27, AMBER.resin);
+  for (const [x, y] of [
+    [13, 17],
+    [20, 7],
+    [26, 13]
+  ] as const) {
+    put(image, x, y, AMBER.resinGlow, true);
+  }
+  sealOppositeEdges(image);
+  return image;
+}
+
+/** Overlapping sealed cells: softer and more organic than the violet membrane. */
+function amberFloorMembrane(): Bitmap {
+  const image = bitmap(32, 32, AMBER.floor);
+  amberMottle(image, 53, 6);
+  for (const [x, y, rx, ry] of [
+    [5, 7, 8, 6],
+    [16, 8, 7, 6],
+    [26, 6, 8, 5],
+    [9, 21, 10, 7],
+    [24, 23, 11, 8]
+  ] as const) {
+    ellipseOutline(image, x, y, rx, ry, AMBER.resin);
+    ellipseOutline(image, x, y + 1, Math.max(2, rx - 3), Math.max(2, ry - 2), AMBER.floorHigh);
+  }
+  line(image, 0, 16, 31, 16, AMBER.resin, true);
+  for (const x of [4, 17, 29]) disc(image, x, 16, 1, AMBER.resinGlow, true);
+  sealOppositeEdges(image);
+  return image;
+}
+
+/** Resin-frozen chitin and crystal inclusions replace Realm 1's bone scatter. */
+function amberFloorInclusions(): Bitmap {
+  const image = bitmap(32, 32, AMBER.floor);
+  amberMottle(image, 59, 11);
+  for (const [x, y, dx, dy] of [
+    [6, 8, 5, 3],
+    [20, 23, 6, -4],
+    [28, 6, 4, 3]
+  ] as const) {
+    line(image, x, y, x + dx, y + dy, AMBER.inclusion);
+    line(image, x + dx, y + dy, x + Math.sign(dx), y + dy + 4, AMBER.inclusion);
+    line(image, x + Math.sign(dx), y + dy + 4, x, y, AMBER.inclusionLight);
+    put(image, x + Math.sign(dx), y + 1, AMBER.resinGlow, true);
+  }
+  disc(image, 14, 16, 2, AMBER.resin, true);
+  disc(image, 14, 16, 1, AMBER.floorLow, true);
+  sealOppositeEdges(image);
+  return image;
+}
+
+/** Layered, honeycombed resin roof with sparse trapped-light beads. */
+function amberWallRoof(): Bitmap {
+  const image = bitmap(32, 32, AMBER.wall);
+  for (let y = 0; y < image.h; y++) {
+    for (let x = 0; x < image.w; x++) {
+      const n = hash(x, y, 61) % 100;
+      if (n < 8) put(image, x, y, AMBER.wallMid);
+      else if (n > 97) put(image, x, y, AMBER.wallLow);
+    }
+  }
+  for (const [x, y, rx, ry] of [
+    [4, 5, 10, 7],
+    [20, 7, 11, 8],
+    [10, 20, 12, 9],
+    [29, 24, 10, 8]
+  ] as const) {
+    ellipseOutline(image, x, y, rx, ry, AMBER.wallHigh);
+    ellipseOutline(image, x, y + 2, Math.max(3, rx - 2), Math.max(3, ry - 2), AMBER.wallLow);
+  }
+  line(image, 0, 2, 31, 2, AMBER.wallHigh);
+  for (const x of [5, 17, 28]) disc(image, x, 3, 1, AMBER.wallGlow, true);
+  sealOppositeEdges(image);
+  return image;
+}
+
+function amberWallInner(): Bitmap {
+  const image = bitmap(32, 32, AMBER.wallLow);
+  for (const [x, y, rx, ry] of [
+    [4, 4, 10, 7],
+    [22, 5, 12, 8],
+    [8, 19, 12, 9],
+    [27, 23, 13, 9]
+  ] as const) {
+    ellipseOutline(image, x, y, rx, ry, AMBER.wall);
+    ellipseOutline(image, x + 1, y + 1, Math.max(3, rx - 3), Math.max(3, ry - 3), AMBER.wallMid);
+  }
+  for (let y = 0; y < 32; y++) {
+    for (let x = 0; x < 32; x++) {
+      if (hash(x, y, 67) % 83 === 0) put(image, x, y, AMBER.wallGlow);
+    }
+  }
+  sealOppositeEdges(image);
+  return image;
+}
+
+/** Vertical resin curtains with dark gaps and descending amber droplets. */
+function amberWallFace(): Bitmap {
+  const image = bitmap(32, 16, AMBER.wallLow);
+  rect(image, 0, 0, 32, 2, AMBER.wallHigh);
+  rect(image, 0, 2, 32, 2, AMBER.wall);
+  for (const [x, width, drop] of [
+    [1, 5, 12],
+    [8, 6, 9],
+    [16, 5, 13],
+    [23, 7, 10]
+  ] as const) {
+    rect(image, x, 3, width, drop, AMBER.wall);
+    line(image, x + 1, 4, x + 1, Math.min(13, drop), AMBER.wallMid);
+    put(image, x + width - 2, Math.min(13, drop), AMBER.wallGlow);
+  }
+  rect(image, 0, 14, 32, 2, AMBER.shadow);
+  for (let y = 0; y < image.h; y++) copyPixel(image, 0, y, image.w - 1, y);
+  return image;
+}
+
 export function environmentTileBitmap(key: EnvironmentTileKey): Bitmap {
   switch (key) {
     case 'tile-wall':
@@ -327,4 +528,36 @@ export function buildEnvironmentTilePack(): ReadonlyMap<EnvironmentTileKey, Uint
     'tile-floor-3'
   ];
   return new Map(keys.map((key) => [key, encodePng(environmentTileBitmap(key), 0)]));
+}
+
+export function amberResinTileBitmap(key: AmberResinTileKey): Bitmap {
+  switch (key) {
+    case 'tile-amber-resin-wall':
+      return amberWallRoof();
+    case 'tile-amber-resin-wall-inner':
+      return amberWallInner();
+    case 'tile-amber-resin-wall-face':
+      return amberWallFace();
+    case 'tile-amber-resin-floor-0':
+      return amberFloorPools();
+    case 'tile-amber-resin-floor-1':
+      return amberFloorFissures();
+    case 'tile-amber-resin-floor-2':
+      return amberFloorMembrane();
+    case 'tile-amber-resin-floor-3':
+      return amberFloorInclusions();
+  }
+}
+
+export function buildAmberResinTilePack(): ReadonlyMap<AmberResinTileKey, Uint8Array> {
+  const keys: readonly AmberResinTileKey[] = [
+    'tile-amber-resin-wall',
+    'tile-amber-resin-wall-inner',
+    'tile-amber-resin-wall-face',
+    'tile-amber-resin-floor-0',
+    'tile-amber-resin-floor-1',
+    'tile-amber-resin-floor-2',
+    'tile-amber-resin-floor-3'
+  ];
+  return new Map(keys.map((key) => [key, encodePng(amberResinTileBitmap(key), 0)]));
 }

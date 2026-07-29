@@ -491,11 +491,16 @@ export interface LevelSecretDef {
 }
 
 /**
- * Per-realm palette accent. Multiplicative tints (0xRRGGBB) let a realm reuse
- * the shared textures but read as a distinct place — no new drawing code. Omit
- * a field to leave that layer at its base (untinted) look.
+ * Per-level environment identity. A dedicated `tileSet` selects original
+ * texture variants; optional multiplicative tints (0xRRGGBB) can instead
+ * recolour the shared base. Omit a field to leave that layer unchanged.
  */
 export interface LevelTheme {
+  /**
+   * Optional environment texture namespace. `amber-resin`, for example,
+   * resolves `tile-amber-resin-wall` and `tile-amber-resin-floor-0..3`.
+   */
+  tileSet?: string;
   /** Tint applied to wall tops, inner walls, and front faces. */
   wall?: number;
   /** Tint applied to floor tiles. */
@@ -508,7 +513,7 @@ export interface LevelDef {
   id: string;
   name: string;
   tileSize: number;
-  /** Optional palette accent for the realm; omit for the base (violet) look. */
+  /** Optional environment treatment; omit for the base violet tiles. */
   theme?: LevelTheme;
   /** One string per row; '#' = wall, '.' = floor. All rows equal length. */
   walls: readonly string[];

@@ -34,6 +34,10 @@ function buildSpecs(): Record<string, TextureSpec> {
   add('tile-wall-inner', 32, 32);
   add('tile-wall-face', 32, 16);
   for (let v = 0; v < 4; v++) add(`tile-floor-${v}`, 32, 32);
+  add('tile-amber-resin-wall', 32, 32);
+  add('tile-amber-resin-wall-inner', 32, 32);
+  add('tile-amber-resin-wall-face', 32, 16);
+  for (let v = 0; v < 4; v++) add(`tile-amber-resin-floor-${v}`, 32, 32);
 
   // Hero frames: roster x 8 directions x poses, plus the portrait alias.
   for (const heroId of ['vanguard', 'arcanist', 'ranger', 'sentinel']) {

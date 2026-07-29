@@ -9,8 +9,8 @@ the first real art pack #44 all landed).
 - **M0 — Foundations: COMPLETE.** Toolchain, CI, deterministic sim core
   (ADR 0002), data-driven content, docs.
 - **M1 — Vertical slice: CONTENT-COMPLETE.** Every checklist item below is
-  landed. What remains under the M1 umbrella is the original-art track
-  (#27 characters, #28 environment/UI), which can proceed in parallel.
+  landed, including the original-art track (#27 characters and #28
+  environment/UI).
 - M2 — Systems depth (progression trees, deeper economy): not started; board
   in #29. Note the full four-hero roster and realms 2–3, once slated here and
   for M4, landed early during M1.
@@ -65,18 +65,18 @@ the code on 2026-07-24 and corrected; everything below is now landed):
       gain) and damage, announced by the Herald. Banked to the profile, so the
       next mission starts at that level. Stacks with the bought gold upgrades.
 
-**With this, the M1 vertical slice is content-complete.** Remaining tracked
-work is the original-art track (#27, #28) and the M2 board (#29).
+**With this, the M1 vertical slice and its original-art track are complete.**
+The next planning board is M2 (#29).
 
-The Realm 1 portion of #28 now includes its full UI finish: dedicated HUD
-resource/trophy glyphs, timed-power chips, a tintable ability-ready flare, and
-independently animated base/glow title-logo layers. Future Realm 2 tile
-variants remain coupled to that realm's art direction rather than blocking
-the completed Realm 1 pack.
+#28 now covers the full environment/UI contract: the Realm 1 floor and wall
+pack; Brood Node states, props and decor; interaction objects; HUD glyphs and
+title layers; and dedicated amber-resin floor/wall variants for The Resin
+Galleries. `LevelTheme.tileSet` selects the second set without hardcoding the
+level in the renderer.
 
 ## Verification state
 
-`lint`, `typecheck`, **286 unit tests across 24 files**, the production build,
+`lint`, `typecheck`, **292 unit tests across 24 files**, the production build,
 and the Playwright gameplay playthrough (bot clears The Brood Warrens, banks
 gold and XP, buys an upgrade, and replays with both the upgrade and the earned
 level applied; screenshots in `test-results/`) all pass. Run the whole gate
@@ -210,7 +210,8 @@ on any future failure.
 
 - Player death ends the mission (no revive); revival mechanics arrive with co-op.
 - Future content can still fall back to generated programmer art; the current
-  character, Realm 1 environment/object, interaction, and UI packs are drawn.
+  character, Realm 1 and amber-resin environment, object, interaction, and UI
+  packs are drawn.
 - Enemy pathing is straight-line steering; enemies can snag on walls in
   concave layouts (acceptable in current map; needs flow-field or A* later).
 - Phaser bundle is ~1.5 MB (348 kB gzip); fine for now, consider code-splitting
@@ -231,8 +232,8 @@ issue #29:
   playable and the enemy roster spans three families.
 - **Phase 3 — levels & finale**: Realm 2 "The Resin Galleries" (#24), the
   Broodmother boss (#25).
-- **Art track (parallel)**: drop-in asset pipeline + docs/ART.md (#26 —
-  DONE), character art pack (#27), environment/props/UI art pack (#28).
+- **Art track (complete)**: drop-in asset pipeline + docs/ART.md (#26),
+  character art pack (#27), environment/props/UI art pack (#28).
 
 #15 landed: attack defs are a typed union (melee | projectile), bolts are
 deterministic sim entities (wall-stopped, piercing, range-limited), with
@@ -474,14 +475,9 @@ realm and the invariants that guard it.
 
 ## Next recommended task
 
-M1 is content-complete, and the highest-value work is **presentation
-and polish rather than systems**:
-
-1. **Original environment, object, and UI art — #28.** The character track is
-   complete, and the Realm 1 floor/wall tiles, Brood Node damage states,
-   breakable props, decor, pickups, gate, and portal now ship as original art.
-   The next high-value slice is the HUD/icon and title-logo treatment. Key list
-   and canvas sizes: `docs/ART.md`.
+M1 and its original-art track are complete. The next work should start by
+turning the M2 candidates in tracking issue #29 into scoped implementation
+issues rather than extending the finished vertical slice ad hoc.
 Balance note carried from #25: ranged heroes kite Mireveil noticeably more
 easily than melee (~15–17s vs ~32s to kill). Worth a tuning pass once there is
 real playtest data, rather than speculative numbers now.

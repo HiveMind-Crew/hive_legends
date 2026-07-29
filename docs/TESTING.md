@@ -63,7 +63,9 @@ npm run lint && npm run typecheck && npm test && npm run build && npm run test:e
   starts `npm run preview` automatically).
 - Watch it play in a real window: `npx playwright test --headed`.
 - Screenshots of each stage land in `test-results/`:
-  `01-hero-select` → `02-mission-start` → `03-horde-combat` →
+  `01-hero-select` → `01b-mission-hub` → `02-mission-start` →
+  `02b-resin-galleries-art` (dedicated amber-resin environment pack) →
+  `03-horde-combat` →
   `03b-combat-juice` (moment of the first kill) →
   `03c-node-damaged` (generator damage tiers) → `04-results` →
   `05-replay-upgraded`. CI uploads these as artifacts on every run.

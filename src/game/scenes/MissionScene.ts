@@ -29,6 +29,7 @@ import {
   heroFrame,
   powerupTexture,
   propTexture,
+  wallTexture,
   type EnemyAnimFrame,
   type HeroPose
 } from '../textures';
@@ -245,8 +246,9 @@ export class MissionScene extends Phaser.Scene {
   private drawLevel(): void {
     const level = this.sim.config.level;
     const ts = level.tileSize;
-    // Realm palette accent (issue #24): multiplicative tints reskin the shared
-    // textures so each realm reads as a distinct place, with no new art.
+    // A level may choose dedicated environment art or tint the shared base.
+    // Both decisions live in content; the renderer only resolves the keys.
+    const tileSet = level.theme?.tileSet;
     const wallTint = level.theme?.wall;
     const floorTint = level.theme?.floor;
     const isWall = (tx: number, ty: number): boolean => {
@@ -262,20 +264,22 @@ export class MissionScene extends Phaser.Scene {
           const bottomY = (ty + 1) * ts;
           const inner = isWall(tx - 1, ty) && isWall(tx + 1, ty) && isWall(tx, ty - 1) && isWall(tx, ty + 1);
           const wallImg = this.add
-            .image(tx * ts + ts / 2, ty * ts + ts / 2, inner ? TEX.wallInner : TEX.wall)
+            .image(tx * ts + ts / 2, ty * ts + ts / 2, wallTexture(inner ? 'inner' : 'top', tileSet))
             .setDepth(bottomY);
           if (wallTint !== undefined) wallImg.setTint(wallTint);
           // South-facing wall edges get a front face, faking wall height.
           const below = level.walls[ty + 1];
           if (below && below[tx] === '.') {
-            const face = this.add.image(tx * ts + ts / 2, bottomY + 8, TEX.wallFace).setDepth(bottomY);
+            const face = this.add.image(tx * ts + ts / 2, bottomY + 8, wallTexture('face', tileSet)).setDepth(bottomY);
             if (wallTint !== undefined) face.setTint(wallTint);
           }
         } else {
           // Deterministic variation: hash of the tile coordinate (not RNG),
           // so the same level always dresses identically.
           const hash = (((tx * 73856093) ^ (ty * 19349663)) >>> 0) % FLOOR_VARIANTS;
-          const floorImg = this.add.image(tx * ts + ts / 2, ty * ts + ts / 2, floorVariant(hash)).setDepth(0);
+          const floorImg = this.add
+            .image(tx * ts + ts / 2, ty * ts + ts / 2, floorVariant(hash, tileSet))
+            .setDepth(0);
           if (floorTint !== undefined) floorImg.setTint(floorTint);
         }
       }

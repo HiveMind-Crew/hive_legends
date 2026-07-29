@@ -61,6 +61,19 @@ describe('content validity', () => {
     for (const id of Object.keys(CONTENT.props)) expect(TEXTURE_SPECS[`prop-${id}`]).toBeDefined();
   });
 
+  it('every level-authored tile set resolves a complete environment pack', () => {
+    for (const level of Object.values(LEVELS)) {
+      const tileSet = level.theme?.tileSet;
+      if (!tileSet) continue;
+      for (const suffix of ['wall', 'wall-inner', 'wall-face']) {
+        expect(TEXTURE_SPECS[`tile-${tileSet}-${suffix}`], `${level.id}/${suffix}`).toBeDefined();
+      }
+      for (let variant = 0; variant < 4; variant++) {
+        expect(TEXTURE_SPECS[`tile-${tileSet}-floor-${variant}`], `${level.id}/floor-${variant}`).toBeDefined();
+      }
+    }
+  });
+
   it('every weapon references a real hero and is well-formed', () => {
     const weapons = Object.values(CONTENT.weapons);
     expect(weapons.length).toBeGreaterThan(0);
