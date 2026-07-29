@@ -128,5 +128,12 @@
   "enemy-spitter-elite-windup",
   "boss-mireveil-0",
   "boss-mireveil-1",
-  "boss-mireveil-2"
+  "boss-mireveil-2",
+  "tile-wall",
+  "tile-wall-inner",
+  "tile-wall-face",
+  "tile-floor-0",
+  "tile-floor-1",
+  "tile-floor-2",
+  "tile-floor-3"
 ]
