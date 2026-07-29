@@ -164,6 +164,26 @@ describe('attack windup (#39)', () => {
     expect(p.hp).toBe(before);
   });
 
+  it('a target that circles behind a committed Husk swing is not hit (#79)', () => {
+    const sim = newSim();
+    sim.state.generators = [];
+    const p = sim.state.players[0]!;
+    const before = p.hp;
+    const husk = spawnEnemy(sim, 'carapace-husk', 902, p.pos.x + 30, p.pos.y);
+
+    runTicks(sim, 1); // commits west toward the player's original position
+    expect(husk.windupDir).toEqual({ x: -1, y: 0 });
+
+    // Stay inside the authored range, but cross to the east/rear half-plane.
+    p.pos = { x: husk.pos.x + 20, y: husk.pos.y };
+    const events = runTicks(sim, HUSK_WINDUP);
+
+    expect(events.some((event) => event.type === 'enemy-contact' && event.enemyId === husk.id)).toBe(true);
+    expect(events.some((event) => event.type === 'player-hit')).toBe(false);
+    expect(p.hp).toBe(before);
+    expect(husk.attackCooldown).toBeGreaterThan(0); // the whiff still pays recovery
+  });
+
   it('windup combat stays deterministic', () => {
     const seeds = [909, 909];
     const sims = seeds.map((seed) => {

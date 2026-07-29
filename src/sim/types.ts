@@ -208,6 +208,8 @@ interface EnemyAttackBase {
 
 export type EnemyContactAttackDef = EnemyAttackBase & {
   kind: 'contact';
+  /** Frontal release arc; targets outside it flank the committed swing. */
+  arcDeg: number;
   /** Immediate wall-clipped displacement applied away from the attacker. */
   pushPx: number;
 };
@@ -686,7 +688,7 @@ export interface EnemyState {
   attackCooldown: number;
   /** Ticks left in a committed attack windup (0 = not winding up). See #39. */
   windupTicksLeft: number;
-  /** Locked release direction for committed line and pounce attacks. */
+  /** Locked release direction for committed contact, line, and pounce attacks. */
   windupDir?: Vec2;
   /** Wall-clipped length of a committed line or pounce attack. */
   windupLength?: number;
@@ -789,19 +791,83 @@ export interface SimState {
 // ---------------------------------------------------------------------------
 
 export type SimEvent =
-  | { type: 'attack'; playerId: EntityId; pos: Vec2; facing: Vec2 }
-  | { type: 'projectile-fired'; playerId: EntityId; projectileId: EntityId; pos: Vec2; vel: Vec2 }
+  | {
+      type: 'attack';
+      playerId: EntityId;
+      heroId: string;
+      pos: Vec2;
+      facing: Vec2;
+      range: number;
+      arcDeg: number;
+      /** Authored base damage: stable gear-weight cue, before buffs/levels. */
+      weight: number;
+    }
+  | {
+      type: 'projectile-fired';
+      playerId: EntityId;
+      heroId: string;
+      projectileId: EntityId;
+      pos: Vec2;
+      vel: Vec2;
+      radius: number;
+      pierce: number;
+      /** Authored base damage: stable gear-weight cue, before buffs/levels. */
+      weight: number;
+    }
   | { type: 'enemy-shot'; enemyId: EntityId; projectileId: EntityId; pos: Vec2; vel: Vec2 }
-  | { type: 'enemy-volley'; enemyId: EntityId; pos: Vec2; dir: Vec2; count: number; spreadDeg: number }
+  | {
+      type: 'enemy-volley';
+      enemyId: EntityId;
+      family: EnemyFamily;
+      pos: Vec2;
+      dir: Vec2;
+      count: number;
+      spreadDeg: number;
+      weight: number;
+    }
   | { type: 'projectile-hit'; projectileId: EntityId; pos: Vec2 }
   | { type: 'projectile-expired'; projectileId: EntityId; pos: Vec2 }
   | { type: 'ability'; playerId: EntityId; pos: Vec2; radius: number }
   | { type: 'ability-dash'; playerId: EntityId; from: Vec2; to: Vec2 }
   | { type: 'ability-guard'; playerId: EntityId; pos: Vec2; durationTicks: number }
   | { type: 'guard-block'; playerId: EntityId; enemyId: EntityId; pos: Vec2 }
-  | { type: 'enemy-windup'; enemyId: EntityId; pos: Vec2; durationTicks: number }
-  | { type: 'enemy-pounce'; enemyId: EntityId; from: Vec2; to: Vec2; width: number }
-  | { type: 'enemy-line-attack'; enemyId: EntityId; pos: Vec2; dir: Vec2; length: number; width: number }
+  | {
+      type: 'enemy-windup';
+      enemyId: EntityId;
+      family: EnemyFamily;
+      attackKind: EnemyAttackDef['kind'];
+      pos: Vec2;
+      durationTicks: number;
+    }
+  | {
+      type: 'enemy-contact';
+      enemyId: EntityId;
+      family: EnemyFamily;
+      pos: Vec2;
+      dir: Vec2;
+      range: number;
+      arcDeg: number;
+      weight: number;
+    }
+  | {
+      type: 'enemy-pounce';
+      enemyId: EntityId;
+      family: EnemyFamily;
+      from: Vec2;
+      to: Vec2;
+      width: number;
+      weight: number;
+    }
+  | {
+      type: 'enemy-line-attack';
+      enemyId: EntityId;
+      family: EnemyFamily;
+      pos: Vec2;
+      dir: Vec2;
+      length: number;
+      width: number;
+      weight: number;
+    }
   | { type: 'enemy-hit'; enemyId: EntityId; pos: Vec2; damage: number }
   | { type: 'enemy-died'; enemyId: EntityId; typeId: string; pos: Vec2; byPlayer: EntityId; damage: number }
   | { type: 'enemy-spawned'; enemyId: EntityId; typeId: string; pos: Vec2 }

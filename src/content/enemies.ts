@@ -41,6 +41,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
       kind: 'contact',
       damage: 16,
       range: 34,
+      arcDeg: 110,
       cooldownTicks: 55,
       windupTicks: 24, // heavy overhead — clearly readable, punishing if it lands
       pushPx: 28

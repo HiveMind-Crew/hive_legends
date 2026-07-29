@@ -264,7 +264,16 @@ function performMeleeAttack(sim: Sim, p: PlayerState, atk: AttackDef, events: Si
   if (atk.kind !== 'melee') return;
   const damage = heroDamage(sim, p, atk.damage);
   const cosHalfArc = Math.cos(((atk.arcDeg / 2) * Math.PI) / 180);
-  events.push({ type: 'attack', playerId: p.id, pos: { ...p.pos }, facing: { ...p.facing } });
+  events.push({
+    type: 'attack',
+    playerId: p.id,
+    heroId: p.heroId,
+    pos: { ...p.pos },
+    facing: { ...p.facing },
+    range: atk.range,
+    arcDeg: atk.arcDeg,
+    weight: atk.damage
+  });
 
   for (const e of sim.state.enemies) {
     if (e.hp <= 0) continue;
@@ -694,9 +703,13 @@ function spawnProjectile(sim: Sim, p: PlayerState, atk: ProjectileAttackDef, dir
   events.push({
     type: 'projectile-fired',
     playerId: p.id,
+    heroId: p.heroId,
     projectileId: projectile.id,
     pos: { ...projectile.pos },
-    vel: { ...projectile.vel }
+    vel: { ...projectile.vel },
+    radius: atk.radius,
+    pierce: atk.pierce,
+    weight: atk.damage
   });
 }
 
@@ -756,10 +769,12 @@ function spawnEnemyVolley(
   events.push({
     type: 'enemy-volley',
     enemyId: e.id,
+    family: sim.config.content.enemies[e.typeId]?.family ?? 'spitter',
     pos: { ...e.pos },
     dir: aim,
     count: attack.count,
-    spreadDeg: attack.spreadDeg
+    spreadDeg: attack.spreadDeg,
+    weight: attack.damage
   });
 }
 
@@ -1024,14 +1039,22 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
         e.windupTicksLeft = attack.windupTicks;
         e.windupDir = undefined;
         e.windupLength = undefined;
-        if ((attack.kind === 'line' || attack.kind === 'pounce') && dist > 1e-6) {
+        if ((attack.kind === 'contact' || attack.kind === 'line' || attack.kind === 'pounce') && dist > 1e-6) {
           e.windupDir = { x: d.x / dist, y: d.y / dist };
-          e.windupLength =
-            attack.kind === 'line'
-              ? wallClippedEnemyLineLength(sim, e.pos, e.windupDir, attack.length)
-              : wallClippedEnemyPounceLength(sim, e.pos, e.windupDir, attack.distance, def.radius);
+          if (attack.kind === 'line') {
+            e.windupLength = wallClippedEnemyLineLength(sim, e.pos, e.windupDir, attack.length);
+          } else if (attack.kind === 'pounce') {
+            e.windupLength = wallClippedEnemyPounceLength(sim, e.pos, e.windupDir, attack.distance, def.radius);
+          }
         }
-        events.push({ type: 'enemy-windup', enemyId: e.id, pos: { ...e.pos }, durationTicks: attack.windupTicks });
+        events.push({
+          type: 'enemy-windup',
+          enemyId: e.id,
+          family: def.family,
+          attackKind: attack.kind,
+          pos: { ...e.pos },
+          durationTicks: attack.windupTicks
+        });
       } else {
         executeEnemyAttack(sim, e, def, target, events);
       }
@@ -1058,16 +1081,31 @@ function executeEnemyAttack(sim: Sim, e: EnemyState, def: EnemyDef, target: Play
     return;
   }
   if (attack.kind === 'pounce') {
-    executeEnemyPounceAttack(sim, e, attack, def.radius, events);
+    executeEnemyPounceAttack(sim, e, attack, def, events);
     return;
   }
   if (attack.kind === 'line') {
-    executeEnemyLineAttack(sim, e, attack, events);
+    executeEnemyLineAttack(sim, e, attack, def, events);
     return;
   }
   const d = sub(target.pos, e.pos);
   const dist = Math.hypot(d.x, d.y);
+  const dir = e.windupDir ?? (dist > 1e-6 ? { x: d.x / dist, y: d.y / dist } : { x: 1, y: 0 });
+  e.windupDir = undefined;
+  events.push({
+    type: 'enemy-contact',
+    enemyId: e.id,
+    family: def.family,
+    pos: { ...e.pos },
+    dir,
+    range: attack.range,
+    arcDeg: attack.arcDeg,
+    weight: attack.damage
+  });
   if (dist > attack.range || target.invulnTicks > 0) return; // whiffed, or target immune
+  const targetDir = dist > 1e-6 ? { x: d.x / dist, y: d.y / dist } : dir;
+  const cosHalfArc = Math.cos(((attack.arcDeg / 2) * Math.PI) / 180);
+  if (targetDir.x * dir.x + targetDir.y * dir.y < cosHalfArc) return; // flanked during the tell
   damagePlayerFromEnemy(sim, e, attack.damage, target, d, dist, attack.pushPx, events);
 }
 
@@ -1080,17 +1118,25 @@ function executeEnemyPounceAttack(
   sim: Sim,
   e: EnemyState,
   attack: Extract<EnemyDef['attack'], { kind: 'pounce' }>,
-  enemyRadius: number,
+  def: EnemyDef,
   events: SimEvent[]
 ): void {
   const from = { ...e.pos };
   const dir = e.windupDir ?? { x: 1, y: 0 };
-  const distance = e.windupLength ?? wallClippedEnemyPounceLength(sim, from, dir, attack.distance, enemyRadius);
+  const distance = e.windupLength ?? wallClippedEnemyPounceLength(sim, from, dir, attack.distance, def.radius);
   e.windupDir = undefined;
   e.windupLength = undefined;
   e.pos.x = from.x + dir.x * distance;
   e.pos.y = from.y + dir.y * distance;
-  events.push({ type: 'enemy-pounce', enemyId: e.id, from, to: { ...e.pos }, width: attack.width });
+  events.push({
+    type: 'enemy-pounce',
+    enemyId: e.id,
+    family: def.family,
+    from,
+    to: { ...e.pos },
+    width: attack.width,
+    weight: attack.damage
+  });
 
   for (const player of sim.state.players) {
     if (!player.alive || player.invulnTicks > 0) continue;
@@ -1111,6 +1157,7 @@ function executeEnemyLineAttack(
   sim: Sim,
   e: EnemyState,
   attack: Extract<EnemyDef['attack'], { kind: 'line' }>,
+  def: EnemyDef,
   events: SimEvent[]
 ): void {
   const dir = e.windupDir ?? { x: 1, y: 0 };
@@ -1121,10 +1168,12 @@ function executeEnemyLineAttack(
   events.push({
     type: 'enemy-line-attack',
     enemyId: e.id,
+    family: def.family,
     pos: { ...e.pos },
     dir: { ...dir },
     length,
-    width: attack.width
+    width: attack.width,
+    weight: attack.damage
   });
 
   for (const player of sim.state.players) {
