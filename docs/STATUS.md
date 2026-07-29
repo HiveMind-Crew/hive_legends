@@ -460,10 +460,10 @@ M1 is content-complete, and the highest-value work is **presentation
 and polish rather than systems**:
 
 1. **Original environment, object, and UI art — #28.** The character track is
-   complete, and the Realm 1 floor/wall tile set now starts the remaining
-   environment track with four deterministic floor variants and three wall
-   surfaces. The next high-value slices are world objects/decor, pickups, and
-   the HUD/icon treatment. Key list and canvas sizes: `docs/ART.md`.
+   complete, and the Realm 1 floor/wall tiles, Brood Node damage states,
+   breakable props, and decor now ship as original art. The next high-value
+   slices are pickups/portal/gate and the HUD/icon treatment. Key list and
+   canvas sizes: `docs/ART.md`.
 Balance note carried from #25: ranged heroes kite Mireveil noticeably more
 easily than melee (~15–17s vs ~32s to kill). Worth a tuning pass once there is
 real playtest data, rather than speculative numbers now.

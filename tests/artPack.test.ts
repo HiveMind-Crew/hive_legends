@@ -12,6 +12,7 @@ import {
   environmentTileBitmap,
   type EnvironmentTileKey
 } from '../scripts/art/environmentTilePack';
+import { buildWorldObjectPack, worldObjectBitmap, type WorldObjectKey } from '../scripts/art/worldObjectPack';
 import { TEXTURE_SPECS } from '../src/game/textureSpecs';
 
 /**
@@ -135,6 +136,75 @@ describe('the Realm 1 environment tile pack', () => {
       }
       expect(luminance / (image.w * image.h)).toBeLessThan(40);
     }
+  });
+});
+
+describe('the Realm 1 world-object pack', () => {
+  const keys: readonly WorldObjectKey[] = [
+    'generator-brood-node-0',
+    'generator-brood-node-1',
+    'generator-brood-node-2',
+    'prop-resin-husk',
+    'prop-amber-clutch',
+    'decor-egg-cluster',
+    'decor-resin-web',
+    'decor-spore-patch'
+  ];
+
+  it('matches the reviewable pixel source', () => {
+    const pack = buildWorldObjectPack();
+
+    if (process.env.UPDATE_ART) {
+      const listed = manifestKeys();
+      for (const [key, png] of pack) {
+        writeFileSync(`${ART_DIR}${key}.png`, png);
+        if (!listed.includes(key)) listed.push(key);
+      }
+      writeFileSync(MANIFEST, `${JSON.stringify(listed, null, 2)}\n`);
+      return;
+    }
+
+    for (const [key, png] of pack) {
+      const file = `${ART_DIR}${key}.png`;
+      expect(existsSync(file), `${key}.png is missing — run \`npm run art:build\``).toBe(true);
+      expect(readFileSync(file).equals(Buffer.from(png)), `${key}.png is stale — run \`npm run art:build\``).toBe(true);
+    }
+  });
+
+  it('covers each node state, prop, and decor key at the art-contract size', () => {
+    expect([...buildWorldObjectPack().keys()]).toEqual(keys);
+    for (const key of keys) {
+      const image = worldObjectBitmap(key);
+      expect({ w: image.w, h: image.h }).toEqual(TEXTURE_SPECS[key]);
+      expect(image.rgba.some((value, index) => index % 4 === 3 && value > 0), `${key} has no visible pixels`).toBe(true);
+      for (const [x, y] of [
+        [0, 0],
+        [image.w - 1, 0],
+        [0, image.h - 1],
+        [image.w - 1, image.h - 1]
+      ] as const) {
+        expect(image.rgba[(y * image.w + x) * 4 + 3], `${key} needs transparent canvas corners`).toBe(0);
+      }
+    }
+  });
+
+  it('makes every object visually distinct', () => {
+    const images = [...buildWorldObjectPack().values()].map((png) => Buffer.from(png).toString('base64'));
+    expect(new Set(images)).toHaveLength(keys.length);
+  });
+
+  it('escalates exposed brood-light through the node damage states', () => {
+    const lightPixels = ([0, 1, 2] as const).map((tier) => {
+      const { rgba } = worldObjectBitmap(`generator-brood-node-${tier}`);
+      let count = 0;
+      for (let i = 0; i < rgba.length; i += 4) {
+        const hex = (rgba[i]! << 16) | (rgba[i + 1]! << 8) | rgba[i + 2]!;
+        if (hex === 0xe1a6f0 || hex === 0xfbe3ff || hex === 0xffffff) count++;
+      }
+      return count;
+    });
+    expect(lightPixels[1]).toBeGreaterThan(lightPixels[0]!);
+    expect(lightPixels[2]).toBeGreaterThan(lightPixels[1]!);
   });
 });
 
