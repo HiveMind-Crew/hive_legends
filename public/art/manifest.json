@@ -143,5 +143,14 @@
   "prop-amber-clutch",
   "decor-egg-cluster",
   "decor-resin-web",
-  "decor-spore-patch"
+  "decor-spore-patch",
+  "pickup-gold",
+  "pickup-health",
+  "pickup-frenzy",
+  "pickup-swiftness",
+  "pickup-ward",
+  "pickup-key",
+  "pickup-potion",
+  "level-gate",
+  "exit-portal"
 ]
