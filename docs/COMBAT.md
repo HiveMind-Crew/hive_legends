@@ -24,10 +24,10 @@ There are two generated regions: the hero tables under
 | Enemies | `src/content/enemies.ts` | Every enemy's attack shape and numbers, plus the spawners |
 | Boss | `src/content/bosses.ts` | Phase thresholds, action cycles, and each action's payload |
 | Shared dials | `src/content/combat.ts` | Hitstun, i-frames, knockback decay |
-| Shapes | `src/sim/types.ts` | Hero attack/ability unions, `EnemyAttackDef`, `EnemyDef`, `BossDef` |
+| Shapes | `src/sim/types.ts` | Hero attack/ability unions, `EnemyAttackDef`, `BossActionDef`, and actor definitions |
 | Resolution | `src/meta/save.ts` → `src/sim/sim.ts` | Equipped weapon baked in at `createSim`, read back by `playerAttack()` |
 | Enemy resolution | `src/sim/sim.ts` (`updateEnemies`, `executeEnemyAttack`) | Shared windup/recovery and one release branch per `attack.kind` |
-| Boss resolution | `src/sim/sim.ts` (`updateBoss`, `executeBossAction`) | Phase pick, telegraph, and the three action branches |
+| Boss resolution | `src/sim/sim.ts` (`updateBoss`, `executeBossAction`) | Phase pick, telegraph, and reusable summon/charge/volley primitives |
 | Scaling | `src/sim/sim.ts` (`heroDamage`) | `(base + upgrade + level) × frenzy` |
 | Presentation | `MissionScene`, `audio.ts`, `HeroSelectScene` | Per-`kind` switches, one branch per ability kind |
 
@@ -478,12 +478,20 @@ two of reach, cadence, windup and damage — `tests/combat.test.ts` enforces it,
 because a monster that is another monster with a different HP bar is not a new
 monster.
 
-**Adding a new attack shape:** extend the discriminated `EnemyAttackDef` union,
+**Adding a new enemy attack shape:** extend the discriminated `EnemyAttackDef` union,
 add one release branch in `executeEnemyAttack`, add its presentation and
 generated shape text, and strengthen the differentiation tests. Shape, damage,
 commit range, windup, and recovery stay together in the `attack` object; do not
-add another optional side channel to `EnemyDef`. Issue #78 covers the completed
-ordinary-enemy vocabulary, while #81 is the boss-side equivalent.
+add another optional side channel to `EnemyDef`.
+
+**Adding a boss:** author a `BossDef` in `src/content/bosses.ts`, then put
+complete `BossActionDef` values directly in each phase's round-robin cycle.
+Action ids and telegraph copy are authored too, so `prism-rush` can use the
+generic `charge` primitive and present as its own move without a sim or scene
+branch. The reusable vocabulary is `summon`, `charge`, and `volley`; a boss may
+reuse one action value across phases or author differently tuned values with
+different ids. Adding a genuinely new mechanical shape still means extending
+the discriminated union and its one generic release branch.
 
 <!-- BEGIN GENERATED: bestiary-tables -->
 
@@ -538,10 +546,10 @@ drop each hero from full — the pressure a single one of these represents, befo
 Phases are entered on HP thresholds and never left. Actions run as a strict round-robin
 over the cycle above — no randomness — each preceded by the full telegraph.
 
-| Action | What it does |
-| --- | --- |
-| brood-call | summons 3× skitterling |
-| lunge | 420 px/s for 0.43 s, 22 damage on contact |
-| glob | 5 bolts across 60°, 10 damage @ 230 px/s, 420 px |
+| Action | What it does | Telegraph |
+| --- | --- | --- |
+| brood-call | summons 3× skitterling | SHE CALLS THE BROOD! |
+| lunge | 420 px/s for 0.43 s, 22 damage on contact | SHE CHARGES! |
+| glob | 5 bolts across 60°, 10 damage @ 230 px/s, 420 px | SHE SPITS! |
 
 <!-- END GENERATED: bestiary-tables -->

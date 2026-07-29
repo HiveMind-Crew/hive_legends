@@ -75,7 +75,7 @@ because a finished level stays enterable — Results offers a replay.
 | Levels | `src/content/levels/` | The maps a spoke points at |
 | Unlock rules | `src/meta/save.ts` | `nodeLockState`, `isSpokeUnlocked`, `spokeProgress`, `suggestedNode`, `spokeForLevel`, `isWheelComplete`, `nextTeaser` |
 | Rendering | `src/game/scenes/MissionHubScene.ts` | Drawing only — no progression logic |
-| Node copy | `src/game/hubCopy.ts` | `statusCopy`, kept out of the scene so it is testable |
+| Hub copy | `src/game/hubCopy.ts` | `statusCopy` and `endOfContentCopy`, kept out of the scene so they are testable |
 
 `MissionHubScene` reads positions from each spoke's `angleDeg`, states from
 `nodeLockState`, its cursor default from `suggestedNode`, and its teaser arms
@@ -172,6 +172,12 @@ finished and dangles what is coming, instead of going quiet.
 
 The realm name is derived from the boss that was felled, not hardcoded — a
 second spoke must not leave that line announcing the first.
+
+The wheel keeps that state visible on every later visit. `endOfContentCopy`
+reads the same `nextTeaser` decision as Results, announces that the named realm
+awaits, and places its authored tagline on the dim teaser arm. A completed
+wheel therefore reads as the deliberate edge of the current game, not as a
+board that stopped responding.
 
 ## A note on generated tables
 

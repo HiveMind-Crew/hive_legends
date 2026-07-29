@@ -317,9 +317,48 @@ export interface GeneratorDeathSpawnDef {
 // Boss (issue #25)
 // ---------------------------------------------------------------------------
 
-/** The damaging things a boss can do. Each is telegraphed before it lands. */
-export const BOSS_ACTIONS = ['brood-call', 'lunge', 'glob'] as const;
-export type BossAction = (typeof BOSS_ACTIONS)[number];
+/**
+ * Authored boss-action vocabulary (issue #81).
+ *
+ * `id` and `tell` are presentation data, while `kind` selects one reusable sim
+ * primitive. A boss can therefore name and tune a completely different
+ * moveset without adding boss-specific strings or payload fields to the sim.
+ */
+interface BossActionBase {
+  /** Stable content id used in events, tests, and generated docs. */
+  id: string;
+  /** Short player-facing warning shown during the telegraph. */
+  tell: string;
+}
+
+export interface BossSummonActionDef extends BossActionBase {
+  kind: 'summon';
+  enemyId: string;
+  count: number;
+}
+
+export interface BossChargeActionDef extends BossActionBase {
+  kind: 'charge';
+  speed: number;
+  durationTicks: number;
+  damage: number;
+}
+
+export interface BossVolleyActionDef extends BossActionBase, HostileProjectileDef {
+  kind: 'volley';
+  count: number;
+  spreadDeg: number;
+  projectileDamage: number;
+}
+
+/** Complete data-authored vocabulary for boss actions. */
+export type BossActionDef = BossSummonActionDef | BossChargeActionDef | BossVolleyActionDef;
+
+/** Serializable pointer to the exact authored action currently winding up. */
+export interface BossActionRef {
+  phaseIndex: number;
+  actionIndex: number;
+}
 
 /**
  * One stage of the fight, entered when the boss's HP fraction drops to
@@ -334,7 +373,7 @@ export interface BossPhaseDef {
   /** Ticks between the end of one action and the start of the next. */
   actionIntervalTicks: number;
   /** Actions cycled, in order, while this phase is active. */
-  actions: readonly BossAction[];
+  actions: readonly BossActionDef[];
 }
 
 export interface BossDef {
@@ -353,14 +392,8 @@ export interface BossDef {
    */
   telegraphTicks: number;
   phases: readonly BossPhaseDef[];
-  /** Brood Call: births a clutch of these around the boss. */
-  broodCall: { enemyId: string; count: number };
-  /** Lunge: a fast, wall-stopped charge along a locked-in direction. */
-  lunge: { speed: number; durationTicks: number; damage: number };
-  /** Glob: a fan of hostile bolts. */
-  glob: { count: number; spreadDeg: number; projectileDamage: number } & HostileProjectileDef;
   goldDrop: number;
-  /** XP awarded for felling her (issue #46). */
+  /** XP awarded for felling the boss (issue #46). */
   xp: number;
 }
 
@@ -378,13 +411,15 @@ export interface BossState {
   actionCooldown: number;
   /** Ticks left in the current telegraph (0 = not telegraphing). */
   telegraphTicksLeft: number;
-  /** The action being telegraphed, released when the telegraph elapses. */
-  pendingAction: BossAction | null;
+  /** Exact phase/action slot being telegraphed, released when it elapses. */
+  pendingAction: BossActionRef | null;
   /** Rotating cursor into the active phase's action list. */
   actionCursor: number;
-  /** Ticks left in an active lunge (0 = not lunging) and its locked heading. */
-  lungeTicksLeft: number;
-  lungeDir: Vec2;
+  /** Runtime copy of an active authored charge, which may outlive its phase. */
+  chargeTicksLeft: number;
+  chargeDir: Vec2;
+  chargeSpeed: number;
+  chargeDamage: number;
   touchCooldown: number;
 }
 
@@ -871,7 +906,15 @@ export type SimEvent =
   | { type: 'enemy-hit'; enemyId: EntityId; pos: Vec2; damage: number }
   | { type: 'enemy-died'; enemyId: EntityId; typeId: string; pos: Vec2; byPlayer: EntityId; damage: number }
   | { type: 'enemy-spawned'; enemyId: EntityId; typeId: string; pos: Vec2 }
-  | { type: 'boss-telegraph'; bossId: EntityId; action: BossAction; pos: Vec2; durationTicks: number }
+  | {
+      type: 'boss-telegraph';
+      bossId: EntityId;
+      actionId: string;
+      actionKind: BossActionDef['kind'];
+      tell: string;
+      pos: Vec2;
+      durationTicks: number;
+    }
   | { type: 'boss-phase'; bossId: EntityId; phaseIndex: number; name: string; pos: Vec2 }
   | { type: 'boss-hit'; bossId: EntityId; pos: Vec2; damage: number }
   | { type: 'boss-died'; bossId: EntityId; pos: Vec2 }

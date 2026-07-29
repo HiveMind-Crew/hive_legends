@@ -1,4 +1,5 @@
-import type { NodeLockState } from '../meta/save';
+import { nextTeaser, type NodeLockState, type Profile } from '../meta/save';
+import type { TeaserSpokeDef } from '../sim/types';
 
 /**
  * Player-facing copy for a wheel node's state (issue #56).
@@ -20,4 +21,16 @@ export function statusCopy(lock: NodeLockState): string {
     case 'spoke-gated':
       return 'LOCKED — fell the previous realm’s boss';
   }
+}
+
+/**
+ * Persistent wheel copy for the edge of authored content (issue #63).
+ *
+ * Results announces this on the run that earns it; the hub must keep saying it
+ * afterwards so a completed wheel reads as intentional rather than broken.
+ */
+export function endOfContentCopy(profile: Profile): { teaser: TeaserSpokeDef; line: string } | null {
+  const teaser = nextTeaser(profile);
+  if (!teaser) return null;
+  return { teaser, line: `THE HIVE STILL SPREADS — ${teaser.name.toUpperCase()} AWAITS` };
 }

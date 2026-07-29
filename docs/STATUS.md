@@ -51,12 +51,13 @@ the code on 2026-07-24 and corrected; everything below is now landed):
       plus the carried screen-clear potion and the "hive rouses" time-pressure
       ramp, both from #41.
 - [x] Boss encounter — Mireveil, Mother of the Brood, in realm 3 "The Hollow
-      Throne" (#25): data-driven three-phase script (Brood Call → Lunge →
-      spat globs), a >= 1 s telegraph before every damaging action, a HUD
-      finale bar, and a multi-stage death spectacle. The exit stays sealed
-      while she lives.
-- [x] Hub polish (hero select → mission select flow) — attract-mode title and
-      hero cards (#9), plus the mission-select panel and unlock gating (#24).
+      Throne" (#25): data-driven three-phase script whose complete summon,
+      charge, and volley actions now live in each phase (#81), a >= 1 s
+      telegraph before every damaging action, a HUD finale bar, and a
+      multi-stage death spectacle. The exit stays sealed while she lives.
+- [x] Hub polish (hero select → mission-wheel flow) — attract-mode title and
+      hero cards (#9), plus the spoke-and-wheel hub, unlock gating, teaser
+      realms, and a persistent end-of-authored-content state (#59/#63).
 - [x] Audio (original SFX/music) — synthesized SFX, a procedural combat loop,
       and the Herald announcer (#8).
 - [x] XP/level progression in addition to gold upgrades — XP from kills and
@@ -75,7 +76,7 @@ the completed Realm 1 pack.
 
 ## Verification state
 
-`lint`, `typecheck`, **281 unit tests across 24 files**, the production build,
+`lint`, `typecheck`, **286 unit tests across 24 files**, the production build,
 and the Playwright gameplay playthrough (bot clears The Brood Warrens, banks
 gold and XP, buys an upgrade, and replays with both the upgrade and the earned
 level applied; screenshots in `test-results/`) all pass. Run the whole gate

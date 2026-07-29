@@ -9,7 +9,8 @@ import {
   type PowerUpKind,
   type BlastAbilityDef,
   type DashVolleyAbilityDef,
-  type BossAction,
+  type BossActionDef,
+  type BossActionRef,
   type BossDef,
   type BossState,
   type EntityId,
@@ -156,8 +157,10 @@ export function createSim(config: SimConfig): Sim {
       telegraphTicksLeft: 0,
       pendingAction: null,
       actionCursor: 0,
-      lungeTicksLeft: 0,
-      lungeDir: { x: 0, y: 1 },
+      chargeTicksLeft: 0,
+      chargeDir: { x: 0, y: 1 },
+      chargeSpeed: 0,
+      chargeDamage: 0,
       touchCooldown: 0
     };
   }
@@ -1343,7 +1346,7 @@ function bossPhaseIndex(def: BossDef, hpFraction: number): number {
 
 /**
  * Drives the boss: phase escalation by HP, a telegraph-then-release action
- * cycle, the lunge charge, and body-contact damage. Every damaging action is
+ * cycle, authored charges, and body-contact damage. Every damaging action is
  * preceded by `telegraphTicks` of standing still, which is the whole fight —
  * read the tell, step away, punish the recovery.
  */
@@ -1369,15 +1372,15 @@ function updateBoss(sim: Sim, events: SimEvent[]): void {
   const target = nearestLivingPlayer(s.players, boss.pos);
   if (target) boss.facing = norm(sub(target.pos, boss.pos));
 
-  // An active lunge overrides everything: she barrels along the locked-in
-  // heading until it expires or a wall stops her.
-  if (boss.lungeTicksLeft > 0) {
-    boss.lungeTicksLeft--;
+  // An active authored charge overrides everything: the boss barrels along
+  // its locked-in heading until it expires or a wall stops it.
+  if (boss.chargeTicksLeft > 0) {
+    boss.chargeTicksLeft--;
     const before = { ...boss.pos };
-    const step = def.lunge.speed * TICK_DT;
-    moveCircle(level, boss.pos, def.radius, boss.lungeDir.x * step, boss.lungeDir.y * step, blockOf(sim, true));
-    if (Math.hypot(boss.pos.x - before.x, boss.pos.y - before.y) < step * 0.25) boss.lungeTicksLeft = 0; // hit a wall
-    bossContactDamage(sim, boss, def, def.lunge.damage, events);
+    const step = boss.chargeSpeed * TICK_DT;
+    moveCircle(level, boss.pos, def.radius, boss.chargeDir.x * step, boss.chargeDir.y * step, blockOf(sim, true));
+    if (Math.hypot(boss.pos.x - before.x, boss.pos.y - before.y) < step * 0.25) boss.chargeTicksLeft = 0; // hit a wall
+    bossContactDamage(sim, boss, def, boss.chargeDamage, events);
     return;
   }
 
@@ -1385,9 +1388,10 @@ function updateBoss(sim: Sim, events: SimEvent[]): void {
   if (boss.telegraphTicksLeft > 0) {
     boss.telegraphTicksLeft--;
     if (boss.telegraphTicksLeft === 0) {
-      const action = boss.pendingAction;
+      const actionRef = boss.pendingAction;
       boss.pendingAction = null;
       boss.actionCooldown = phase.actionIntervalTicks;
+      const action = actionRef ? bossActionAt(def, actionRef) : undefined;
       if (action) executeBossAction(sim, boss, def, action, events);
     }
     bossContactDamage(sim, boss, def, def.touchDamage, events);
@@ -1398,11 +1402,22 @@ function updateBoss(sim: Sim, events: SimEvent[]): void {
   if (boss.actionCooldown > 0) {
     boss.actionCooldown--;
   } else {
-    const action = phase.actions[boss.actionCursor % phase.actions.length] ?? 'brood-call';
+    const actionIndex = boss.actionCursor % phase.actions.length;
+    const action = phase.actions[actionIndex];
     boss.actionCursor++;
-    boss.pendingAction = action;
-    boss.telegraphTicksLeft = def.telegraphTicks;
-    events.push({ type: 'boss-telegraph', bossId: boss.id, action, pos: { ...boss.pos }, durationTicks: def.telegraphTicks });
+    if (action) {
+      boss.pendingAction = { phaseIndex: boss.phaseIndex, actionIndex };
+      boss.telegraphTicksLeft = def.telegraphTicks;
+      events.push({
+        type: 'boss-telegraph',
+        bossId: boss.id,
+        actionId: action.id,
+        actionKind: action.kind,
+        tell: action.tell,
+        pos: { ...boss.pos },
+        durationTicks: def.telegraphTicks
+      });
+    }
   }
 
   if (target) {
@@ -1440,41 +1455,54 @@ function bossContactDamage(sim: Sim, boss: BossState, def: BossDef, damage: numb
   }
 }
 
-/** Releases a telegraphed action. */
-function executeBossAction(sim: Sim, boss: BossState, def: BossDef, action: BossAction, events: SimEvent[]): void {
-  if (action === 'lunge') {
-    boss.lungeDir = { ...boss.facing };
-    boss.lungeTicksLeft = def.lunge.durationTicks;
+/** Resolves a serializable action pointer against the boss's authored phases. */
+function bossActionAt(def: BossDef, ref: BossActionRef): BossActionDef | undefined {
+  return def.phases[ref.phaseIndex]?.actions[ref.actionIndex];
+}
+
+/** Releases one telegraphed action through the reusable boss vocabulary. */
+function executeBossAction(sim: Sim, boss: BossState, def: BossDef, action: BossActionDef, events: SimEvent[]): void {
+  if (action.kind === 'charge') {
+    boss.chargeDir = { ...boss.facing };
+    boss.chargeTicksLeft = action.durationTicks;
+    boss.chargeSpeed = action.speed;
+    boss.chargeDamage = action.damage;
     return;
   }
-  if (action === 'glob') {
+  if (action.kind === 'volley') {
     const base = Math.atan2(boss.facing.y, boss.facing.x);
-    const spread = (def.glob.spreadDeg * Math.PI) / 180;
-    for (let i = 0; i < def.glob.count; i++) {
-      const frac = def.glob.count > 1 ? i / (def.glob.count - 1) : 0.5;
+    const spread = (action.spreadDeg * Math.PI) / 180;
+    for (let i = 0; i < action.count; i++) {
+      const frac = action.count > 1 ? i / (action.count - 1) : 0.5;
       const angle = base + (frac - 0.5) * spread;
       spawnHostileBolt(
         sim,
         boss.id,
         boss.pos,
         def.radius,
-        def.glob,
-        def.glob.projectileDamage,
+        action,
+        action.projectileDamage,
         { x: Math.cos(angle), y: Math.sin(angle) },
         events
       );
     }
     return;
   }
-  broodCall(sim, boss, def, events);
+  summonBossEnemies(sim, boss, def, action, events);
 }
 
-/** Brood Call: births a clutch of swarmers on a ring around the Mother. */
-function broodCall(sim: Sim, boss: BossState, def: BossDef, events: SimEvent[]): void {
+/** Births an authored clutch of enemies on a ring around the boss. */
+function summonBossEnemies(
+  sim: Sim,
+  boss: BossState,
+  def: BossDef,
+  action: Extract<BossActionDef, { kind: 'summon' }>,
+  events: SimEvent[]
+): void {
   const s = sim.state;
-  const enemyDef = sim.config.content.enemies[def.broodCall.enemyId];
+  const enemyDef = sim.config.content.enemies[action.enemyId];
   if (!enemyDef) return;
-  for (let n = 0; n < def.broodCall.count; n++) {
+  for (let n = 0; n < action.count; n++) {
     for (let attempt = 0; attempt < 6; attempt++) {
       const [v, next] = rngNext(s.rngState);
       s.rngState = next;
@@ -1509,7 +1537,7 @@ function damageBoss(sim: Sim, boss: BossState, damage: number, events: SimEvent[
   boss.hp -= damage;
   if (boss.hp <= 0) {
     boss.hp = 0;
-    boss.lungeTicksLeft = 0;
+    boss.chargeTicksLeft = 0;
     boss.telegraphTicksLeft = 0;
     boss.pendingAction = null;
     events.push({ type: 'boss-died', bossId: boss.id, pos: { ...boss.pos } });

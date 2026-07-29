@@ -565,10 +565,9 @@ export class MissionScene extends Phaser.Scene {
           this.hitStop(35);
           break;
         case 'boss-telegraph': {
-          // Name the incoming move so the tell is learnable, not just visual.
-          const label =
-            ev.action === 'lunge' ? 'SHE CHARGES!' : ev.action === 'glob' ? 'SHE SPITS!' : 'SHE CALLS THE BROOD!';
-          this.floatText(ev.pos, label, '#ff5a4d');
+          // Authored copy makes any boss's moves learnable without adding
+          // boss- or action-id branches to the presentation layer (#81).
+          this.floatText(ev.pos, ev.tell, '#ff5a4d');
           this.flashRing(ev.pos, 90, 0xff5a4d);
           this.burst(this.dustFx, 8, ev.pos);
           break;
@@ -588,7 +587,9 @@ export class MissionScene extends Phaser.Scene {
           break;
         case 'boss-died': {
           // Finale spectacle: the #6 destruction pattern, scaled way up.
-          hud.herald('MIREVEIL FALLS', '#ffd75e');
+          const fallen = this.sim.state.boss;
+          const name = fallen ? CONTENT.bosses[fallen.typeId]?.name : undefined;
+          hud.herald(`${(name ?? 'THE TYRANT').toUpperCase()} FALLS`, '#ffd75e');
           this.deathPuff(ev.pos, 0xa855c8, 3.4);
           this.burst(this.shardFx, 24, ev.pos);
           this.burst(this.ichorFx, 24, ev.pos);
@@ -966,7 +967,7 @@ export class MissionScene extends Phaser.Scene {
       // Telegraph: she swells and flares red over the windup, so the tell is
       // unmistakable before anything lands.
       const tel = bdef ? boss.telegraphTicksLeft / Math.max(1, bdef.telegraphTicks) : 0;
-      const charging = boss.lungeTicksLeft > 0;
+      const charging = boss.chargeTicksLeft > 0;
       if (boss.telegraphTicksLeft > 0) {
         const swell = 1 + 0.14 * (1 - tel);
         spr.setScale(swell);

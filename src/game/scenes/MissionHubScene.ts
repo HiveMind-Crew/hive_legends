@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { CONTENT, LEVELS } from '../../content';
 import { loadProfile, nodeLockState, spokeProgress, suggestedNode, type Profile } from '../../meta/save';
-import { statusCopy } from '../hubCopy';
+import { endOfContentCopy, statusCopy } from '../hubCopy';
 import { audio } from '../audio';
 import { TEX } from '../textures';
 
@@ -70,6 +70,7 @@ export class MissionHubScene extends Phaser.Scene {
     this.drawTeasers(cx, cy);
     this.drawSpokes(cx, cy);
     this.drawHub(cx, cy);
+    this.drawEndOfContent(cx, cy);
 
     // Park the cursor on whatever the player should play next, so a single
     // confirm always does the obvious thing (and the e2e default holds).
@@ -110,6 +111,25 @@ export class MissionHubScene extends Phaser.Scene {
     this.add
       .text(cx, cy, 'HIVE', { fontFamily: 'monospace', fontSize: '13px', color: '#a89bb8' })
       .setOrigin(0.5);
+  }
+
+  /** Keep the edge-of-content state visible whenever a player revisits. */
+  private drawEndOfContent(cx: number, cy: number): void {
+    const end = endOfContentCopy(this.profile);
+    if (!end) return;
+    const d = MissionHubScene.dir(end.teaser.angleDeg);
+    this.add
+      .text(cx, cy + 160, end.line, { fontFamily: 'monospace', fontSize: '12px', color: '#c9a227' })
+      .setOrigin(0.5);
+    this.add
+      .text(cx + d.x * TEASER_RADIUS, cy + d.y * TEASER_RADIUS + 44, end.teaser.tagline, {
+        fontFamily: 'monospace',
+        fontSize: '10px',
+        color: '#6b6280',
+        align: 'center',
+        wordWrap: { width: 230 }
+      })
+      .setOrigin(0.5, 0);
   }
 
   /** Announced-but-unauthored branches: a stub arm and a dimmed marker. */

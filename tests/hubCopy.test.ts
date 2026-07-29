@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { statusCopy } from '../src/game/hubCopy';
-import type { NodeLockReason, NodeLockState } from '../src/meta/save';
+import { SPOKES, TEASER_SPOKES } from '../src/content';
+import { endOfContentCopy, statusCopy } from '../src/game/hubCopy';
+import { defaultProfile, markLevelCleared, type NodeLockReason, type NodeLockState } from '../src/meta/save';
 
 /**
  * Mission hub copy (issue #56). The hub exists to tell the player *why* a node
@@ -27,5 +28,20 @@ describe('hub status copy', () => {
     expect(cleared).not.toBe(available);
     expect(cleared).not.toContain('LOCKED');
     expect(available).not.toContain('LOCKED');
+  });
+});
+
+describe('mission hub end-of-content copy (#63)', () => {
+  it('stays hidden until the authored wheel is complete', () => {
+    expect(endOfContentCopy(defaultProfile())).toBeNull();
+  });
+
+  it('names and describes the next teaser after the final boss', () => {
+    const profile = defaultProfile();
+    for (const id of SPOKES.flatMap((spoke) => [...spoke.missions, spoke.boss])) markLevelCleared(profile, id);
+    const copy = endOfContentCopy(profile);
+    expect(copy?.teaser).toBe(TEASER_SPOKES[0]);
+    expect(copy?.line).toContain(TEASER_SPOKES[0]!.name.toUpperCase());
+    expect(copy?.teaser.tagline.length).toBeGreaterThan(0);
   });
 });

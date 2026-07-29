@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CONTENT, HOLLOW_THRONE } from '../../src/content';
 import { createSim, hashState, simTick, type Sim } from '../../src/sim/sim';
-import { BOSS_ACTIONS, EMPTY_INPUT, type InputCommand, type SimEvent } from '../../src/sim/types';
+import { EMPTY_INPUT, type BossActionDef, type BossDef, type InputCommand, type SimEvent } from '../../src/sim/types';
 
 /**
  * Mireveil, Mother of the Brood (issue #25). Tests drive the real content boss
@@ -10,6 +10,19 @@ import { BOSS_ACTIONS, EMPTY_INPUT, type InputCommand, type SimEvent } from '../
  */
 
 const MIREVEIL = CONTENT.bosses['mireveil']!;
+
+function actionById(boss: BossDef, id: string): BossActionDef {
+  const action = boss.phases.flatMap((phase) => phase.actions).find((candidate) => candidate.id === id);
+  if (!action) throw new Error(`missing boss action: ${id}`);
+  return action;
+}
+
+function pendingAction(sim: Sim): BossActionDef | undefined {
+  const boss = sim.state.boss;
+  if (!boss?.pendingAction) return undefined;
+  const def = sim.config.content.bosses[boss.typeId];
+  return def?.phases[boss.pendingAction.phaseIndex]?.actions[boss.pendingAction.actionIndex];
+}
 
 function newSim(heroId = 'vanguard', seed = 77): Sim {
   return createSim({ seed, level: HOLLOW_THRONE, players: [{ heroId }], content: CONTENT });
@@ -46,7 +59,7 @@ function duelBoss(sim: Sim, maxTicks: number): SimEvent[] {
     const dist = Math.hypot(dx, dy) || 1;
     const toward = { x: dx / dist, y: dy / dist };
     const ready = p.attackCooldown === 0;
-    const charging = boss.lungeTicksLeft > 0 || boss.pendingAction === 'lunge';
+    const charging = boss.chargeTicksLeft > 0 || pendingAction(sim)?.kind === 'charge';
 
     if (charging) {
       // Read the tell: slip sideways out of the charge lane.
@@ -75,9 +88,14 @@ describe('boss content (#25)', () => {
     }
     for (const phase of MIREVEIL.phases) {
       expect(phase.actions.length).toBeGreaterThan(0);
-      for (const a of phase.actions) expect(BOSS_ACTIONS).toContain(a);
+      for (const action of phase.actions) {
+        expect(action.id.length).toBeGreaterThan(0);
+        expect(action.tell.length).toBeGreaterThan(0);
+      }
     }
-    expect(CONTENT.enemies[MIREVEIL.broodCall.enemyId]).toBeDefined();
+    const broodCall = actionById(MIREVEIL, 'brood-call');
+    expect(broodCall.kind).toBe('summon');
+    if (broodCall.kind === 'summon') expect(CONTENT.enemies[broodCall.enemyId]).toBeDefined();
   });
 
   it('telegraphs for at least the readability minimum (45 ticks)', () => {
@@ -120,8 +138,80 @@ describe('telegraph contract', () => {
   it('the Brood Call births a clutch once the telegraph lands', () => {
     const sim = newSim();
     const events = runTicks(sim, 400);
-    expect(events.some((e) => e.type === 'boss-telegraph' && e.action === 'brood-call')).toBe(true);
-    expect(sim.state.enemies.length).toBeGreaterThanOrEqual(MIREVEIL.broodCall.count);
+    const broodCall = actionById(MIREVEIL, 'brood-call');
+    expect(events.some((e) => e.type === 'boss-telegraph' && e.actionId === 'brood-call')).toBe(true);
+    if (broodCall.kind !== 'summon') throw new Error('Brood Call must use the summon primitive');
+    expect(sim.state.enemies.length).toBeGreaterThanOrEqual(broodCall.count);
+  });
+});
+
+describe('data-authored boss moves (#81)', () => {
+  const GLASS_WEAVER: BossDef = {
+    id: 'glass-weaver',
+    name: 'The Glass Weaver',
+    title: 'Heart of the Hollows',
+    maxHp: 500,
+    radius: 28,
+    touchDamage: 8,
+    touchCooldownTicks: 45,
+    telegraphTicks: 45,
+    phases: [
+      {
+        name: 'The Mirror Turns',
+        hpFraction: 1,
+        moveSpeed: 40,
+        actionIntervalTicks: 1,
+        actions: [
+          {
+            id: 'prism-rush',
+            kind: 'charge',
+            tell: 'THE PRISM SURGES!',
+            speed: 300,
+            durationTicks: 2,
+            damage: 17
+          },
+          {
+            id: 'splinter-crown',
+            kind: 'volley',
+            tell: 'THE CROWN SPLINTERS!',
+            count: 7,
+            spreadDeg: 120,
+            projectileSpeed: 180,
+            projectileRadius: 4,
+            projectileDamage: 6,
+            projectileRange: 360
+          }
+        ]
+      }
+    ],
+    goldDrop: 100,
+    xp: 400
+  };
+
+  function glassWeaverSim(seed: number): Sim {
+    return createSim({
+      seed,
+      level: { ...HOLLOW_THRONE, boss: { ...HOLLOW_THRONE.boss!, typeId: GLASS_WEAVER.id } },
+      players: [{ heroId: 'vanguard' }],
+      content: { ...CONTENT, bosses: { ...CONTENT.bosses, [GLASS_WEAVER.id]: GLASS_WEAVER } }
+    });
+  }
+
+  it('runs unfamiliar action ids and presentation copy without sim branches', () => {
+    const sim = glassWeaverSim(908);
+    const events = runTicks(sim, 100);
+    const tells = events.filter((event) => event.type === 'boss-telegraph');
+    expect(tells.map((event) => event.actionId)).toEqual(['prism-rush', 'splinter-crown', 'prism-rush']);
+    expect(tells.slice(0, 2).map((event) => event.tell)).toEqual(['THE PRISM SURGES!', 'THE CROWN SPLINTERS!']);
+    expect(sim.state.projectiles.filter((bolt) => bolt.ownerId === sim.state.boss!.id)).toHaveLength(7);
+  });
+
+  it('keeps the authored round-robin deterministic', () => {
+    const a = glassWeaverSim(909);
+    const b = glassWeaverSim(909);
+    runTicks(a, 240);
+    runTicks(b, 240);
+    expect(hashState(a.state)).toBe(hashState(b.state));
   });
 });
 

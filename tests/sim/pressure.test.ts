@@ -203,12 +203,16 @@ describe('boundaries', () => {
     sim.state.pressureStage = P.maxStage;
     const boss = sim.state.boss!;
     const def = CONTENT.bosses['mireveil']!;
-    boss.pendingAction = 'glob';
+    const phaseIndex = def.phases.findIndex((phase) => phase.actions.some((action) => action.id === 'glob'));
+    const actionIndex = def.phases[phaseIndex]!.actions.findIndex((action) => action.id === 'glob');
+    const glob = def.phases[phaseIndex]!.actions[actionIndex]!;
+    if (glob.kind !== 'volley') throw new Error('Mireveil glob must use the volley primitive');
+    boss.pendingAction = { phaseIndex, actionIndex };
     boss.telegraphTicksLeft = 1; // release the glob on the next tick
     runTicks(sim, 2);
     const bolt = sim.state.projectiles.find((b) => b.ownerId === boss.id);
     expect(bolt).toBeDefined();
-    expect(bolt!.damage).toBe(def.glob.projectileDamage); // unscaled
+    expect(bolt!.damage).toBe(glob.projectileDamage); // unscaled
   });
 
   it('a roused run stays deterministic', () => {

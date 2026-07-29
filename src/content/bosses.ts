@@ -1,4 +1,33 @@
-import type { BossDef } from '../sim/types';
+import type { BossActionDef, BossDef } from '../sim/types';
+
+const BROOD_CALL: BossActionDef = {
+  id: 'brood-call',
+  kind: 'summon',
+  tell: 'SHE CALLS THE BROOD!',
+  enemyId: 'skitterling',
+  count: 3
+};
+
+const LUNGE: BossActionDef = {
+  id: 'lunge',
+  kind: 'charge',
+  tell: 'SHE CHARGES!',
+  speed: 420,
+  durationTicks: 26,
+  damage: 22
+};
+
+const GLOB: BossActionDef = {
+  id: 'glob',
+  kind: 'volley',
+  tell: 'SHE SPITS!',
+  count: 5,
+  spreadDeg: 60,
+  projectileSpeed: 230,
+  projectileRadius: 6,
+  projectileDamage: 10,
+  projectileRange: 420
+};
 
 /**
  * Realm-1 finale (issue #25): Mireveil, Mother of the Brood — an original
@@ -27,7 +56,7 @@ export const MIREVEIL: BossDef = {
       hpFraction: 1,
       moveSpeed: 52,
       actionIntervalTicks: 240, // ~4 s between calls
-      actions: ['brood-call']
+      actions: [BROOD_CALL]
     },
     {
       // Wounded: she starts throwing her bulk at you between clutches.
@@ -35,7 +64,7 @@ export const MIREVEIL: BossDef = {
       hpFraction: 0.6,
       moveSpeed: 62,
       actionIntervalTicks: 180,
-      actions: ['lunge', 'brood-call']
+      actions: [LUNGE, BROOD_CALL]
     },
     {
       // Dying: faster cycles and spat resin globs on top of everything else.
@@ -43,19 +72,9 @@ export const MIREVEIL: BossDef = {
       hpFraction: 0.25,
       moveSpeed: 72,
       actionIntervalTicks: 120,
-      actions: ['glob', 'lunge', 'brood-call']
+      actions: [GLOB, LUNGE, BROOD_CALL]
     }
   ],
-  broodCall: { enemyId: 'skitterling', count: 3 },
-  lunge: { speed: 420, durationTicks: 26, damage: 22 },
-  glob: {
-    count: 5,
-    spreadDeg: 60,
-    projectileSpeed: 230,
-    projectileRadius: 6,
-    projectileDamage: 10,
-    projectileRange: 420
-  },
   goldDrop: 150,
   // A finale-sized payout: felling her is worth several levels early on.
   xp: 600
