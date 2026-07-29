@@ -13,6 +13,11 @@ import {
   type EnvironmentTileKey
 } from '../scripts/art/environmentTilePack';
 import { buildWorldObjectPack, worldObjectBitmap, type WorldObjectKey } from '../scripts/art/worldObjectPack';
+import {
+  buildInteractionObjectPack,
+  interactionObjectBitmap,
+  type InteractionObjectKey
+} from '../scripts/art/interactionObjectPack';
 import { TEXTURE_SPECS } from '../src/game/textureSpecs';
 
 /**
@@ -205,6 +210,98 @@ describe('the Realm 1 world-object pack', () => {
     });
     expect(lightPixels[1]).toBeGreaterThan(lightPixels[0]!);
     expect(lightPixels[2]).toBeGreaterThan(lightPixels[1]!);
+  });
+});
+
+describe('the Realm 1 interaction-object pack', () => {
+  const keys: readonly InteractionObjectKey[] = [
+    'pickup-gold',
+    'pickup-health',
+    'pickup-frenzy',
+    'pickup-swiftness',
+    'pickup-ward',
+    'pickup-key',
+    'pickup-potion',
+    'level-gate',
+    'exit-portal'
+  ];
+  const pickupKeys = keys.slice(0, 7);
+
+  it('matches the reviewable pixel source', () => {
+    const pack = buildInteractionObjectPack();
+
+    if (process.env.UPDATE_ART) {
+      const listed = manifestKeys();
+      for (const [key, png] of pack) {
+        writeFileSync(`${ART_DIR}${key}.png`, png);
+        if (!listed.includes(key)) listed.push(key);
+      }
+      writeFileSync(MANIFEST, `${JSON.stringify(listed, null, 2)}\n`);
+      return;
+    }
+
+    for (const [key, png] of pack) {
+      const file = `${ART_DIR}${key}.png`;
+      expect(existsSync(file), `${key}.png is missing — run \`npm run art:build\``).toBe(true);
+      expect(readFileSync(file).equals(Buffer.from(png)), `${key}.png is stale — run \`npm run art:build\``).toBe(true);
+    }
+  });
+
+  it('covers every pickup plus the gate and portal at the art-contract size', () => {
+    expect([...buildInteractionObjectPack().keys()]).toEqual(keys);
+    for (const key of keys) {
+      const image = interactionObjectBitmap(key);
+      expect({ w: image.w, h: image.h }).toEqual(TEXTURE_SPECS[key]);
+      expect(image.rgba.some((value, index) => index % 4 === 3 && value > 0), `${key} has no visible pixels`).toBe(true);
+      for (const [x, y] of [
+        [0, 0],
+        [image.w - 1, 0],
+        [0, image.h - 1],
+        [image.w - 1, image.h - 1]
+      ] as const) {
+        expect(image.rgba[(y * image.w + x) * 4 + 3], `${key} needs transparent canvas corners`).toBe(0);
+      }
+    }
+  });
+
+  it('gives every pickup a distinct alpha silhouette, not merely a different colour', () => {
+    const masks = pickupKeys.map((key) => {
+      const { rgba } = interactionObjectBitmap(key);
+      let mask = '';
+      for (let i = 3; i < rgba.length; i += 4) mask += rgba[i]! > 0 ? '1' : '0';
+      return mask;
+    });
+    expect(new Set(masks)).toHaveLength(pickupKeys.length);
+  });
+
+  it('keeps the exit portal half-turn symmetric with an open centre', () => {
+    const image = interactionObjectBitmap('exit-portal');
+    for (let y = 0; y < image.h; y++) {
+      for (let x = 0; x < image.w; x++) {
+        const i = (y * image.w + x) * 4;
+        const opposite = ((image.h - 1 - y) * image.w + (image.w - 1 - x)) * 4;
+        expect(image.rgba.slice(i, i + 4)).toEqual(image.rgba.slice(opposite, opposite + 4));
+      }
+    }
+    for (const [x, y] of [
+      [23, 23],
+      [24, 23],
+      [23, 24],
+      [24, 24]
+    ] as const) {
+      expect(image.rgba[(y * image.w + x) * 4 + 3]).toBe(0);
+    }
+  });
+
+  it('makes the gate read solid and the portal read as a ring', () => {
+    const coverage = (key: InteractionObjectKey): number => {
+      const image = interactionObjectBitmap(key);
+      let visible = 0;
+      for (let i = 3; i < image.rgba.length; i += 4) if (image.rgba[i]! > 0) visible++;
+      return visible / (image.w * image.h);
+    };
+    expect(coverage('level-gate')).toBeGreaterThan(0.75);
+    expect(coverage('exit-portal')).toBeLessThan(0.35);
   });
 });
 

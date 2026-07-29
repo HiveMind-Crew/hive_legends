@@ -146,6 +146,11 @@ covered by an original Realm 1 art pack.** Its reviewable source is
 `scripts/art/worldObjectPack.ts`; the direction sheet is
 `docs/design/concepts/realm-one-world-objects-reference.png`.
 
+**All seven pickups, the level gate, and the exit portal are covered by an
+original interaction-object pack.** Its reviewable source is
+`scripts/art/interactionObjectPack.ts`; the direction sheet is
+`docs/design/concepts/realm-one-interaction-objects-reference.png`.
+
 ### Effects (usually fine as generated; tintable = draw in white)
 
 `fx-shadow` 32×14 · `fx-accent-ring` 40×40 (white, tinted per player) ·

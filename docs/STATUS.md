@@ -461,9 +461,9 @@ and polish rather than systems**:
 
 1. **Original environment, object, and UI art — #28.** The character track is
    complete, and the Realm 1 floor/wall tiles, Brood Node damage states,
-   breakable props, and decor now ship as original art. The next high-value
-   slices are pickups/portal/gate and the HUD/icon treatment. Key list and
-   canvas sizes: `docs/ART.md`.
+   breakable props, decor, pickups, gate, and portal now ship as original art.
+   The next high-value slice is the HUD/icon and title-logo treatment. Key list
+   and canvas sizes: `docs/ART.md`.
 Balance note carried from #25: ranged heroes kite Mireveil noticeably more
 easily than melee (~15–17s vs ~32s to kill). Worth a tuning pass once there is
 real playtest data, rather than speculative numbers now.
