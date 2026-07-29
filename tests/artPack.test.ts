@@ -18,6 +18,7 @@ import {
   interactionObjectBitmap,
   type InteractionObjectKey
 } from '../scripts/art/interactionObjectPack';
+import { buildUiArtPack, uiArtBitmap, type UiArtKey } from '../scripts/art/uiArtPack';
 import { TEXTURE_SPECS } from '../src/game/textureSpecs';
 
 /**
@@ -302,6 +303,82 @@ describe('the Realm 1 interaction-object pack', () => {
     };
     expect(coverage('level-gate')).toBeGreaterThan(0.75);
     expect(coverage('exit-portal')).toBeLessThan(0.35);
+  });
+});
+
+describe('the HUD and title UI pack', () => {
+  const keys: readonly UiArtKey[] = [
+    'ui-icon-gold',
+    'ui-icon-kills',
+    'ui-icon-key',
+    'ui-icon-potion',
+    'ui-power-frenzy',
+    'ui-power-swiftness',
+    'ui-power-ward',
+    'ui-ability-ready',
+    'ui-title-logo-base',
+    'ui-title-logo-glow'
+  ];
+
+  it('matches the reviewable pixel source', () => {
+    const pack = buildUiArtPack();
+
+    if (process.env.UPDATE_ART) {
+      const listed = manifestKeys();
+      for (const [key, png] of pack) {
+        writeFileSync(`${ART_DIR}${key}.png`, png);
+        if (!listed.includes(key)) listed.push(key);
+      }
+      writeFileSync(MANIFEST, `${JSON.stringify(listed, null, 2)}\n`);
+      return;
+    }
+
+    for (const [key, png] of pack) {
+      const file = `${ART_DIR}${key}.png`;
+      expect(existsSync(file), `${key}.png is missing — run \`npm run art:build\``).toBe(true);
+      expect(readFileSync(file).equals(Buffer.from(png)), `${key}.png is stale — run \`npm run art:build\``).toBe(true);
+    }
+  });
+
+  it('covers every UI slot at its art-contract size with transparent corners', () => {
+    expect([...buildUiArtPack().keys()]).toEqual(keys);
+    for (const key of keys) {
+      const image = uiArtBitmap(key);
+      expect({ w: image.w, h: image.h }).toEqual(TEXTURE_SPECS[key]);
+      expect(image.rgba.some((value, index) => index % 4 === 3 && value > 0), `${key} has no visible pixels`).toBe(true);
+      for (const [x, y] of [
+        [0, 0],
+        [image.w - 1, 0],
+        [0, image.h - 1],
+        [image.w - 1, image.h - 1]
+      ] as const) {
+        expect(image.rgba[(y * image.w + x) * 4 + 3], `${key} needs transparent canvas corners`).toBe(0);
+      }
+    }
+  });
+
+  it('gives each compact HUD glyph and chip a distinct silhouette', () => {
+    const compact = keys.slice(0, 7);
+    const masks = compact.map((key) => {
+      const { rgba } = uiArtBitmap(key);
+      let mask = '';
+      for (let i = 3; i < rgba.length; i += 4) mask += rgba[i]! > 0 ? '1' : '0';
+      return mask;
+    });
+    expect(new Set(masks)).toHaveLength(compact.length);
+  });
+
+  it('keeps the ability flare tintable and the title glow translucent', () => {
+    const flare = uiArtBitmap('ui-ability-ready');
+    for (let i = 0; i < flare.rgba.length; i += 4) {
+      if (flare.rgba[i + 3] === 0) continue;
+      expect(Array.from(flare.rgba.slice(i, i + 3))).toEqual([255, 255, 255]);
+    }
+
+    const glow = uiArtBitmap('ui-title-logo-glow');
+    const visibleAlpha = [...glow.rgba].filter((_, index) => index % 4 === 3 && glow.rgba[index]! > 0);
+    expect(visibleAlpha.length).toBeGreaterThan(100);
+    expect(Math.max(...visibleAlpha)).toBeLessThan(0xff);
   });
 });
 

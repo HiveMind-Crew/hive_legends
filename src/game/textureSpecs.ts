@@ -74,6 +74,18 @@ function buildSpecs(): Record<string, TextureSpec> {
   add('decor-resin-web', 28, 28);
   add('decor-spore-patch', 24, 18);
 
+  // UI art: compact HUD glyphs/chips and independently animated title layers.
+  add('ui-icon-gold', 12, 12);
+  add('ui-icon-kills', 12, 12);
+  add('ui-icon-key', 12, 12);
+  add('ui-icon-potion', 12, 12);
+  add('ui-power-frenzy', 12, 12);
+  add('ui-power-swiftness', 12, 12);
+  add('ui-power-ward', 12, 12);
+  add('ui-ability-ready', 76, 18);
+  add('ui-title-logo-base', 384, 96);
+  add('ui-title-logo-glow', 384, 96);
+
   // Effects / particles.
   add('fx-shadow', 32, 14);
   add('fx-accent-ring', 40, 40);

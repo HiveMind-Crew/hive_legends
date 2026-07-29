@@ -16,10 +16,11 @@ import { audio } from '../audio';
 import { TEX, enemyFrame, heroFrame } from '../textures';
 
 /**
- * Title / hero-select with attract-mode energy (issue #9): layered pulsing
- * logo, two ambient drift layers, a marching skitterling silhouette parade,
+ * Title / hero-select with attract-mode energy (issues #9 and #28): layered
+ * original logo art, two ambient drift layers, a marching skitterling parade,
  * an animated hero card with stat bars and a looping ability demo, and
- * teasing locked slots. All generated art, no binary assets.
+ * teasing locked slots. The logo uses drop-in art; ambient effects remain
+ * renderer-owned.
  */
 
 // Future classes not yet in the roster get teaser slots. The four core
@@ -194,33 +195,23 @@ export class HeroSelectScene extends Phaser.Scene {
   }
 
   private drawTitle(width: number): void {
-    // Layered logo: dark under-layer, gold main layer, slow pulse/shimmer.
-    this.add
-      .text(width / 2 + 4, 74, 'HIVE LEGENDS', {
-        fontFamily: 'monospace',
-        fontSize: '52px',
-        color: '#4a3210',
-        fontStyle: 'bold'
-      })
-      .setOrigin(0.5);
-    const title = this.add
-      .text(width / 2, 70, 'HIVE LEGENDS', {
-        fontFamily: 'monospace',
-        fontSize: '52px',
-        color: '#ffd75e',
-        stroke: '#4a3210',
-        strokeThickness: 6,
-        fontStyle: 'bold'
-      })
-      .setOrigin(0.5);
-    this.tweens.add({ targets: title, scale: 1.03, duration: 1600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    // The readable base and additive glow are independent texture slots, so
+    // artists can revise either without baking the pulse into the logo.
+    const title = this.add.image(width / 2, 68, TEX.titleLogoBase).setOrigin(0.5);
+    this.tweens.add({ targets: title, scale: 1.025, duration: 1600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     const glow = this.add
-      .image(width / 2, 70, TEX.glow)
+      .image(width / 2, 68, TEX.titleLogoGlow)
       .setBlendMode(Phaser.BlendModes.ADD)
-      .setTint(0xffd75e)
-      .setScale(9, 2.2)
-      .setAlpha(0.14);
-    this.tweens.add({ targets: glow, alpha: 0.26, duration: 1600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+      .setAlpha(0.28);
+    this.tweens.add({
+      targets: glow,
+      alpha: 0.7,
+      scale: 1.04,
+      duration: 1600,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.InOut'
+    });
 
     this.add
       .text(width / 2, 116, 'The Brood Warrens await', {
