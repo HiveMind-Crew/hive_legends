@@ -31,6 +31,16 @@ export const TEX = {
   potion: 'pickup-potion',
   gate: 'level-gate',
   exit: 'exit-portal',
+  uiGold: 'ui-icon-gold',
+  uiKills: 'ui-icon-kills',
+  uiKey: 'ui-icon-key',
+  uiPotion: 'ui-icon-potion',
+  uiPowerFrenzy: 'ui-power-frenzy',
+  uiPowerSwiftness: 'ui-power-swiftness',
+  uiPowerWard: 'ui-power-ward',
+  uiAbilityReady: 'ui-ability-ready',
+  titleLogoBase: 'ui-title-logo-base',
+  titleLogoGlow: 'ui-title-logo-glow',
   shadow: 'fx-shadow',
   accentRing: 'fx-accent-ring',
   chevron: 'fx-chevron',
@@ -381,6 +391,58 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.lineStyle(2, 0xbdf4ff);
   g.strokeCircle(24, 24, 11);
   gen(TEX.exit);
+
+  // Compact HUD fallbacks. The original pack in public/art overrides these;
+  // these simple shapes keep a partial manifest playable.
+  g.clear();
+  g.fillStyle(0xffd75e);
+  g.fillCircle(6, 6, 5);
+  g.fillStyle(0x8f661c);
+  g.fillCircle(6, 6, 2);
+  gen(TEX.uiGold);
+
+  g.clear();
+  g.fillStyle(0xcfc4de);
+  g.fillTriangle(2, 3, 10, 3, 6, 11);
+  g.fillStyle(0x6b5878);
+  g.fillCircle(6, 5, 2);
+  gen(TEX.uiKills);
+
+  g.clear();
+  g.lineStyle(3, 0xffd75e);
+  g.strokeCircle(4, 4, 3);
+  g.lineBetween(6, 6, 11, 11);
+  gen(TEX.uiKey);
+
+  g.clear();
+  g.fillStyle(0x7be08a);
+  g.fillCircle(6, 8, 4);
+  g.fillStyle(0x8a5a2e);
+  g.fillRect(4, 1, 4, 3);
+  gen(TEX.uiPotion);
+
+  drawRelic(g, TEX.uiPowerFrenzy, 0xff8a3d, 0xffd08a, 'spike');
+  drawRelic(g, TEX.uiPowerSwiftness, 0x5ad6ff, 0xc8f2ff, 'chevron');
+  drawRelic(g, TEX.uiPowerWard, 0x7be08a, 0xd6ffd0, 'shield');
+
+  g.clear();
+  g.lineStyle(2, 0xffffff, 0.9);
+  g.strokeRoundedRect(4, 4, 68, 10, 4);
+  g.lineBetween(0, 9, 7, 9);
+  g.lineBetween(69, 9, 76, 9);
+  gen(TEX.uiAbilityReady);
+
+  g.clear();
+  g.fillStyle(0x4a3210);
+  g.fillRoundedRect(24, 18, 336, 60, 18);
+  g.lineStyle(4, 0xffd75e);
+  g.strokeRoundedRect(28, 22, 328, 52, 16);
+  gen(TEX.titleLogoBase);
+
+  g.clear();
+  g.lineStyle(10, 0xffffff, 0.25);
+  g.strokeRoundedRect(22, 16, 340, 64, 20);
+  gen(TEX.titleLogoGlow);
 
   // Elliptical drop shadow (alpha baked in; scaled per entity).
   g.clear();

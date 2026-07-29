@@ -3,7 +3,15 @@ import { BROOD_WARRENS, CONTENT, LEVELS } from '../../content';
 import { equippedAttack, loadProfile, profileModifiers } from '../../meta/save';
 import { levelHeightPx, levelWidthPx } from '../../sim/level';
 import { createSim, simTick, type Sim } from '../../sim/sim';
-import { POWERUP_KINDS, TICK_DT, type EntityId, type PlayerState, type SimEvent, type Vec2 } from '../../sim/types';
+import {
+  POWERUP_KINDS,
+  TICK_DT,
+  type EntityId,
+  type PlayerState,
+  type PowerUpKind,
+  type SimEvent,
+  type Vec2
+} from '../../sim/types';
 import { audio } from '../audio';
 import { playerAccent } from '../colors';
 import { KeyboardCommander } from '../input';
@@ -50,6 +58,8 @@ export interface HudPlayerInfo {
   guardMax: number;
   keys: number;
   potions: number;
+  /** Remaining ticks for the three temporary buffs, used by HUD chips. */
+  power: Record<PowerUpKind, number>;
   /** Hero level and progress toward the next (issue #46). */
   level: number;
   xp: number;
@@ -381,6 +391,7 @@ export class MissionScene extends Phaser.Scene {
           guardMax: hero?.ability.kind === 'guard' ? hero.ability.durationTicks : 0,
           keys: p.keys,
           potions: p.potions,
+          power: { ...p.power },
           level: p.level,
           xp: p.xp,
           xpIntoLevel: p.xp - (CONTENT.progression.xpToReach[p.level - 1] ?? 0),

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { audio } from '../audio';
 import { playerAccent } from '../colors';
 import { TEX, heroPortrait } from '../textures';
+import { POWERUP_KINDS } from '../../sim/types';
 import type { HudInfo, MissionScene } from './MissionScene';
 
 /**
@@ -29,6 +30,7 @@ interface Panel {
   maxHpText: Phaser.GameObjects.Text;
   goldIcon: Phaser.GameObjects.Image;
   goldText: Phaser.GameObjects.Text;
+  killsIcon: Phaser.GameObjects.Image;
   killsText: Phaser.GameObjects.Text;
   keyIcon: Phaser.GameObjects.Image;
   keyText: Phaser.GameObjects.Text;
@@ -39,6 +41,8 @@ interface Panel {
   xpBar: Phaser.GameObjects.Rectangle;
   abilityBack: Phaser.GameObjects.Rectangle;
   abilityBar: Phaser.GameObjects.Rectangle;
+  readyFlare: Phaser.GameObjects.Image;
+  powerIcons: Phaser.GameObjects.Image[];
   joinText: Phaser.GameObjects.Text;
 }
 
@@ -183,17 +187,18 @@ export class HudScene extends Phaser.Scene {
 
     const hpText = mono(46, 6, 22, '#ffffff', 'bold');
     const maxHpText = mono(112, 15, 11, '#8a8298');
-    const goldIcon = this.add.image(x + 52, y + 39, TEX.gold).setScale(0.7);
-    const goldText = mono(60, 33, 12, '#ffd75e');
-    const killsText = mono(140, 33, 12, '#a89bb8');
+    const goldIcon = this.add.image(x + 52, y + 39, TEX.uiGold);
+    const goldText = mono(59, 33, 12, '#ffd75e');
+    const killsIcon = this.add.image(x + 88, y + 39, TEX.uiKills);
+    const killsText = mono(95, 33, 12, '#cfc4de');
 
     // Key tally, shown only while the party is carrying keys.
-    const keyIcon = this.add.image(x + 196, y + 39, TEX.key).setScale(0.7).setVisible(false);
-    const keyText = mono(203, 33, 12, '#e6c34a');
+    const keyIcon = this.add.image(x + 122, y + 39, TEX.uiKey).setVisible(false);
+    const keyText = mono(129, 33, 12, '#e6c34a');
 
     // Potion tally (bottom-centre), shown only while carrying potions.
-    const potionIcon = this.add.image(x + 110, y + 39, TEX.potion).setScale(0.7).setVisible(false);
-    const potionText = mono(117, 33, 12, '#7be08a');
+    const potionIcon = this.add.image(x + 156, y + 39, TEX.uiPotion).setVisible(false);
+    const potionText = mono(163, 33, 12, '#7be08a');
 
     // Hero level, tucked into the free space left of the ability meter, with
     // its progress as a thin strip along the panel's bottom edge (issue #46).
@@ -202,14 +207,47 @@ export class HudScene extends Phaser.Scene {
     const xpBack = this.add.rectangle(x + 3, y + PANEL_H - 3, PANEL_W - 6, 3, 0x2a2438).setOrigin(0, 0.5);
     const xpBar = this.add.rectangle(x + 3, y + PANEL_H - 3, PANEL_W - 6, 3, 0xffd75e).setOrigin(0, 0.5);
 
+    const readyFlare = this.add
+      .image(x + 184, y + 12, TEX.uiAbilityReady)
+      .setTint(accent)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setVisible(false);
     const abilityBack = this.add.rectangle(x + 150, y + 8, 68, 8, 0x2a2438).setOrigin(0, 0);
     const abilityBar = this.add.rectangle(x + 150, y + 8, 68, 8, accent).setOrigin(0, 0);
+
+    const powerTextures = [TEX.uiPowerFrenzy, TEX.uiPowerSwiftness, TEX.uiPowerWard] as const;
+    const powerIcons = powerTextures.map((texture, index) =>
+      this.add.image(x + 190 + index * 13, y + 39, texture).setVisible(false)
+    );
 
     const joinText = mono(PANEL_W / 2 - 24, PANEL_H / 2 - 8, 14, '#55506a');
     joinText.setText('JOIN');
     joinText.setX(x + PANEL_W / 2 - joinText.width / 2);
 
-    return { border, chip, chipText, portrait, hpText, maxHpText, goldIcon, goldText, killsText, keyIcon, keyText, potionIcon, potionText, levelText, xpBack, xpBar, abilityBack, abilityBar, joinText };
+    return {
+      border,
+      chip,
+      chipText,
+      portrait,
+      hpText,
+      maxHpText,
+      goldIcon,
+      goldText,
+      killsIcon,
+      killsText,
+      keyIcon,
+      keyText,
+      potionIcon,
+      potionText,
+      levelText,
+      xpBack,
+      xpBar,
+      abilityBack,
+      abilityBar,
+      readyFlare,
+      powerIcons,
+      joinText
+    };
   }
 
   override update(): void {
@@ -255,9 +293,11 @@ export class HudScene extends Phaser.Scene {
 
     panel.joinText.setVisible(!active);
     panel.border.setAlpha(active ? 1 : 0.35);
-    for (const obj of [panel.chip, panel.chipText, panel.portrait, panel.hpText, panel.maxHpText, panel.goldIcon, panel.goldText, panel.killsText, panel.keyIcon, panel.keyText, panel.potionIcon, panel.potionText, panel.levelText, panel.xpBack, panel.xpBar, panel.abilityBack, panel.abilityBar]) {
+    for (const obj of [panel.chip, panel.chipText, panel.portrait, panel.hpText, panel.maxHpText, panel.goldIcon, panel.goldText, panel.killsIcon, panel.killsText, panel.keyIcon, panel.keyText, panel.potionIcon, panel.potionText, panel.levelText, panel.xpBack, panel.xpBar, panel.abilityBack, panel.abilityBar]) {
       obj.setVisible(active);
     }
+    for (const icon of panel.powerIcons) icon.setVisible(false);
+    panel.readyFlare.setVisible(false);
     if (!p) return;
 
     // Keys only appear once the party is holding at least one.
@@ -293,7 +333,15 @@ export class HudScene extends Phaser.Scene {
       this.goldShown[i] = Math.abs(diff) <= 1 ? p.gold : shown + Math.sign(diff) * Math.max(1, Math.ceil(Math.abs(diff) * 0.18));
     }
     panel.goldText.setText(String(this.goldShown[i]));
-    panel.killsText.setText(`Kills ${p.kills}`);
+    panel.killsText.setText(String(p.kills));
+
+    // Active temporary buffs occupy fixed silhouette-coded chips. Their
+    // opacity drains during the final second so expiry reads without text.
+    for (let powerIndex = 0; powerIndex < POWERUP_KINDS.length; powerIndex++) {
+      const kind = POWERUP_KINDS[powerIndex]!;
+      const ticks = p.power[kind];
+      panel.powerIcons[powerIndex]!.setVisible(ticks > 0).setAlpha(Math.min(1, 0.35 + ticks / 60));
+    }
 
     // Ability meter: while a guard stance is up it doubles as the stance
     // duration meter (steel, draining); otherwise it fills as the cooldown
@@ -306,6 +354,8 @@ export class HudScene extends Phaser.Scene {
       panel.abilityBar.width = 68 * frac;
       panel.abilityBar.setFillStyle(p.abilityCooldown === 0 ? playerAccent(i) : 0x6a6480);
     }
+    const ready = p.guardTicks === 0 && p.abilityCooldown === 0;
+    panel.readyFlare.setVisible(ready).setAlpha(ready ? 0.45 + Math.sin(this.time.now / 130) * 0.25 : 0);
     if (this.prevAbilityCd[i]! > 0 && p.abilityCooldown === 0) this.readyFlash(panel.abilityBack.x + 34, panel.abilityBack.y + 4);
     this.prevAbilityCd[i] = p.abilityCooldown;
   }
@@ -334,11 +384,25 @@ export class HudScene extends Phaser.Scene {
   }
 
   private readyFlash(x: number, y: number): void {
+    const flare = this.add
+      .image(x, y, TEX.uiAbilityReady)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setScale(0.7);
     const t = this.add
       .text(x, y, 'READY!', { fontFamily: 'monospace', fontSize: '13px', color: '#ffffff', fontStyle: 'bold' })
       .setOrigin(0.5)
       .setScale(0.5);
-    this.tweens.add({ targets: t, scale: 1.3, y: y - 14, alpha: 0, duration: 600, onComplete: () => t.destroy() });
+    this.tweens.add({
+      targets: [flare, t],
+      scale: 1.3,
+      y: y - 14,
+      alpha: 0,
+      duration: 600,
+      onComplete: () => {
+        flare.destroy();
+        t.destroy();
+      }
+    });
   }
 
   /** Full-screen mission-end banner, shown before the results transition. */

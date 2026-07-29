@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-07-24 — **the M1 vertical slice is content-complete** (boss #25,
+Updated: 2026-07-29 — **the M1 vertical slice is content-complete** (boss #25,
 XP levelling #46, combat-feel pass #38/#39/#40, screen-clear potion #41, and
 the first real art pack #44 all landed).
 
@@ -67,9 +67,15 @@ the code on 2026-07-24 and corrected; everything below is now landed):
 **With this, the M1 vertical slice is content-complete.** Remaining tracked
 work is the original-art track (#27, #28) and the M2 board (#29).
 
+The Realm 1 portion of #28 now includes its full UI finish: dedicated HUD
+resource/trophy glyphs, timed-power chips, a tintable ability-ready flare, and
+independently animated base/glow title-logo layers. Future Realm 2 tile
+variants remain coupled to that realm's art direction rather than blocking
+the completed Realm 1 pack.
+
 ## Verification state
 
-`lint`, `typecheck`, **166 unit tests across 17 files**, the production build,
+`lint`, `typecheck`, **275 unit tests across 23 files**, the production build,
 and the Playwright gameplay playthrough (bot clears The Brood Warrens, banks
 gold and XP, buys an upgrade, and replays with both the upgrade and the earned
 level applied; screenshots in `test-results/`) all pass. Run the whole gate
@@ -202,7 +208,8 @@ on any future failure.
 ## Known limitations / risks
 
 - Player death ends the mission (no revive); revival mechanics arrive with co-op.
-- Programmer-art textures and no audio yet.
+- Future content can still fall back to generated programmer art; the current
+  character, Realm 1 environment/object, interaction, and UI packs are drawn.
 - Enemy pathing is straight-line steering; enemies can snag on walls in
   concave layouts (acceptable in current map; needs flow-field or A* later).
 - Phaser bundle is ~1.5 MB (348 kB gzip); fine for now, consider code-splitting

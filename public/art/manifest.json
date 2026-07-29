@@ -152,5 +152,15 @@
   "pickup-key",
   "pickup-potion",
   "level-gate",
-  "exit-portal"
+  "exit-portal",
+  "ui-icon-gold",
+  "ui-icon-kills",
+  "ui-icon-key",
+  "ui-icon-potion",
+  "ui-power-frenzy",
+  "ui-power-swiftness",
+  "ui-power-ward",
+  "ui-ability-ready",
+  "ui-title-logo-base",
+  "ui-title-logo-glow"
 ]

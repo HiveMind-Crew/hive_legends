@@ -6,9 +6,9 @@ by real drawn art **without touching any code**: drop a PNG into
 contract.
 
 The pipeline is live and already in use — all four heroes, all three enemy
-families, Mireveil, and the Realm 1 floor/wall tile set ship as real art in
-`public/art/`. Remaining objects, decor, pickups, and UI keys still fall back
-to generated art, so partial packs are the normal state.
+families, Mireveil, the Realm 1 environment/object sets, the interaction
+objects, and the HUD/title UI ship as real art in `public/art/`. Partial packs
+remain supported for future realms and content.
 
 ## The one hard rule: originality
 
@@ -150,6 +150,24 @@ covered by an original Realm 1 art pack.** Its reviewable source is
 original interaction-object pack.** Its reviewable source is
 `scripts/art/interactionObjectPack.ts`; the direction sheet is
 `docs/design/concepts/realm-one-interaction-objects-reference.png`.
+
+### UI and title
+
+| Key | Size | Notes |
+| --- | --- | --- |
+| `ui-icon-gold`, `ui-icon-kills`, `ui-icon-key`, `ui-icon-potion` | 12×12 | HUD-only glyphs drawn for 1× readability; do not shrink the world pickups |
+| `ui-power-frenzy`, `ui-power-swiftness`, `ui-power-ward` | 12×12 | Fixed-order timed-buff chips; silhouette and palette must both differ |
+| `ui-ability-ready` | 76×18 | White/tintable segmented flare around the 68×8 ability meter |
+| `ui-title-logo-base` | 384×96 | Fully readable original mark on transparency |
+| `ui-title-logo-glow` | 384×96 | Additive low-alpha detail; exact same registration as the base |
+
+The title layers must remain separate: `HeroSelectScene` gently scales the
+base while pulsing the glow more strongly. Do not bake a rectangular backdrop
+or a glow into the base. HUD glyphs occupy fixed slots, and inactive power-up
+chips are hidden rather than recoloured.
+
+**The complete UI set is covered by an original deterministic art pack.** Its
+reviewable source is `scripts/art/uiArtPack.ts`.
 
 ### Effects (usually fine as generated; tintable = draw in white)
 
