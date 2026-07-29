@@ -399,11 +399,11 @@ Ravager's locked line is beaten by stepping sideways. The boss is the sole
 exception — she has real body-contact damage, rate-limited by
 `touchCooldownTicks`.
 
-**Contact melee ignores facing; line melee commits it.** The Skitter and
-Carapace use a centre-to-centre range check, so getting behind them changes
-nothing. The Ravager instead snapshots a direction when its windup begins and
-cannot rotate the rupture afterward. Its line can hit multiple players but
-stops at the first wall.
+**Contact melee ignores facing; pounces and lines commit it.** The Carapace
+uses a centre-to-centre range check, so getting behind it changes nothing. The
+Skitter and Ravager instead snapshot a direction when their windup begins and
+cannot rotate afterward. The Skitter sweeps its body through a 72×20 px lane;
+the Ravager ruptures a 120×28 px lane. Both stop at the first wall.
 
 **A whiff still costs the enemy its full cooldown.** The cooldown is paid when
 the windup releases, before the range re-test, so a dodged attack buys the
@@ -425,10 +425,11 @@ Three families, and like the heroes each is supposed to own an axis. The tier
 family sets what kind of problem it is.
 
 **Skitter — expendable pressure.** Fast, fragile, and worth almost nothing
-individually. It arrives in numbers and attacks with a quick 7-damage contact
-nip after a 12-tick (0.2-second) windup. The nip has no displacement and misses
-if the target leaves its 28 px reach, making the family punish hesitation
-rather than poor lane positioning.
+individually. It arrives in numbers, compresses for an 18-tick (0.3-second)
+tell, then pounces 72 px through a locked 20 px lane for 7 damage. The leap
+stops its whole body at walls and cannot turn after commitment. Standing still
+gets surrounded and clipped; one lateral step makes the Skitter sail past and
+pay its full recovery.
 
 **Husk — armored space control.** The Carapace Husk uses a slow 24-tick
 overhead bash for 16 damage and 28 px of wall-clipped knockback: retreat during
@@ -471,8 +472,8 @@ monster.
 add one release branch in `executeEnemyAttack`, add its presentation and
 generated shape text, and strengthen the differentiation tests. Shape, damage,
 commit range, windup, and recovery stay together in the `attack` object; do not
-add another optional side channel to `EnemyDef`. Issue #78 tracks the remaining
-Skitter pounce, while #81 is the boss-side equivalent.
+add another optional side channel to `EnemyDef`. Issue #78 covers the completed
+ordinary-enemy vocabulary, while #81 is the boss-side equivalent.
 
 <!-- BEGIN GENERATED: bestiary-tables -->
 
@@ -488,7 +489,7 @@ cycle includes both the committed telegraph and the recovery before the next win
 
 | Enemy | Family | Tier | HP | Speed | Reach | Dmg | Recovery | Windup | DPS | Kites | Gold | XP |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Skitterling | skitter | common | 40 | 120 | 28 px | 7 | 45t | 12t | 7.4 | no | 2–5 | 6 |
+| Skitterling | skitter | common | 40 | 120 | 72 px | 7 | 48t | 18t | 6.4 | no | 2–5 | 6 |
 | Carapace Husk | husk | veteran | 140 | 66 | 34 px | 16 | 55t | 24t | 12.2 | no | 6–12 | 18 |
 | Bile Spitter | spitter | common | 46 | 88 | 200 px | 8 | 105t | 20t | 3.8 | yes (0.6) | 4–9 | 12 |
 | Gravebound Ravager | husk | elite | 320 | 82 | 120 px | 24 | 70t | 30t | 14.4 | no | 22–34 | 55 |
@@ -501,7 +502,7 @@ drop each hero from full — the pressure a single one of these represents, befo
 
 | Enemy | Shape | DPS | Dodge window | vs Vanguard | vs Arcanist | vs Ranger | vs Sentinel |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Skitterling | contact | 7.4 | 0.20 s | 16.3 | 10.9 | 12.2 | 23.1 |
+| Skitterling | pounce 72×20 px | 6.4 | 0.30 s | 18.9 | 12.6 | 14.1 | 26.7 |
 | Carapace Husk | contact, push 28 px | 12.2 | 0.40 s | 9.9 | 6.6 | 7.4 | 14.0 |
 | Bile Spitter | volley 3× / 32°, 240 px/s | 3.8 | 0.33 s | 31.3 | 20.8 | 23.4 | 44.3 |
 | Gravebound Ravager | line 120×28 px, push 36 px | 14.4 | 0.50 s | 8.3 | 5.6 | 6.3 | 11.8 |

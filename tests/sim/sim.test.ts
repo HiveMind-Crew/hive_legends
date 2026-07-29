@@ -90,7 +90,8 @@ describe('combat', () => {
       typeId: 'skitterling',
       pos: { x: p.pos.x, y: p.pos.y + 30 },
       hp: CONTENT.enemies['skitterling']!.maxHp,
-      attackCooldown: 0,
+      // Keep this player-attack test isolated from the Skitter's pounce.
+      attackCooldown: 999,
       windupTicksLeft: 0,
       hitstunTicks: 0,
       knockback: { x: 0, y: 0 },

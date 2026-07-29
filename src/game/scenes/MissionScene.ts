@@ -128,7 +128,7 @@ export class MissionScene extends Phaser.Scene {
   private slowedIds = new Set<EntityId>();
   private guardGlow = new Map<EntityId, Phaser.GameObjects.Image>();
   private powerAura = new Map<EntityId, Phaser.GameObjects.Image>();
-  private ruptureGuides = new Map<EntityId, Phaser.GameObjects.Rectangle>();
+  private attackGuides = new Map<EntityId, Phaser.GameObjects.Rectangle>();
   private ended = false;
   private hitStopMs = 0;
   private camFollow = { x: 0, y: 0 };
@@ -184,7 +184,7 @@ export class MissionScene extends Phaser.Scene {
     this.slowedIds.clear();
     this.guardGlow.clear();
     this.powerAura.clear();
-    this.ruptureGuides.clear();
+    this.attackGuides.clear();
     this.hitStopMs = 0;
     this.camKick = { x: 0, y: 0 };
     this.trailCount = 0;
@@ -671,6 +671,9 @@ export class MissionScene extends Phaser.Scene {
         case 'enemy-volley':
           this.spitterVolley(ev.pos, ev.dir, ev.count, ev.spreadDeg);
           break;
+        case 'enemy-pounce':
+          this.skitterPounce(ev.enemyId, ev.from, ev.to, ev.width);
+          break;
         case 'enemy-line-attack':
           this.ravagerRupture(ev.pos, ev.dir, ev.length, ev.width);
           break;
@@ -811,28 +814,35 @@ export class MissionScene extends Phaser.Scene {
       let frame: EnemyAnimFrame;
       if (windup && target) {
         frame = 'windup';
-        spr.setRotation(Math.atan2(target.pos.y - e.pos.y, target.pos.x - e.pos.x));
+        const facing = e.windupDir ?? { x: target.pos.x - e.pos.x, y: target.pos.y - e.pos.y };
+        spr.setRotation(Math.atan2(facing.y, facing.x));
       } else {
         frame = (Math.floor(s.tick / CRAWL_FRAME_TICKS) + e.id) % 2 === 0 ? 'w0' : 'w1';
       }
       spr.setTexture(enemyFrame(family, tier, frame));
-      const line = def?.attack.kind === 'line' ? def.attack : undefined;
-      let ruptureGuide = this.ruptureGuides.get(e.id);
-      if (windup && line && e.windupDir) {
-        const length = e.windupLength ?? line.length;
+      const committed =
+        def?.attack.kind === 'line'
+          ? { length: def.attack.length, width: def.attack.width, color: 0xff5a4d }
+          : def?.attack.kind === 'pounce'
+            ? { length: def.attack.distance, width: def.attack.width, color: 0xd6ef62 }
+            : undefined;
+      let attackGuide = this.attackGuides.get(e.id);
+      if (windup && committed && e.windupDir) {
+        const length = e.windupLength ?? committed.length;
         const angle = Math.atan2(e.windupDir.y, e.windupDir.x);
-        if (!ruptureGuide) {
-          ruptureGuide = this.add.rectangle(0, 0, 1, 1, 0xff5a4d, 0.28).setDepth(DEPTH_DECAL + 1);
-          this.ruptureGuides.set(e.id, ruptureGuide);
+        if (!attackGuide) {
+          attackGuide = this.add.rectangle(0, 0, 1, 1).setDepth(DEPTH_DECAL + 1);
+          this.attackGuides.set(e.id, attackGuide);
         }
-        ruptureGuide
+        attackGuide
           .setPosition(e.pos.x + e.windupDir.x * (length / 2), e.pos.y + e.windupDir.y * (length / 2))
-          .setSize(length, line.width)
+          .setSize(length, committed.width)
           .setRotation(angle)
+          .setFillStyle(committed.color)
           .setAlpha(0.18 + 0.12 * Math.sin(this.time.now / 55));
-      } else if (ruptureGuide) {
-        ruptureGuide.destroy();
-        this.ruptureGuides.delete(e.id);
+      } else if (attackGuide) {
+        attackGuide.destroy();
+        this.attackGuides.delete(e.id);
       }
       // Resin-caged enemies read amber; clear the tint exactly once on expiry
       // so hit flashes aren't stomped every frame.
@@ -1045,7 +1055,7 @@ export class MissionScene extends Phaser.Scene {
         this.genPopAt.delete(id);
         this.hatchAtTick.delete(id);
         this.slowedIds.delete(id);
-        for (const map of [this.shadows, this.rings, this.chevrons, this.guardGlow, this.powerAura, this.ruptureGuides]) {
+        for (const map of [this.shadows, this.rings, this.chevrons, this.guardGlow, this.powerAura, this.attackGuides]) {
           map.get(id)?.destroy();
           map.delete(id);
         }
@@ -1198,6 +1208,44 @@ export class MissionScene extends Phaser.Scene {
     const scorch = this.add.circle(pos.x, pos.y, radius * 0.55, 0x000000, 0.18).setDepth(DEPTH_DECAL + 1);
     this.tweens.add({ targets: scorch, alpha: 0, duration: 1200, onComplete: () => scorch.destroy() });
     this.burst(this.dustFx, 12, pos);
+  }
+
+  /** Skitter pounce: bright body streak, afterimages, and landing dust. */
+  private skitterPounce(enemyId: EntityId, from: Vec2, to: Vec2, width: number): void {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance <= 0.01) {
+      this.burst(this.dustFx, 3, from);
+      return;
+    }
+    const angle = Math.atan2(dy, dx);
+    const streak = this.add
+      .rectangle((from.x + to.x) / 2, (from.y + to.y) / 2, distance, Math.max(4, width * 0.3), 0xd6ef62, 0.65)
+      .setRotation(angle)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(DEPTH_FX);
+    this.tweens.add({ targets: streak, alpha: 0, scaleY: 0.2, duration: 180, onComplete: () => streak.destroy() });
+
+    const source = this.sprites.get(enemyId);
+    if (source) {
+      for (const fraction of [0.2, 0.45, 0.7]) {
+        const ghost = this.add
+          .image(from.x + dx * fraction, from.y + dy * fraction, source.texture.key)
+          .setRotation(angle)
+          .setScale(source.scaleX, source.scaleY)
+          .setTint(0xd6ef62)
+          .setAlpha(0.38 * (1 - fraction * 0.5))
+          .setBlendMode(Phaser.BlendModes.ADD)
+          .setDepth(DEPTH_FX);
+        this.tweens.add({ targets: ghost, alpha: 0, duration: 220, onComplete: () => ghost.destroy() });
+      }
+    }
+    this.burst(this.dustFx, 5, from);
+    this.burst(this.ichorFx, 4, to);
+    this.flashRing(to, Math.max(12, width), 0xd6ef62);
+    this.camKick.x = dx * 0.035;
+    this.camKick.y = dy * 0.035;
   }
 
   /** Gravebound Ravager: an instant wall-clipped fissure along its committed facing. */

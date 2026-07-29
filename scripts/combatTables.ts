@@ -96,6 +96,7 @@ export function enemyShape(def: EnemyDef): string {
   if (attack.kind === 'line') {
     return `line ${attack.length}×${attack.width} px, push ${attack.pushPx} px`;
   }
+  if (attack.kind === 'pounce') return `pounce ${attack.distance}×${attack.width} px`;
   return attack.pushPx > 0 ? `contact, push ${attack.pushPx} px` : 'contact';
 }
 

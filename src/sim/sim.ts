@@ -985,6 +985,8 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
     const target = nearestLivingPlayer(s.players, e.pos);
     if (!target) {
       e.windupTicksLeft = 0; // no one to strike — drop any pending windup
+      e.windupDir = undefined;
+      e.windupLength = undefined;
       continue;
     }
     const d = sub(target.pos, e.pos);
@@ -1020,9 +1022,14 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
       // zero windup, but a 0 would resolve the attack the same tick.)
       if (attack.windupTicks > 0) {
         e.windupTicksLeft = attack.windupTicks;
-        if (attack.kind === 'line' && dist > 1e-6) {
+        e.windupDir = undefined;
+        e.windupLength = undefined;
+        if ((attack.kind === 'line' || attack.kind === 'pounce') && dist > 1e-6) {
           e.windupDir = { x: d.x / dist, y: d.y / dist };
-          e.windupLength = wallClippedEnemyLineLength(sim, e.pos, e.windupDir, attack.length);
+          e.windupLength =
+            attack.kind === 'line'
+              ? wallClippedEnemyLineLength(sim, e.pos, e.windupDir, attack.length)
+              : wallClippedEnemyPounceLength(sim, e.pos, e.windupDir, attack.distance, def.radius);
         }
         events.push({ type: 'enemy-windup', enemyId: e.id, pos: { ...e.pos }, durationTicks: attack.windupTicks });
       } else {
@@ -1050,6 +1057,10 @@ function executeEnemyAttack(sim: Sim, e: EnemyState, def: EnemyDef, target: Play
     spawnEnemyVolley(sim, e, attack, def.radius, target.pos, events);
     return;
   }
+  if (attack.kind === 'pounce') {
+    executeEnemyPounceAttack(sim, e, attack, def.radius, events);
+    return;
+  }
   if (attack.kind === 'line') {
     executeEnemyLineAttack(sim, e, attack, events);
     return;
@@ -1058,6 +1069,41 @@ function executeEnemyAttack(sim: Sim, e: EnemyState, def: EnemyDef, target: Play
   const dist = Math.hypot(d.x, d.y);
   if (dist > attack.range || target.invulnTicks > 0) return; // whiffed, or target immune
   damagePlayerFromEnemy(sim, e, attack.damage, target, d, dist, attack.pushPx, events);
+}
+
+/**
+ * Resolves the Skitter's committed leap. Direction and wall-clipped travel are
+ * captured when the tell begins, so moving sideways wins while standing in
+ * the lane is hit by the body sweeping from start to finish.
+ */
+function executeEnemyPounceAttack(
+  sim: Sim,
+  e: EnemyState,
+  attack: Extract<EnemyDef['attack'], { kind: 'pounce' }>,
+  enemyRadius: number,
+  events: SimEvent[]
+): void {
+  const from = { ...e.pos };
+  const dir = e.windupDir ?? { x: 1, y: 0 };
+  const distance = e.windupLength ?? wallClippedEnemyPounceLength(sim, from, dir, attack.distance, enemyRadius);
+  e.windupDir = undefined;
+  e.windupLength = undefined;
+  e.pos.x = from.x + dir.x * distance;
+  e.pos.y = from.y + dir.y * distance;
+  events.push({ type: 'enemy-pounce', enemyId: e.id, from, to: { ...e.pos }, width: attack.width });
+
+  for (const player of sim.state.players) {
+    if (!player.alive || player.invulnTicks > 0) continue;
+    const rel = sub(player.pos, from);
+    const along = rel.x * dir.x + rel.y * dir.y;
+    const closestAlong = Math.max(0, Math.min(distance, along));
+    const closest = { x: from.x + dir.x * closestAlong, y: from.y + dir.y * closestAlong };
+    const offset = sub(player.pos, closest);
+    const playerRadius = sim.config.content.heroes[player.heroId]?.radius ?? 12;
+    if (Math.hypot(offset.x, offset.y) > attack.width / 2 + playerRadius) continue;
+    const dist = Math.hypot(rel.x, rel.y);
+    damagePlayerFromEnemy(sim, e, attack.damage, player, rel, dist, 0, events);
+  }
 }
 
 /** Resolves the Ravager's committed, wall-clipped line rupture. */
@@ -1101,6 +1147,28 @@ function wallClippedEnemyLineLength(sim: Sim, pos: Vec2, dir: Vec2, maxLength: n
     // Clip on the centre seam. The full visual width may brush an adjacent
     // wall without the committed line actually crossing it.
     if (circleHitsWall(sim.config.level, probe, 2, blk)) return Math.max(0, distance - 4);
+  }
+  return maxLength;
+}
+
+/** Returns the furthest safe point for the Skitter's full collision circle. */
+function wallClippedEnemyPounceLength(
+  sim: Sim,
+  pos: Vec2,
+  dir: Vec2,
+  maxLength: number,
+  radius: number
+): number {
+  const blk = blockOf(sim, true);
+  let safeDistance = 0;
+  for (let distance = 2; distance <= maxLength; distance += 2) {
+    const probe = { x: pos.x + dir.x * distance, y: pos.y + dir.y * distance };
+    if (circleHitsWall(sim.config.level, probe, radius, blk)) return safeDistance;
+    safeDistance = distance;
+  }
+  if (safeDistance < maxLength) {
+    const probe = { x: pos.x + dir.x * maxLength, y: pos.y + dir.y * maxLength };
+    if (circleHitsWall(sim.config.level, probe, radius, blk)) return safeDistance;
   }
   return maxLength;
 }
