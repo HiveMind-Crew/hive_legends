@@ -298,7 +298,16 @@ fan after a 20-tick swollen-sac tell. A dedicated `volley` attack branch reuses
 the hostile-projectile plumbing, emits one presentation event for the whole
 fan, and adds a luminous release flare plus a wet pressure-burst sound. Nine
 original common/veteran/elite walk and windup sprites now complete the enemy
-family art set; Mireveil is the remaining character-art pack in #27.
+family art set.
+
+Mireveil now completes the original character-art track in #27. Her three
+96×96 south-facing states preserve one crowned brood-queen silhouette while
+progressing from sealed violet shell, through broad luminous fissures, to a
+critical abdomen peeled open around a violet-white brood core. The renderer
+continues to own rotation, action tint, telegraph swelling, shadows, and charge
+trails. A deterministic 48×48 logical source grid regenerates all three PNGs,
+with tests pinning size, distinct states, identical silhouettes, and increasing
+exposed light.
 
 #16 landed: temporary power-ups — floor relics that grant a short, stacking
 timed buff. Three ship: **Emberheart** (frenzy, +damage), **Windstep Sigil**

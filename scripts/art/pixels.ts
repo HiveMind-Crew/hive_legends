@@ -91,8 +91,12 @@ function chunk(type: string, data: Uint8Array): Uint8Array {
   return out;
 }
 
-/** Minimal 8-bit RGBA PNG encoder — enough for 36px sprites, no dependencies. */
-export function encodePng({ w, h, rgba }: Bitmap): Uint8Array {
+/**
+ * Minimal 8-bit RGBA PNG encoder. Level 9 remains the compact default; level
+ * 0 is available for larger grids whose zlib output must compare byte-for-byte
+ * across the Node versions used by local development and CI.
+ */
+export function encodePng({ w, h, rgba }: Bitmap, compressionLevel = 9): Uint8Array {
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(w, 0);
   ihdr.writeUInt32BE(h, 4);
@@ -107,7 +111,7 @@ export function encodePng({ w, h, rgba }: Bitmap): Uint8Array {
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk('IHDR', ihdr),
-    chunk('IDAT', deflateSync(raw, { level: 9 })),
+    chunk('IDAT', deflateSync(raw, { level: compressionLevel })),
     chunk('IEND', new Uint8Array(0))
   ]);
 }

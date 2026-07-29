@@ -5,10 +5,10 @@ by real drawn art **without touching any code**: drop a PNG into
 `public/art/`, list it in the manifest, refresh. This document is the
 contract.
 
-The pipeline is live and already in use — all four hero packs ship as real art
-in `public/art/` (all 8 directions × 3 poses + the portrait, each). Every
-remaining key still falls back to generated art, so partial packs are the
-normal state.
+The pipeline is live and already in use — all four heroes, all three enemy
+families, and Mireveil ship as real art in `public/art/`. Every remaining
+environment, object, and UI key still falls back to generated art, so partial
+packs are the normal state.
 
 ## The one hard rule: originality
 
@@ -80,7 +80,6 @@ is `w0`/`w1` (walk cycle) or `atk` (attack swing). `hero-<heroId>` (no
 suffix) is the menu portrait — usually a copy of `2-w0`.
 
 That is 25 keys per hero. **All four heroes are covered by real art packs.**
-The remaining character-art work in #27 is the enemy families and Mireveil.
 
 Opposite facings are mirrors in every pack that has shipped so far — east/west,
 SE/SW and NE/NW — so a hero is 5 drawn directions, not 8. Nothing in the design
@@ -106,7 +105,7 @@ live in `docs/design/visual-direction.md`. Readability beats richness: a
 15-enemy horde must parse at a glance by silhouette + palette alone.
 
 The **Skitter, Husk, and Spitter families are covered by real art packs** across
-all three tiers and animation frames. Mireveil remains in issue #27.
+all three tiers and animation frames.
 
 Attack windups must make each family readable before its hit resolves:
 
@@ -123,7 +122,13 @@ Attack windups must make each family readable before its hit resolves:
 | Key | Size | Notes |
 | --- | --- | --- |
 | `generator-brood-node-0/1/2` | 44×44 | Damage tiers: intact / cracked-leaking / crumbling with exposed core |
-| `boss-mireveil-0/1/2` | 96×96 | The Realm-1 boss, same damage-tier language at finale scale. **Drawn facing south**; the renderer rotates her to her heading, swells and reddens her during a telegraph, and tints her mid-charge |
+| `boss-mireveil-0/1/2` | 96×96 | Original intact / wounded / critical sprites, drawn facing south. One silhouette escalates from sealed shell to bright fissures to an exposed brood core; the renderer owns rotation, telegraph swelling/reddening, and charge tint. Concept: [`docs/design/concepts/mireveil-reference.png`](design/concepts/mireveil-reference.png) |
+
+The Mireveil pack is authored on a 48×48 logical grid in
+`scripts/art/mireveilPack.ts` and expanded 2×. Its tests require the three
+states to retain an identical alpha silhouette while exposed violet-white
+brood-light increases monotonically, so damage reads without turning her into
+a different creature.
 | `prop-resin-husk`, `prop-amber-clutch` | 20×20 | Breakables; shadow may be baked (renderer draws none for props) |
 | `pickup-gold` | 16×16 | `pickup-health` 18×18 |
 | `pickup-frenzy`, `pickup-swiftness`, `pickup-ward` | 18×18 | Timed power-up relics |

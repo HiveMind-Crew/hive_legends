@@ -6,6 +6,7 @@ import { buildSentinelPack } from '../scripts/art/sentinelPack';
 import { buildSkitterPack } from '../scripts/art/skitterPack';
 import { buildHuskPack } from '../scripts/art/huskPack';
 import { buildSpitterPack } from '../scripts/art/spitterPack';
+import { buildMireveilPack, mireveilGrid } from '../scripts/art/mireveilPack';
 import { TEXTURE_SPECS } from '../src/game/textureSpecs';
 
 /**
@@ -15,9 +16,8 @@ import { TEXTURE_SPECS } from '../src/game/textureSpecs';
  * with no file behind it is only a browser 404. Neither fails a build, so a
  * broken pack would ship looking merely "not as nice as the mockup".
  *
- * Here the same rules are structural. It also keeps the checked-in Ranger PNGs
- * honest against the pixel grids they were drawn as — regenerate with
- * `npm run art:build`.
+ * Here the same rules are structural. It also keeps every grid-authored pack
+ * honest against its checked-in PNGs — regenerate with `npm run art:build`.
  */
 const ART_DIR = fileURLToPath(new URL('../public/art/', import.meta.url));
 const MANIFEST = `${ART_DIR}manifest.json`;
@@ -258,5 +258,42 @@ describe('the Spitter pack', () => {
       expect(w0.equals(windup)).toBe(false);
       expect(w1.equals(windup)).toBe(false);
     }
+  });
+});
+
+describe('the Mireveil pack', () => {
+  it('matches the pixel grids it is drawn from', () => {
+    const pack = buildMireveilPack();
+
+    if (process.env.UPDATE_ART) {
+      const listed = manifestKeys();
+      for (const [key, png] of pack) {
+        writeFileSync(`${ART_DIR}${key}.png`, png);
+        if (!listed.includes(key)) listed.push(key);
+      }
+      writeFileSync(MANIFEST, `${JSON.stringify(listed, null, 2)}\n`);
+      return;
+    }
+
+    for (const [key, png] of pack) {
+      const file = `${ART_DIR}${key}.png`;
+      expect(existsSync(file), `${key}.png is missing — run \`npm run art:build\``).toBe(true);
+      expect(readFileSync(file).equals(Buffer.from(png)), `${key}.png is stale — run \`npm run art:build\``).toBe(true);
+    }
+  });
+
+  it('covers intact, wounded, and critical damage states', () => {
+    expect([...buildMireveilPack().keys()]).toEqual(['boss-mireveil-0', 'boss-mireveil-1', 'boss-mireveil-2']);
+  });
+
+  it('keeps one silhouette while exposed brood-light escalates', () => {
+    const grids = ([0, 1, 2] as const).map(mireveilGrid);
+    const masks = grids.map((rows) => rows.map((row) => [...row].map((pixel) => pixel !== '.').join('')).join('\n'));
+    expect(new Set(masks)).toHaveLength(1);
+
+    const exposedLight = grids.map((rows) => rows.join('').match(/[LW]/g)?.length ?? 0);
+    expect(exposedLight[1]).toBeGreaterThan(exposedLight[0]!);
+    expect(exposedLight[2]).toBeGreaterThan(exposedLight[1]!);
+    expect(new Set([...buildMireveilPack().values()].map((png) => Buffer.from(png).toString('base64')))).toHaveLength(3);
   });
 });
