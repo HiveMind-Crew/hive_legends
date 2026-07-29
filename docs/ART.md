@@ -141,6 +141,11 @@ a different creature.
 | `exit-portal` | 48×48 | Renderer spins/pulses it; design for rotation |
 | `decor-egg-cluster` | 24×20 | `decor-resin-web` 28×28, `decor-spore-patch` 24×18 |
 
+**The Brood Node states, both breakable props, and all three decor keys are
+covered by an original Realm 1 art pack.** Its reviewable source is
+`scripts/art/worldObjectPack.ts`; the direction sheet is
+`docs/design/concepts/realm-one-world-objects-reference.png`.
+
 ### Effects (usually fine as generated; tintable = draw in white)
 
 `fx-shadow` 32×14 · `fx-accent-ring` 40×40 (white, tinted per player) ·
