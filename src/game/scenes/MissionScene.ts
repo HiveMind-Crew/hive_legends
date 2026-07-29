@@ -13,6 +13,7 @@ import {
   type Vec2
 } from '../../sim/types';
 import { audio } from '../audio';
+import { enemyAttackCue, heroAttackCue } from '../attackCues';
 import { playerAccent } from '../colors';
 import { KeyboardCommander } from '../input';
 import type { HudScene } from './HudScene';
@@ -490,7 +491,7 @@ export class MissionScene extends Phaser.Scene {
       audio.playEvent(ev); // one call, throttled per-sound inside the engine
       switch (ev.type) {
         case 'attack':
-          this.flashArc(ev.pos, ev.facing);
+          this.heroMeleeRelease(ev);
           break;
         case 'ability': {
           // Slowing abilities read as a resin cage, impact abilities as a slam.
@@ -674,13 +675,16 @@ export class MissionScene extends Phaser.Scene {
           hud.herald('A HIDDEN PASSAGE!', '#bdf4ff');
           break;
         case 'projectile-fired':
-          this.burst(this.sparkFx, 2, ev.pos); // muzzle flick
+          this.heroProjectileRelease(ev);
           break;
         case 'enemy-shot':
           this.burst(this.ichorFx, 3, ev.pos); // bile muzzle spit
           break;
         case 'enemy-volley':
           this.spitterVolley(ev.pos, ev.dir, ev.count, ev.spreadDeg);
+          break;
+        case 'enemy-contact':
+          this.huskOverhead(ev.pos, ev.dir, ev.range, ev.arcDeg, ev.weight);
           break;
         case 'enemy-pounce':
           this.skitterPounce(ev.enemyId, ev.from, ev.to, ev.width);
@@ -1221,6 +1225,76 @@ export class MissionScene extends Phaser.Scene {
     this.burst(this.dustFx, 12, pos);
   }
 
+  /** Weapon-aware melee release: narrow pike thrust versus broad maul sweep. */
+  private heroMeleeRelease(ev: Extract<SimEvent, { type: 'attack' }>): void {
+    const cue = heroAttackCue(ev.heroId, 'melee', ev.weight);
+    this.flashArc(ev.pos, ev.facing, ev.range, ev.arcDeg, cue.color, 0.42 + cue.heft * 0.22);
+    const angle = Math.atan2(ev.facing.y, ev.facing.x);
+    if (cue.voice === 'pike') {
+      const reach = ev.range * (0.72 + cue.heft * 0.18);
+      const thrust = this.add
+        .rectangle(
+          ev.pos.x + ev.facing.x * (reach / 2),
+          ev.pos.y + ev.facing.y * (reach / 2),
+          reach,
+          2 + cue.heft * 2,
+          cue.color,
+          0.9
+        )
+        .setRotation(angle)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(DEPTH_FX + 1);
+      this.tweens.add({ targets: thrust, alpha: 0, scaleX: 1.12, duration: 100, onComplete: () => thrust.destroy() });
+      this.burst(this.sparkFx, 2 + Math.round(cue.heft * 3), ev.pos);
+    } else {
+      this.burst(this.dustFx, 4 + Math.round(cue.heft * 5), ev.pos);
+      this.camKick.x = ev.facing.x * (2 + cue.heft * 3);
+      this.camKick.y = ev.facing.y * (2 + cue.heft * 3);
+    }
+  }
+
+  /** Caster-aware muzzle cue: resonant hex bloom versus taut thorn streak. */
+  private heroProjectileRelease(ev: Extract<SimEvent, { type: 'projectile-fired' }>): void {
+    const cue = heroAttackCue(ev.heroId, 'projectile', ev.weight);
+    const speed = Math.hypot(ev.vel.x, ev.vel.y) || 1;
+    const dir = { x: ev.vel.x / speed, y: ev.vel.y / speed };
+    if (cue.voice === 'hexbolt') {
+      this.flashRing(ev.pos, 12 + cue.heft * 12, cue.color);
+      this.burst(this.sparkFx, 5 + Math.round(cue.heft * 4), ev.pos);
+      const bloom = this.add
+        .circle(ev.pos.x, ev.pos.y, 4 + ev.radius, cue.color, 0.7)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(DEPTH_FX);
+      this.tweens.add({ targets: bloom, scale: 2.2, alpha: 0, duration: 150, onComplete: () => bloom.destroy() });
+    } else {
+      const length = 16 + ev.pierce * 2;
+      const streak = this.add
+        .rectangle(
+          ev.pos.x - dir.x * (length / 2),
+          ev.pos.y - dir.y * (length / 2),
+          length,
+          2 + cue.heft,
+          cue.color,
+          0.85
+        )
+        .setRotation(Math.atan2(dir.y, dir.x))
+        .setDepth(DEPTH_FX);
+      this.tweens.add({ targets: streak, alpha: 0, duration: 90, onComplete: () => streak.destroy() });
+      this.burst(this.dustFx, 2 + Math.round(cue.heft * 2), ev.pos);
+    }
+  }
+
+  /** Carapace Husk: a committed overhead wedge and blunt landing burst. */
+  private huskOverhead(pos: Vec2, dir: Vec2, range: number, arcDeg: number, weight: number): void {
+    const cue = enemyAttackCue('husk', 'contact', weight);
+    this.flashArc(pos, dir, range, arcDeg, cue.color, 0.5 + cue.heft * 0.2);
+    const impact = { x: pos.x + dir.x * range * 0.72, y: pos.y + dir.y * range * 0.72 };
+    this.burst(this.dustFx, 6 + Math.round(cue.heft * 6), impact);
+    this.burst(this.shardFx, 2 + Math.round(cue.heft * 3), impact);
+    this.flashRing(impact, 12 + cue.heft * 8, cue.color);
+    this.cameras.main.shake(70 + cue.heft * 60, 0.003 + cue.heft * 0.004);
+  }
+
   /** Skitter pounce: bright body streak, afterimages, and landing dust. */
   private skitterPounce(enemyId: EntityId, from: Vec2, to: Vec2, width: number): void {
     const dx = to.x - from.x;
@@ -1315,13 +1389,21 @@ export class MissionScene extends Phaser.Scene {
     this.burst(this.shardFx, 8, pos);
   }
 
-  private flashArc(pos: { x: number; y: number }, facing: { x: number; y: number }): void {
+  private flashArc(
+    pos: Vec2,
+    facing: Vec2,
+    range: number,
+    arcDeg: number,
+    color: number,
+    alpha = 0.55
+  ): void {
     const angle = Math.atan2(facing.y, facing.x);
+    const halfArc = ((arcDeg / 2) * Math.PI) / 180;
     const g = this.add.graphics({ x: pos.x, y: pos.y }).setDepth(DEPTH_FX);
-    g.fillStyle(0xf4e3b2, 0.55);
-    g.slice(0, 0, 52, angle - 0.95, angle + 0.95);
+    g.fillStyle(color, alpha);
+    g.slice(0, 0, range, angle - halfArc, angle + halfArc);
     g.fillPath();
-    this.tweens.add({ targets: g, alpha: 0, duration: 120, onComplete: () => g.destroy() });
+    this.tweens.add({ targets: g, alpha: 0, duration: 130, onComplete: () => g.destroy() });
   }
 
   private flashRing(pos: { x: number; y: number }, radius: number, color: number): void {

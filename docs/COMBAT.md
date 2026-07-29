@@ -399,11 +399,21 @@ Ravager's locked line is beaten by stepping sideways. The boss is the sole
 exception — she has real body-contact damage, rate-limited by
 `touchCooldownTicks`.
 
-**Contact melee ignores facing; pounces and lines commit it.** The Carapace
-uses a centre-to-centre range check, so getting behind it changes nothing. The
-Skitter and Ravager instead snapshot a direction when their windup begins and
-cannot rotate afterward. The Skitter sweeps its body through a 72×20 px lane;
-the Ravager ruptures a 120×28 px lane. Both stop at the first wall.
+**Every melee release commits its facing.** The Carapace snapshots its facing
+when the overhead tell begins and only hits inside its authored 110° frontal
+arc. Circling behind it during the tell is therefore a real counter even while
+remaining inside its 34 px reach. The Skitter and Ravager likewise snapshot a
+direction and cannot rotate afterward: the Skitter sweeps its body through a
+72×20 px lane; the Ravager ruptures a 120×28 px lane. Both stop at the first
+wall.
+
+**Attack identity reaches presentation through events, never state mutation.**
+Player release events carry hero identity, attack geometry, and authored base
+damage as presentation weight; enemy release events carry family, shape, and
+the same weight. `attackCues.ts` maps those values to distinct pike, maul,
+hexbolt, thornbow, Skitter, Husk, Spitter, and Ravager voices/colors. Weapon
+tiers therefore sound and look heavier without the renderer reading profile
+data, and none of these fields participate in `hashState`.
 
 **A whiff still costs the enemy its full cooldown.** The cooldown is paid when
 the windup releases, before the range re-test, so a dodged attack buys the
@@ -503,7 +513,7 @@ drop each hero from full — the pressure a single one of these represents, befo
 | Enemy | Shape | DPS | Dodge window | vs Vanguard | vs Arcanist | vs Ranger | vs Sentinel |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Skitterling | pounce 72×20 px | 6.4 | 0.30 s | 18.9 | 12.6 | 14.1 | 26.7 |
-| Carapace Husk | contact, push 28 px | 12.2 | 0.40 s | 9.9 | 6.6 | 7.4 | 14.0 |
+| Carapace Husk | contact 110° arc, push 28 px | 12.2 | 0.40 s | 9.9 | 6.6 | 7.4 | 14.0 |
 | Bile Spitter | volley 3× / 32°, 240 px/s | 3.8 | 0.33 s | 31.3 | 20.8 | 23.4 | 44.3 |
 | Gravebound Ravager | line 120×28 px, push 36 px | 14.4 | 0.50 s | 8.3 | 5.6 | 6.3 | 11.8 |
 

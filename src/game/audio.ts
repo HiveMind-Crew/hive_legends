@@ -1,5 +1,6 @@
-import type { SimEvent } from '../sim/types';
+import type { EnemyAttackDef, EnemyFamily, SimEvent } from '../sim/types';
 import { loadProfile, saveAudioPrefs } from '../meta/save';
+import { enemyAttackCue, heroAttackCue } from './attackCues';
 
 /**
  * Original synthesized audio (issue #8). Every sound is generated with
@@ -91,22 +92,28 @@ class AudioEngine {
     if (!this.ctx) return;
     switch (ev.type) {
       case 'attack':
-        this.whoosh();
+        this.heroMelee(ev.heroId, ev.weight);
         break;
       case 'projectile-fired':
-        this.pew();
+        this.heroProjectile(ev.heroId, ev.weight);
         break;
       case 'enemy-shot':
         this.spit();
         break;
       case 'enemy-volley':
-        this.bileSpray();
+        this.bileSpray(ev.weight);
         break;
       case 'enemy-pounce':
-        this.skitterPounce();
+        this.skitterPounce(ev.weight);
         break;
       case 'enemy-line-attack':
-        this.rumble();
+        this.ravagerRupture(ev.weight);
+        break;
+      case 'enemy-contact':
+        this.huskSmash(ev.weight);
+        break;
+      case 'enemy-windup':
+        this.enemyWindup(ev.family, ev.attackKind, ev.durationTicks);
         break;
       case 'enemy-hit':
         this.thud(220, 0.06, 0.12);
@@ -214,9 +221,68 @@ class AudioEngine {
     return true;
   }
 
-  private pew(): void {
-    if (!this.throttle('pew', 50)) return;
-    this.tone(880, 'square', 0.09, 0.12, 330);
+  private heroMelee(heroId: string, weight: number): void {
+    const cue = heroAttackCue(heroId, 'melee', weight);
+    if (cue.voice === 'maul') this.maulSweep(cue.heft);
+    else this.pikeThrust(cue.heft);
+  }
+
+  private heroProjectile(heroId: string, weight: number): void {
+    const cue = heroAttackCue(heroId, 'projectile', weight);
+    if (cue.voice === 'hexbolt') this.hexBolt(cue.heft);
+    else this.thornShot(cue.heft);
+  }
+
+  /** Vanguard: a fast, narrow air cut ending in a dry haft impact. */
+  private pikeThrust(heft: number): void {
+    if (!this.throttle('pike-thrust', 45)) return;
+    const t = this.ctx!.currentTime;
+    this.tone(1180 - heft * 260, 'triangle', 0.055 + heft * 0.025, 0.1 + heft * 0.06, 520, t);
+    this.tone(260 - heft * 55, 'square', 0.035 + heft * 0.02, 0.045 + heft * 0.04, undefined, t + 0.035);
+  }
+
+  /** Sentinel: a broad low sweep with a weight-scaled head thump. */
+  private maulSweep(heft: number): void {
+    if (!this.throttle('maul-sweep', 65)) return;
+    const t = this.ctx!.currentTime;
+    const src = this.ctx!.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    const filter = this.ctx!.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(720 - heft * 180, t);
+    filter.frequency.exponentialRampToValueAtTime(150, t + 0.16 + heft * 0.06);
+    const gain = this.ctx!.createGain();
+    gain.gain.setValueAtTime(0.13 + heft * 0.09, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18 + heft * 0.06);
+    src.connect(filter).connect(gain).connect(this.sfxGain!);
+    src.start(t);
+    src.stop(t + 0.25);
+    this.tone(145 - heft * 30, 'triangle', 0.1 + heft * 0.05, 0.1 + heft * 0.08, 65, t + 0.05);
+  }
+
+  /** Arcanist: a heavy amber charge dropping into a resonant launch. */
+  private hexBolt(heft: number): void {
+    if (!this.throttle('hexbolt', 65)) return;
+    const t = this.ctx!.currentTime;
+    this.tone(390 - heft * 70, 'sawtooth', 0.12 + heft * 0.05, 0.1 + heft * 0.07, 150, t);
+    this.tone(780 - heft * 120, 'sine', 0.08 + heft * 0.03, 0.08 + heft * 0.05, 300, t + 0.025);
+  }
+
+  /** Ranger: a taut string snap and short, bright thorn whistle. */
+  private thornShot(heft: number): void {
+    if (!this.throttle('thorn-shot', 35)) return;
+    const t = this.ctx!.currentTime;
+    this.tone(1450 - heft * 180, 'triangle', 0.035 + heft * 0.015, 0.08 + heft * 0.04, 760, t);
+    this.tone(240 + heft * 30, 'square', 0.025, 0.045 + heft * 0.025, undefined, t + 0.018);
+  }
+
+  /** A quiet family-coded tell, audible before an off-screen release. */
+  private enemyWindup(family: EnemyFamily, kind: EnemyAttackDef['kind'], durationTicks: number): void {
+    const cue = enemyAttackCue(family, kind, 8 + durationTicks / 2);
+    if (!this.throttle(`windup-${cue.voice}`, 90)) return;
+    const base = cue.voice === 'skitter' ? 720 : cue.voice === 'spitter' ? 260 : cue.voice === 'ravager' ? 120 : 180;
+    const type: OscType = cue.voice === 'skitter' ? 'square' : cue.voice === 'spitter' ? 'sawtooth' : 'triangle';
+    this.tone(base, type, 0.08 + cue.heft * 0.08, 0.035 + cue.heft * 0.035, base * 1.35);
   }
 
   /** Spitter fire: a short wet downward blip, distinct from the player's pew. */
@@ -226,8 +292,9 @@ class AudioEngine {
   }
 
   /** Spitter spread: a wet pressure burst followed by three descending pops. */
-  private bileSpray(): void {
+  private bileSpray(weight = 8): void {
     if (!this.throttle('bile-spray', 80)) return;
+    const heft = enemyAttackCue('spitter', 'volley', weight).heft;
     const t = this.ctx!.currentTime;
     const src = this.ctx!.createBufferSource();
     src.buffer = this.noiseBuffer;
@@ -236,7 +303,7 @@ class AudioEngine {
     filter.frequency.setValueAtTime(1200, t);
     filter.frequency.exponentialRampToValueAtTime(240, t + 0.18);
     const gain = this.ctx!.createGain();
-    gain.gain.setValueAtTime(0.16, t);
+    gain.gain.setValueAtTime(0.14 + heft * 0.08, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
     src.connect(filter).connect(gain).connect(this.sfxGain!);
     src.start(t);
@@ -247,8 +314,9 @@ class AudioEngine {
   }
 
   /** Skitter pounce: a dry leg-scrape snapping into a high chitin click. */
-  private skitterPounce(): void {
+  private skitterPounce(weight = 7): void {
     if (!this.throttle('skitter-pounce', 45)) return;
+    const heft = enemyAttackCue('skitter', 'pounce', weight).heft;
     const t = this.ctx!.currentTime;
     const src = this.ctx!.createBufferSource();
     src.buffer = this.noiseBuffer;
@@ -258,7 +326,7 @@ class AudioEngine {
     filter.frequency.exponentialRampToValueAtTime(2600, t + 0.12);
     filter.Q.value = 1.4;
     const gain = this.ctx!.createGain();
-    gain.gain.setValueAtTime(0.13, t);
+    gain.gain.setValueAtTime(0.11 + heft * 0.08, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
     src.connect(filter).connect(gain).connect(this.sfxGain!);
     src.start(t);
@@ -266,22 +334,21 @@ class AudioEngine {
     this.tone(680, 'square', 0.06, 0.1, 1180, t + 0.07);
   }
 
-  private whoosh(): void {
-    if (!this.throttle('whoosh', 55)) return;
+  /** Husk overhead: resin shell creak into a low, blunt release. */
+  private huskSmash(weight: number): void {
+    const heft = enemyAttackCue('husk', 'contact', weight).heft;
+    if (!this.throttle('husk-smash', 80)) return;
     const t = this.ctx!.currentTime;
-    const src = this.ctx!.createBufferSource();
-    src.buffer = this.noiseBuffer;
-    const filter = this.ctx!.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(1400, t);
-    filter.frequency.exponentialRampToValueAtTime(500, t + 0.12);
-    filter.Q.value = 1.2;
-    const g = this.ctx!.createGain();
-    g.gain.setValueAtTime(0.18, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
-    src.connect(filter).connect(g).connect(this.sfxGain!);
-    src.start(t);
-    src.stop(t + 0.14);
+    this.tone(210 - heft * 45, 'triangle', 0.16 + heft * 0.08, 0.14 + heft * 0.08, 65, t);
+    this.crack(0.07 + heft * 0.05, 170);
+  }
+
+  /** Ravager release: deeper than the Husk and followed by ground rumble. */
+  private ravagerRupture(weight: number): void {
+    const heft = enemyAttackCue('husk', 'line', weight).heft;
+    if (!this.throttle('ravager-rupture', 90)) return;
+    this.tone(105 - heft * 20, 'sawtooth', 0.2 + heft * 0.1, 0.16 + heft * 0.1, 42);
+    this.rumble();
   }
 
   private thud(freq: number, dur: number, gain: number): void {

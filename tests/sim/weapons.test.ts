@@ -83,6 +83,21 @@ describe('weapon tiers in the sim', () => {
     expect(tier3Damage).toBe(WEAPONS['vanguard-t3']!.attackOverrides.damage);
   });
 
+  it('emits authored weapon weight for presentation without changing state shape (#80)', () => {
+    const release = (attack?: AttackDef): Extract<SimEvent, { type: 'attack' }> => {
+      const sim = vanguardSim(attack);
+      const event = simTick(sim, [input({ attack: true })]).find((candidate) => candidate.type === 'attack');
+      expect(event?.type).toBe('attack');
+      return event as Extract<SimEvent, { type: 'attack' }>;
+    };
+
+    const base = release(undefined);
+    const top = release(resolve('vanguard-t3'));
+    expect(base).toMatchObject({ heroId: 'vanguard', weight: CONTENT.heroes['vanguard']!.attack.damage });
+    expect(top.weight).toBe(WEAPONS['vanguard-t3']!.attackOverrides.damage);
+    expect(top.weight).toBeGreaterThan(base.weight);
+  });
+
   it('a longer-reach weapon spears a target the base thrust falls short of', () => {
     // The Vanguard's track deepens reach rather than widening the arc (the
     // wide sweep is the Sentinel's), so a tier upgrade is felt down-range:

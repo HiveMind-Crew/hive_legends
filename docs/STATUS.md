@@ -75,7 +75,7 @@ the completed Realm 1 pack.
 
 ## Verification state
 
-`lint`, `typecheck`, **275 unit tests across 23 files**, the production build,
+`lint`, `typecheck`, **281 unit tests across 24 files**, the production build,
 and the Playwright gameplay playthrough (bot clears The Brood Warrens, banks
 gold and XP, buys an upgrade, and replays with both the upgrade and the earned
 level applied; screenshots in `test-results/`) all pass. Run the whole gate
@@ -295,11 +295,21 @@ silhouette with zero new texture code. Covered in
 The Skitter and Husk follow-up gives those silhouettes distinct attack reads.
 Skitter compresses for 18 ticks, locks a 72×20 px lane, then pounces through it
 for 7 damage; the body stops at walls and lateral movement beats the committed
-direction. The Carapace Husk's slow overhead bash adds 28 px of wall-clipped
-knockback, while the Gravebound Ravager commits to a 120×28 px rupture lane for
-its 30-tick windup, then deals 24 damage and pushes every player caught in the
-line 36 px. Original tiered walk and windup art ships for both families; the
+direction. The Carapace Husk's slow overhead bash commits a 110° frontal arc
+and adds 28 px of wall-clipped knockback, so circling behind its tell is real
+counterplay. The Gravebound Ravager commits to a 120×28 px rupture lane for its
+30-tick windup, then deals 24 damage and pushes every player caught in the line
+36 px. Original tiered walk and windup art ships for both families; the
 renderer supplies shape-specific lane tells and release effects.
+
+#79/#80 landed together as the attack-readability pass. Every player release
+event now carries hero identity, authored weight, and relevant geometry; enemy
+releases carry family, shape, and weight. Presentation maps that vocabulary to
+distinct pike, maul, hexbolt, thornbow, Skitter, Husk, Spitter, and Ravager
+sounds/effects, with heavier weapon tiers scaling their cue without touching
+sim state. The Husk emits its own overhead-release event even on a whiff, so
+audio and visuals confirm the successful flank while its full recovery still
+applies.
 
 The Spitter follow-up replaces its single aimed glob with a three-shot 32° bile
 fan after a 20-tick swollen-sac tell. A dedicated `volley` attack branch reuses

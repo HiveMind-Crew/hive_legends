@@ -73,6 +73,14 @@ describe('attack shapes', () => {
     }
   });
 
+  it('enemy contact arcs stay authored under a half-plane', () => {
+    for (const enemy of Object.values(CONTENT.enemies)) {
+      if (enemy.attack.kind !== 'contact') continue;
+      expect(enemy.attack.arcDeg, `${enemy.id} arcDeg`).toBeGreaterThan(0);
+      expect(enemy.attack.arcDeg, `${enemy.id} arcDeg`).toBeLessThanOrEqual(180);
+    }
+  });
+
   it('melee reach stays far shorter than ranged reach', () => {
     const melee = allLoadouts().filter((l) => l.attack.kind === 'melee');
     const ranged = allLoadouts().filter((l) => l.attack.kind === 'projectile');
