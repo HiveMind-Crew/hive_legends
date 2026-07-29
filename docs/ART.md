@@ -6,9 +6,9 @@ by real drawn art **without touching any code**: drop a PNG into
 contract.
 
 The pipeline is live and already in use — all four heroes, all three enemy
-families, and Mireveil ship as real art in `public/art/`. Every remaining
-environment, object, and UI key still falls back to generated art, so partial
-packs are the normal state.
+families, Mireveil, and the Realm 1 floor/wall tile set ship as real art in
+`public/art/`. Remaining objects, decor, pickups, and UI keys still fall back
+to generated art, so partial packs are the normal state.
 
 ## The one hard rule: originality
 
@@ -70,6 +70,10 @@ tables below summarize it.
 | `tile-wall-inner` | 32×32 | Flat variant for fully surrounded walls |
 | `tile-wall-face` | 32×16 | South-facing front face (fake height) |
 | `tile-floor-0`…`tile-floor-3` | 32×32 | Variants: mottle / cracks / membrane / bone scatter |
+
+**The Realm 1 floor and wall keys are covered by an original art pack.** Its
+reviewable pixel source is `scripts/art/environmentTilePack.ts`; the larger
+direction sheet is `docs/design/concepts/realm-one-tiles-reference.png`.
 
 ### Heroes (36×36 per frame)
 

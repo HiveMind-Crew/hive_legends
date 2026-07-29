@@ -7,6 +7,11 @@ import { buildSkitterPack } from '../scripts/art/skitterPack';
 import { buildHuskPack } from '../scripts/art/huskPack';
 import { buildSpitterPack } from '../scripts/art/spitterPack';
 import { buildMireveilPack, mireveilGrid } from '../scripts/art/mireveilPack';
+import {
+  buildEnvironmentTilePack,
+  environmentTileBitmap,
+  type EnvironmentTileKey
+} from '../scripts/art/environmentTilePack';
 import { TEXTURE_SPECS } from '../src/game/textureSpecs';
 
 /**
@@ -56,6 +61,79 @@ describe.skipIf(process.env.UPDATE_ART)('public/art', () => {
       .map((name) => name.slice(0, -4));
     for (const key of shipped) {
       expect(listed.has(key), `${key}.png is checked in but unlisted, so it never loads`).toBe(true);
+    }
+  });
+});
+
+describe('the Realm 1 environment tile pack', () => {
+  const keys: readonly EnvironmentTileKey[] = [
+    'tile-wall',
+    'tile-wall-inner',
+    'tile-wall-face',
+    'tile-floor-0',
+    'tile-floor-1',
+    'tile-floor-2',
+    'tile-floor-3'
+  ];
+
+  it('matches the reviewable pixel source', () => {
+    const pack = buildEnvironmentTilePack();
+
+    if (process.env.UPDATE_ART) {
+      const listed = manifestKeys();
+      for (const [key, png] of pack) {
+        writeFileSync(`${ART_DIR}${key}.png`, png);
+        if (!listed.includes(key)) listed.push(key);
+      }
+      writeFileSync(MANIFEST, `${JSON.stringify(listed, null, 2)}\n`);
+      return;
+    }
+
+    for (const [key, png] of pack) {
+      const file = `${ART_DIR}${key}.png`;
+      expect(existsSync(file), `${key}.png is missing — run \`npm run art:build\``).toBe(true);
+      expect(readFileSync(file).equals(Buffer.from(png)), `${key}.png is stale — run \`npm run art:build\``).toBe(true);
+    }
+  });
+
+  it('covers all four floors and three wall surfaces at the art-contract sizes', () => {
+    expect([...buildEnvironmentTilePack().keys()]).toEqual(keys);
+    for (const key of keys) {
+      const image = environmentTileBitmap(key);
+      expect({ w: image.w, h: image.h }).toEqual(TEXTURE_SPECS[key]);
+      for (let i = 3; i < image.rgba.length; i += 4) expect(image.rgba[i]).toBe(0xff);
+    }
+  });
+
+  it('matches opposite floor edges and horizontal wall edges exactly', () => {
+    for (const key of keys) {
+      const image = environmentTileBitmap(key);
+      for (let y = 0; y < image.h; y++) {
+        const left = y * image.w * 4;
+        const right = (y * image.w + image.w - 1) * 4;
+        expect(image.rgba.slice(left, left + 4), `${key} horizontal seam at y=${y}`).toEqual(
+          image.rgba.slice(right, right + 4)
+        );
+      }
+      if (key === 'tile-wall-face') continue;
+      for (let x = 0; x < image.w; x++) {
+        const top = x * 4;
+        const bottom = ((image.h - 1) * image.w + x) * 4;
+        expect(image.rgba.slice(top, top + 4), `${key} vertical seam at x=${x}`).toEqual(
+          image.rgba.slice(bottom, bottom + 4)
+        );
+      }
+    }
+  });
+
+  it('keeps floor luminance subdued for actor readability', () => {
+    for (let variant = 0; variant < 4; variant++) {
+      const image = environmentTileBitmap(`tile-floor-${variant}` as EnvironmentTileKey);
+      let luminance = 0;
+      for (let i = 0; i < image.rgba.length; i += 4) {
+        luminance += 0.2126 * image.rgba[i]! + 0.7152 * image.rgba[i + 1]! + 0.0722 * image.rgba[i + 2]!;
+      }
+      expect(luminance / (image.w * image.h)).toBeLessThan(40);
     }
   });
 });

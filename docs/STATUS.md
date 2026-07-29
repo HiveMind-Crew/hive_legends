@@ -459,12 +459,11 @@ realm and the invariants that guard it.
 M1 is content-complete, and the highest-value work is **presentation
 and polish rather than systems**:
 
-1. **Original art packs — #27 (characters) and #28 (environment/UI).** The
-   drop-in pipeline is proven end to end: all four heroes and all three enemy
-   families now ship as real art, and `tests/artPack.test.ts` fails a pack that
-   is mis-sized or unlisted. The remaining character pack is **Mireveil's three
-   boss damage states**; after that, the environment and UI of #28 are the
-   largest visible gap. Key list and canvas sizes: `docs/ART.md`.
+1. **Original environment, object, and UI art — #28.** The character track is
+   complete, and the Realm 1 floor/wall tile set now starts the remaining
+   environment track with four deterministic floor variants and three wall
+   surfaces. The next high-value slices are world objects/decor, pickups, and
+   the HUD/icon treatment. Key list and canvas sizes: `docs/ART.md`.
 Balance note carried from #25: ranged heroes kite Mireveil noticeably more
 easily than melee (~15–17s vs ~32s to kill). Worth a tuning pass once there is
 real playtest data, rather than speculative numbers now.
