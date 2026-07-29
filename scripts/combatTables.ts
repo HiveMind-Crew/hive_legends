@@ -1,5 +1,5 @@
 import { TICK_RATE } from '../src/sim/types';
-import type { AttackDef, BossDef, ContentDb, EnemyDef, GeneratorDef, HeroDef, WeaponDef } from '../src/sim/types';
+import type { AttackDef, BossActionDef, BossDef, ContentDb, EnemyDef, GeneratorDef, HeroDef, WeaponDef } from '../src/sim/types';
 
 /**
  * Derives every combat table in docs/COMBAT.md from src/content, so the
@@ -392,25 +392,29 @@ function bossPhaseTable(boss: BossDef): string {
     `≤${pct(p.hpFraction)}`,
     String(p.moveSpeed),
     secs(p.actionIntervalTicks),
-    p.actions.join(' → ')
+    p.actions.map((action) => action.id).join(' → ')
   ]);
   return table(['Phase', 'Name', 'HP', 'Speed', 'Action interval', 'Action cycle'], rows);
 }
 
 function bossActionTable(boss: BossDef): string {
-  const rows = [
-    ['brood-call', `summons ${boss.broodCall.count}× ${boss.broodCall.enemyId}`],
-    [
-      'lunge',
-      `${boss.lunge.speed} px/s for ${secs(boss.lunge.durationTicks)}, ${boss.lunge.damage} damage on contact`
-    ],
-    [
-      'glob',
-      `${boss.glob.count} bolts across ${boss.glob.spreadDeg}°, ` +
-        `${boss.glob.projectileDamage} damage @ ${boss.glob.projectileSpeed} px/s, ${boss.glob.projectileRange} px`
-    ]
-  ];
-  return table(['Action', 'What it does'], rows);
+  const actions = new Map<string, BossActionDef>();
+  for (const phase of boss.phases) {
+    for (const action of phase.actions) actions.set(action.id, action);
+  }
+  const rows = [...actions.values()].map((action) => [action.id, bossActionDescription(action), action.tell]);
+  return table(['Action', 'What it does', 'Telegraph'], rows);
+}
+
+function bossActionDescription(action: BossActionDef): string {
+  if (action.kind === 'summon') return `summons ${action.count}× ${action.enemyId}`;
+  if (action.kind === 'charge') {
+    return `${action.speed} px/s for ${secs(action.durationTicks)}, ${action.damage} damage on contact`;
+  }
+  return (
+    `${action.count} bolts across ${action.spreadDeg}°, ` +
+    `${action.projectileDamage} damage @ ${action.projectileSpeed} px/s, ${action.projectileRange} px`
+  );
 }
 
 // ---------------------------------------------------------------------------

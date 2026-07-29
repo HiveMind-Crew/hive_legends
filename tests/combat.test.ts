@@ -363,8 +363,36 @@ describe('differentiation', () => {
     // fight *changes* rather than merely speeding up: a phase that reuses the
     // previous cycle verbatim is a difficulty slider, not a new phase.
     for (const boss of Object.values(CONTENT.bosses)) {
-      const cycles = boss.phases.map((p) => p.actions.join(','));
+      const cycles = boss.phases.map((phase) => phase.actions.map((action) => action.id).join(','));
       expect(new Set(cycles).size, `${boss.id} has a distinct action cycle per phase`).toBe(cycles.length);
+    }
+  });
+
+  it('every authored boss action has a stable id, tell, and valid payload', () => {
+    for (const boss of Object.values(CONTENT.bosses)) {
+      const definitions = new Map<string, string>();
+      for (const phase of boss.phases) {
+        expect(phase.actions.length, `${boss.id}/${phase.name} has actions`).toBeGreaterThan(0);
+        for (const action of phase.actions) {
+          expect(action.id.trim().length, `${boss.id} action id`).toBeGreaterThan(0);
+          expect(action.tell.trim().length, `${boss.id}/${action.id} tell`).toBeGreaterThan(0);
+          const serialized = JSON.stringify(action);
+          const previous = definitions.get(action.id);
+          if (previous) expect(serialized, `${boss.id}/${action.id} is stable across phases`).toBe(previous);
+          definitions.set(action.id, serialized);
+          if (action.kind === 'summon') {
+            expect(CONTENT.enemies[action.enemyId], `${boss.id}/${action.id} summon target`).toBeDefined();
+            expect(action.count).toBeGreaterThan(0);
+          } else if (action.kind === 'charge') {
+            expect(action.speed).toBeGreaterThan(0);
+            expect(action.durationTicks).toBeGreaterThan(0);
+            expect(action.damage).toBeGreaterThan(0);
+          } else {
+            expect(action.count).toBeGreaterThan(0);
+            expect(action.projectileDamage).toBeGreaterThan(0);
+          }
+        }
+      }
     }
   });
 });
