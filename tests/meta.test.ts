@@ -21,6 +21,8 @@ import {
   loadProfile,
   bankXp,
   markLevelCleared,
+  markHeroMastery,
+  masteredHeroes,
   nextLevelId,
   ownedWeapons,
   profileLevel,
@@ -230,6 +232,16 @@ describe('mission progression', () => {
 
   it('loadProfile backfills clearedLevels for older saves', () => {
     expect(loadProfile().clearedLevels).toEqual([]);
+    expect(loadProfile().mastery).toEqual({});
+  });
+
+  it('records one mastery seal per hero and level', () => {
+    const profile = defaultProfile();
+    expect(markHeroMastery(profile, first, 'vanguard')).toBe(true);
+    expect(markHeroMastery(profile, first, 'vanguard')).toBe(false);
+    expect(markHeroMastery(profile, first, 'ranger')).toBe(true);
+    expect(masteredHeroes(profile, first)).toEqual(['vanguard', 'ranger']);
+    expect(masteredHeroes(profile, 'another-level')).toEqual([]);
   });
 });
 

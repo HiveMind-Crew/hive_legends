@@ -24,16 +24,16 @@ export const UPGRADES: Record<string, UpgradeDef> = {
     name: 'Hearthstone Vigor',
     description: '+20 Max Health per rank',
     maxLevel: 5,
-    baseCost: 50,
-    costMultiplier: 2
+    baseCost: 80,
+    costMultiplier: 1
   },
   might: {
     id: 'might',
     name: 'Sharpened Edge',
     description: '+4 Damage per rank',
     maxLevel: 5,
-    baseCost: 60,
-    costMultiplier: 2
+    baseCost: 100,
+    costMultiplier: 1
   }
 };
 
@@ -46,6 +46,8 @@ export interface Profile {
   unlockedHeroes: string[];
   /** Ids of levels the player has cleared at least once (mission unlock gate). */
   clearedLevels: string[];
+  /** Hero ids that have earned a mastery seal on each level. */
+  mastery: Record<string, string[]>;
   /**
    * Per-hero weapon ownership and equipped tier, keyed by hero id. Tier 1 is
    * always owned implicitly; only purchased tiers are stored. An absent hero
@@ -71,6 +73,7 @@ export function defaultProfile(): Profile {
     bestClearTicks: null,
     unlockedHeroes: [],
     clearedLevels: [],
+    mastery: {},
     weapons: {},
     xp: 0,
     volume: 0.7,
@@ -90,6 +93,12 @@ export function loadProfile(): Profile {
       upgrades: { ...(parsed.upgrades ?? {}) },
       unlockedHeroes: [...(parsed.unlockedHeroes ?? [])],
       clearedLevels: [...(parsed.clearedLevels ?? [])],
+      mastery: Object.fromEntries(
+        Object.entries(parsed.mastery ?? {}).map(([levelId, heroIds]) => [
+          levelId,
+          Array.isArray(heroIds) ? [...heroIds] : []
+        ])
+      ),
       weapons: { ...(parsed.weapons ?? {}) }
     };
   } catch {
@@ -329,6 +338,23 @@ export function markLevelCleared(profile: Profile, levelId: string): void {
     profile.clearedLevels.push(levelId);
     saveProfile(profile);
   }
+}
+
+/** Hero ids that have completed a level, in the order their seals were earned. */
+export function masteredHeroes(profile: Profile, levelId: string): readonly string[] {
+  return profile.mastery[levelId] ?? [];
+}
+
+/**
+ * Awards one persistent hero-mastery seal for a victorious run.
+ * Returns true only when this hero earned a new seal.
+ */
+export function markHeroMastery(profile: Profile, levelId: string, heroId: string): boolean {
+  const heroes = profile.mastery[levelId] ?? [];
+  if (heroes.includes(heroId)) return false;
+  profile.mastery[levelId] = [...heroes, heroId];
+  saveProfile(profile);
+  return true;
 }
 
 /**

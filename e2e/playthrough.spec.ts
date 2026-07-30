@@ -295,16 +295,16 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   // The run's kills and destroyed spawners banked XP too (issue #46).
   expect(profile.xp).toBeGreaterThan(0);
 
-  // Buy a persistent upgrade in the results shop (Hearthstone Vigor, 50g).
+  // Buy a persistent upgrade in the results shop (Hearthstone Vigor, 80g).
   const bank: number = profile.bank;
-  if (bank >= 50) {
+  if (bank >= 80) {
     await page.keyboard.press('1');
     await page.waitForTimeout(300);
     const after = await page.evaluate(() =>
       JSON.parse(localStorage.getItem('hive-legends-profile-v1') ?? 'null')
     );
     expect(after.upgrades.vitality).toBe(1);
-    expect(after.bank).toBe(bank - 50);
+    expect(after.bank).toBe(bank - 80);
   }
 
   // Replay: the hero must keep the purchased power (+20 max HP per vitality
@@ -315,7 +315,7 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
     .poll(async () => (await getState(page))?.phase, { timeout: 10_000 })
     .toBe('combat');
   const replayState = await getState(page);
-  const vitality = bank >= 50 ? 1 : 0;
+  const vitality = bank >= 80 ? 1 : 0;
   const heroLevel = levelForXp(PROGRESSION, profile.xp);
   const levelHp = (heroLevel - 1) * PROGRESSION.maxHpPerLevel;
   expect(replayState.players[0]!.level).toBe(heroLevel);

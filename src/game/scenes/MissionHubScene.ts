@@ -1,6 +1,13 @@
 import Phaser from 'phaser';
 import { CONTENT, LEVELS } from '../../content';
-import { loadProfile, nodeLockState, spokeProgress, suggestedNode, type Profile } from '../../meta/save';
+import {
+  loadProfile,
+  masteredHeroes,
+  nodeLockState,
+  spokeProgress,
+  suggestedNode,
+  type Profile
+} from '../../meta/save';
 import { endOfContentCopy, statusCopy } from '../hubCopy';
 import { audio } from '../audio';
 import { FULLSCREEN_HINT, bindFullscreenToggle } from '../fullscreen';
@@ -241,10 +248,14 @@ export class MissionHubScene extends Phaser.Scene {
     if (!node) return;
     const lock = nodeLockState(this.profile, node.levelId);
     const progress = spokeProgress(this.profile, node.spokeId);
+    const mastery = masteredHeroes(this.profile, node.levelId).length;
+    const masteryTotal = Object.keys(CONTENT.heroes).length;
     const label = LEVELS[node.levelId]?.name ?? node.levelId;
     this.infoName.setText(`${node.isBoss ? '☠ ' : ''}${label}`);
     this.infoStatus
-      .setText(`${node.spokeName}   ${progress.cleared}/${progress.total} cleared   ${statusCopy(lock)}`)
+      .setText(
+        `${node.spokeName}   ${progress.cleared}/${progress.total} cleared   Mastery ${mastery}/${masteryTotal}   ${statusCopy(lock)}`
+      )
       .setColor(lock.state === 'locked' ? '#c86a7a' : lock.state === 'cleared' ? '#9fe06a' : '#64e6ff');
   }
 
