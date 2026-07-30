@@ -13,6 +13,7 @@ import {
 } from '../../meta/save';
 import type { HeroDef, HeroModifiers } from '../../sim/types';
 import { audio } from '../audio';
+import { FULLSCREEN_HINT, bindFullscreenToggle } from '../fullscreen';
 import { TEX, enemyFrame, heroFrame } from '../textures';
 
 /**
@@ -98,8 +99,8 @@ export class HeroSelectScene extends Phaser.Scene {
       .setOrigin(0.5);
     this.tweens.add({ targets: prompt, alpha: 0.35, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
 
-    this.add.rectangle(width / 2, height - 62, 760, 42, 0x120c1a, 0.8).setStrokeStyle(1, 0x3a2f4a);
-    const footer = '←→ switch hero   B recruit   Enter choose mission   Attack Space   Ability Shift   Mute M';
+    this.add.rectangle(width / 2, height - 62, 900, 42, 0x120c1a, 0.8).setStrokeStyle(1, 0x3a2f4a);
+    const footer = `←→ switch hero   B recruit   Enter choose mission   Attack Space   Ability Shift   Mute M   ${FULLSCREEN_HINT}`;
     this.add
       .text(width / 2, height - 62, footer, {
         fontFamily: 'monospace',
@@ -107,6 +108,8 @@ export class HeroSelectScene extends Phaser.Scene {
         color: '#a89bb8'
       })
       .setOrigin(0.5);
+
+    bindFullscreenToggle(this);
 
     const kb = this.input.keyboard;
     const cycle = (delta: number): void => {

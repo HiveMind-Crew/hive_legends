@@ -18,8 +18,12 @@ const PANEL_W = 225;
 const PANEL_H = 54;
 const PANEL_GAP = 8;
 const PANEL_Y = 8;
-const PANELS_X = (960 - (SLOTS * PANEL_W + (SLOTS - 1) * PANEL_GAP)) / 2;
+const PANELS_W = SLOTS * PANEL_W + (SLOTS - 1) * PANEL_GAP;
 const LOW_HP_FRACTION = 0.3;
+
+/** Widths of the two centred finale meters, kept out of the layout maths. */
+const BOSS_BAR_W = 620;
+const BOSS_BAR_INNER_W = 616;
 
 interface Panel {
   border: Phaser.GameObjects.Rectangle;
@@ -79,36 +83,44 @@ export class HudScene extends Phaser.Scene {
     this.drawVignette();
     for (let i = 0; i < SLOTS; i++) this.panels.push(this.buildPanel(i));
 
-    this.objectiveBg = this.add.rectangle(480, 78, 340, 24, 0x000000, 0.55);
+    const cx = this.scale.width / 2;
+
+    this.objectiveBg = this.add.rectangle(cx, 78, 340, 24, 0x000000, 0.55);
     this.objectiveText = this.add
-      .text(480, 78, '', { fontFamily: 'monospace', fontSize: '15px', color: '#64e6ff', fontStyle: 'bold' })
+      .text(cx, 78, '', { fontFamily: 'monospace', fontSize: '15px', color: '#64e6ff', fontStyle: 'bold' })
       .setOrigin(0.5);
 
     // Hive-pressure readout, shown only once the hive has actually roused.
     this.pressureText = this.add
-      .text(480, 96, '', { fontFamily: 'monospace', fontSize: '12px', color: '#ff8a7a', fontStyle: 'bold' })
+      .text(cx, 96, '', { fontFamily: 'monospace', fontSize: '12px', color: '#ff8a7a', fontStyle: 'bold' })
       .setOrigin(0.5)
       .setVisible(false);
 
     // The Herald: a single announcement ribbon lower-centre. Messages queue so
     // they never overlap illegibly (issue #8).
-    this.heraldBg = this.add.rectangle(480, 150, 520, 34, 0x120c1a, 0.72).setOrigin(0.5).setVisible(false);
+    this.heraldBg = this.add.rectangle(cx, 150, 520, 34, 0x120c1a, 0.72).setOrigin(0.5).setVisible(false);
     this.heraldBg.setStrokeStyle(2, 0x64e6ff, 0.5);
     this.heraldText = this.add
-      .text(480, 150, '', { fontFamily: 'monospace', fontSize: '20px', color: '#ffffff', fontStyle: 'bold' })
+      .text(cx, 150, '', { fontFamily: 'monospace', fontSize: '20px', color: '#ffffff', fontStyle: 'bold' })
       .setOrigin(0.5)
       .setVisible(false);
 
     // Boss bar (issue #25): a wide finale meter under the player panels,
     // hidden on ordinary realms.
     this.bossName = this.add
-      .text(480, 96, '', { fontFamily: 'monospace', fontSize: '17px', color: '#ff8a7a', fontStyle: 'bold' })
+      .text(cx, 96, '', { fontFamily: 'monospace', fontSize: '17px', color: '#ff8a7a', fontStyle: 'bold' })
       .setOrigin(0.5)
       .setVisible(false);
-    this.bossBarBack = this.add.rectangle(480, 116, 620, 14, 0x2a1018).setStrokeStyle(2, 0x7a2430).setVisible(false);
-    this.bossBar = this.add.rectangle(170, 116, 616, 10, 0xd23b52).setOrigin(0, 0.5).setVisible(false);
+    this.bossBarBack = this.add
+      .rectangle(cx, 116, BOSS_BAR_W, 14, 0x2a1018)
+      .setStrokeStyle(2, 0x7a2430)
+      .setVisible(false);
+    this.bossBar = this.add
+      .rectangle(cx - BOSS_BAR_W / 2, 116, BOSS_BAR_INNER_W, 10, 0xd23b52)
+      .setOrigin(0, 0.5)
+      .setVisible(false);
     this.bossPhase = this.add
-      .text(480, 132, '', { fontFamily: 'monospace', fontSize: '11px', color: '#ffb0a0' })
+      .text(cx, 132, '', { fontFamily: 'monospace', fontSize: '11px', color: '#ffb0a0' })
       .setOrigin(0.5)
       .setVisible(false);
     this.bossShown = 1;
@@ -170,7 +182,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   private buildPanel(i: number): Panel {
-    const x = PANELS_X + i * (PANEL_W + PANEL_GAP);
+    const x = (this.scale.width - PANELS_W) / 2 + i * (PANEL_W + PANEL_GAP);
     const y = PANEL_Y;
     const accent = playerAccent(i);
     const mono = (tx: number, ty: number, size: number, color: string, style = '') =>
@@ -281,7 +293,7 @@ export class HudScene extends Phaser.Scene {
     const frac = Math.max(0, Math.min(1, boss.hp / boss.maxHp));
     // Ease the bar toward the true value so a big hit reads as a drain.
     this.bossShown += (frac - this.bossShown) * 0.2;
-    this.bossBar.width = 616 * this.bossShown;
+    this.bossBar.width = BOSS_BAR_INNER_W * this.bossShown;
     // Recolor as she is worn down, matching the phase escalation.
     this.bossBar.setFillStyle(frac > 0.6 ? 0xd23b52 : frac > 0.25 ? 0xe0703a : 0xffb020);
   }
@@ -407,9 +419,15 @@ export class HudScene extends Phaser.Scene {
 
   /** Full-screen mission-end banner, shown before the results transition. */
   banner(text: string, color: string): void {
-    this.add.rectangle(480, 360, 960, 720, 0x000000, 0.45);
+    const { width, height } = this.scale;
+    this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.45);
     const t = this.add
-      .text(480, 340, text, { fontFamily: 'monospace', fontSize: '46px', color, fontStyle: 'bold' })
+      .text(width / 2, height / 2 - 20, text, {
+        fontFamily: 'monospace',
+        fontSize: '46px',
+        color,
+        fontStyle: 'bold'
+      })
       .setOrigin(0.5)
       .setScale(0.5)
       .setAlpha(0);

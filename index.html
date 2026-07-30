@@ -14,10 +14,13 @@
         height: 100%;
         overflow: hidden;
       }
+      /*
+        Phaser owns the canvas size and centring (Scale.FIT + CENTER_BOTH, see
+        src/main.ts). The parent just has to be the full viewport; flex
+        centring here would fight the margins the scale manager sets.
+      */
       #game {
-        display: flex;
-        justify-content: center;
-        align-items: center;
+        width: 100%;
         height: 100%;
       }
       canvas {

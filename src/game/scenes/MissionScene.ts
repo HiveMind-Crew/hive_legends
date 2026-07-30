@@ -14,6 +14,7 @@ import {
 } from '../../sim/types';
 import { audio } from '../audio';
 import { enemyAttackCue, heroAttackCue } from '../attackCues';
+import { bindFullscreenToggle } from '../fullscreen';
 import { playerAccent } from '../colors';
 import { KeyboardCommander } from '../input';
 import type { HudScene } from './HudScene';
@@ -236,6 +237,9 @@ export class MissionScene extends Phaser.Scene {
       const muted = audio.toggleMute();
       (this.scene.get('hud') as HudScene).herald(muted ? 'SOUND OFF' : 'SOUND ON', '#a89bb8');
     });
+    // Bound here and not in HudScene: both scenes run at once, so two bindings
+    // would toggle twice per press (issue #94).
+    bindFullscreenToggle(this);
 
     // Read-only debug handle for automated end-to-end tests.
     (globalThis as Record<string, unknown>).__hive = {

@@ -132,7 +132,7 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   // loop walks hero select → wheel → mission on its own. Safe at every step —
   // the wheel deploys the node its cursor already sits on (`suggestedNode`, so
   // The Brood Warrens on a fresh profile), and once a mission is running
-  // MissionScene ignores Enter entirely (it binds only `M`).
+  // MissionScene ignores Enter entirely (it binds only `M` and `F`).
   await expect
     .poll(
       async () => {
