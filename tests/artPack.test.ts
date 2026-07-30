@@ -8,8 +8,11 @@ import { buildHuskPack } from '../scripts/art/huskPack';
 import { buildSpitterPack } from '../scripts/art/spitterPack';
 import { buildMireveilPack, mireveilGrid } from '../scripts/art/mireveilPack';
 import {
+  amberResinTileBitmap,
+  buildAmberResinTilePack,
   buildEnvironmentTilePack,
   environmentTileBitmap,
+  type AmberResinTileKey,
   type EnvironmentTileKey
 } from '../scripts/art/environmentTilePack';
 import { buildWorldObjectPack, worldObjectBitmap, type WorldObjectKey } from '../scripts/art/worldObjectPack';
@@ -141,6 +144,99 @@ describe('the Realm 1 environment tile pack', () => {
         luminance += 0.2126 * image.rgba[i]! + 0.7152 * image.rgba[i + 1]! + 0.0722 * image.rgba[i + 2]!;
       }
       expect(luminance / (image.w * image.h)).toBeLessThan(40);
+    }
+  });
+});
+
+describe('the amber-resin environment tile pack (#28)', () => {
+  const keys: readonly AmberResinTileKey[] = [
+    'tile-amber-resin-wall',
+    'tile-amber-resin-wall-inner',
+    'tile-amber-resin-wall-face',
+    'tile-amber-resin-floor-0',
+    'tile-amber-resin-floor-1',
+    'tile-amber-resin-floor-2',
+    'tile-amber-resin-floor-3'
+  ];
+
+  it('matches the reviewable pixel source', () => {
+    const pack = buildAmberResinTilePack();
+
+    if (process.env.UPDATE_ART) {
+      const listed = manifestKeys();
+      for (const [key, png] of pack) {
+        writeFileSync(`${ART_DIR}${key}.png`, png);
+        if (!listed.includes(key)) listed.push(key);
+      }
+      writeFileSync(MANIFEST, `${JSON.stringify(listed, null, 2)}\n`);
+      return;
+    }
+
+    for (const [key, png] of pack) {
+      const file = `${ART_DIR}${key}.png`;
+      expect(existsSync(file), `${key}.png is missing — run \`npm run art:build\``).toBe(true);
+      expect(readFileSync(file).equals(Buffer.from(png)), `${key}.png is stale — run \`npm run art:build\``).toBe(true);
+    }
+  });
+
+  it('covers all four floors and three wall surfaces at contract sizes', () => {
+    expect([...buildAmberResinTilePack().keys()]).toEqual(keys);
+    for (const key of keys) {
+      const image = amberResinTileBitmap(key);
+      expect({ w: image.w, h: image.h }).toEqual(TEXTURE_SPECS[key]);
+      for (let i = 3; i < image.rgba.length; i += 4) expect(image.rgba[i]).toBe(0xff);
+    }
+  });
+
+  it('tiles without horizontal or vertical seams', () => {
+    for (const key of keys) {
+      const image = amberResinTileBitmap(key);
+      for (let y = 0; y < image.h; y++) {
+        const left = y * image.w * 4;
+        const right = (y * image.w + image.w - 1) * 4;
+        expect(image.rgba.slice(left, left + 4), `${key} horizontal seam at y=${y}`).toEqual(
+          image.rgba.slice(right, right + 4)
+        );
+      }
+      if (key === 'tile-amber-resin-wall-face') continue;
+      for (let x = 0; x < image.w; x++) {
+        const top = x * 4;
+        const bottom = ((image.h - 1) * image.w + x) * 4;
+        expect(image.rgba.slice(top, top + 4), `${key} vertical seam at x=${x}`).toEqual(
+          image.rgba.slice(bottom, bottom + 4)
+        );
+      }
+    }
+  });
+
+  it('keeps amber floors dark enough for actors to dominate', () => {
+    for (let variant = 0; variant < 4; variant++) {
+      const image = amberResinTileBitmap(`tile-amber-resin-floor-${variant}` as AmberResinTileKey);
+      let luminance = 0;
+      for (let i = 0; i < image.rgba.length; i += 4) {
+        luminance += 0.2126 * image.rgba[i]! + 0.7152 * image.rgba[i + 1]! + 0.0722 * image.rgba[i + 2]!;
+      }
+      expect(luminance / (image.w * image.h)).toBeLessThan(45);
+    }
+  });
+
+  it('is drawn as a distinct set rather than a recoloured Realm 1 export', () => {
+    const colourPattern = (rgba: Uint8Array): number[] => {
+      const colours = new Map<string, number>();
+      const pattern: number[] = [];
+      for (let i = 0; i < rgba.length; i += 4) {
+        const colour = `${rgba[i]},${rgba[i + 1]},${rgba[i + 2]},${rgba[i + 3]}`;
+        if (!colours.has(colour)) colours.set(colour, colours.size);
+        pattern.push(colours.get(colour)!);
+      }
+      return pattern;
+    };
+    for (let variant = 0; variant < 4; variant++) {
+      const realmOne = environmentTileBitmap(`tile-floor-${variant}` as EnvironmentTileKey);
+      const amber = amberResinTileBitmap(`tile-amber-resin-floor-${variant}` as AmberResinTileKey);
+      // Canonicalising each palette to first-seen indices makes a pure colour
+      // substitution compare equal while preserving the underlying drawing.
+      expect(colourPattern(amber.rgba)).not.toEqual(colourPattern(realmOne.rgba));
     }
   });
 });

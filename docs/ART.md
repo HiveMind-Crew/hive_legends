@@ -69,11 +69,22 @@ tables below summarize it.
 | `tile-wall` | 32×32 | Wall "roof" slab (edge walls) |
 | `tile-wall-inner` | 32×32 | Flat variant for fully surrounded walls |
 | `tile-wall-face` | 32×16 | South-facing front face (fake height) |
-| `tile-floor-0`…`tile-floor-3` | 32×32 | Variants: mottle / cracks / membrane / bone scatter |
+| `tile-floor-0`…`tile-floor-3` | 32×32 | Realm 1 variants: mottle / cracks / membrane / bone scatter |
+| `tile-amber-resin-wall`, `tile-amber-resin-wall-inner` | 32×32 | Resin Galleries roof slab / surrounded-wall surface |
+| `tile-amber-resin-wall-face` | 32×16 | Resin Galleries south-facing curtain edge |
+| `tile-amber-resin-floor-0`…`3` | 32×32 | Pools / fissures / sealed cells / frozen inclusions |
 
 **The Realm 1 floor and wall keys are covered by an original art pack.** Its
 reviewable pixel source is `scripts/art/environmentTilePack.ts`; the larger
 direction sheet is `docs/design/concepts/realm-one-tiles-reference.png`.
+
+**The Resin Galleries also has a complete original amber-resin set**, selected
+by `LevelTheme.tileSet: 'amber-resin'`. Tile-set namespaces follow
+`tile-<tileSet>-wall[-inner|-face]` and `tile-<tileSet>-floor-0…3`, so a future
+realm can add another seven-key pack without a scene branch. The amber-resin
+source shares `scripts/art/environmentTilePack.ts` with Realm 1 and is guarded
+for exact dimensions, seamless edges, subdued floor luminance, and visual
+distinctness from the violet exports.
 
 ### Heroes (36×36 per frame)
 

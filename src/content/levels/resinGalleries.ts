@@ -17,9 +17,9 @@ export const RESIN_GALLERIES: LevelDef = {
   id: 'resin-galleries',
   name: 'The Resin Galleries',
   tileSize: 32,
-  // Amber-resin realm accent: warm walls/floor and a golden exit glow, versus
-  // the Warrens' default violet.
-  theme: { wall: 0xd9a24e, floor: 0xcaa26a, accent: 0xffb020 },
+  // Dedicated amber-resin art replaces the old tint of the violet tiles:
+  // pooled floors, luminous fissures, embedded inclusions, and layered walls.
+  theme: { tileSet: 'amber-resin', accent: 0xffb020 },
   walls: [
     '########################################',
     '########################################',

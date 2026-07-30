@@ -172,8 +172,18 @@ export function broodNodeFrame(tier: number): string {
 }
 
 export const FLOOR_VARIANTS = 4;
-export function floorVariant(i: number): string {
-  return `tile-floor-${i}`;
+export function floorVariant(i: number, tileSet?: string): string {
+  return tileSet ? `tile-${tileSet}-floor-${i}` : `tile-floor-${i}`;
+}
+
+export function wallTexture(surface: 'top' | 'inner' | 'face', tileSet?: string): string {
+  if (!tileSet) {
+    if (surface === 'inner') return TEX.wallInner;
+    if (surface === 'face') return TEX.wallFace;
+    return TEX.wall;
+  }
+  const suffix = surface === 'top' ? 'wall' : `wall-${surface}`;
+  return `tile-${tileSet}-${suffix}`;
 }
 
 export function propTexture(typeId: string): string {
@@ -287,6 +297,64 @@ export function generateTextures(scene: Phaser.Scene): void {
       g.fillCircle(24, 7, 1.5);
     }
     gen(floorVariant(v));
+  }
+
+  // Amber-resin fallback set for The Resin Galleries. The checked-in original
+  // pack overrides these keys; fallbacks keep partial manifests playable.
+  g.clear();
+  g.fillStyle(0x3d2813);
+  g.fillRect(0, 0, 32, 32);
+  g.lineStyle(2, 0x7a521f);
+  g.strokeEllipse(8, 7, 18, 12);
+  g.strokeEllipse(23, 20, 20, 15);
+  g.fillStyle(0xc4852d);
+  g.fillCircle(6, 4, 1.5);
+  g.fillCircle(23, 13, 1.5);
+  gen(wallTexture('top', 'amber-resin'));
+
+  g.clear();
+  g.fillStyle(0x24170d);
+  g.fillRect(0, 0, 32, 32);
+  g.lineStyle(1, 0x5b3a18);
+  g.strokeEllipse(8, 8, 20, 14);
+  g.strokeEllipse(25, 23, 24, 18);
+  gen(wallTexture('inner', 'amber-resin'));
+
+  g.clear();
+  g.fillStyle(0x24170d);
+  g.fillRect(0, 0, 32, 16);
+  g.fillStyle(0x7a521f);
+  g.fillRect(0, 0, 32, 2);
+  for (const x of [2, 9, 17, 25]) {
+    g.fillStyle(0x3d2813);
+    g.fillRect(x, 2, 5, 12);
+    g.fillStyle(0x5b3a18);
+    g.fillRect(x + 1, 3, 1, 9);
+  }
+  g.fillStyle(0x120e0b);
+  g.fillRect(0, 14, 32, 2);
+  gen(wallTexture('face', 'amber-resin'));
+
+  for (let v = 0; v < FLOOR_VARIANTS; v++) {
+    g.clear();
+    g.fillStyle(0x1b1510);
+    g.fillRect(0, 0, 32, 32);
+    g.fillStyle(0x2a2117);
+    g.fillEllipse(8, 7, 10 + v * 2, 7 + v);
+    g.fillEllipse(24, 22, 13 - v, 9);
+    if (v === 1) {
+      g.lineStyle(1, 0x9a651d);
+      g.lineBetween(0, 8, 13, 16);
+      g.lineBetween(13, 16, 20, 31);
+    } else if (v === 2) {
+      g.lineStyle(1, 0x5c3d16);
+      g.strokeEllipse(16, 15, 21, 15);
+    } else if (v === 3) {
+      g.fillStyle(0x7a521f);
+      g.fillTriangle(6, 8, 11, 5, 10, 12);
+      g.fillTriangle(23, 20, 28, 24, 21, 26);
+    }
+    gen(floorVariant(v, 'amber-resin'));
   }
 
   // Hero frame sets: every roster hero x 8 directions x (walk0, walk1,

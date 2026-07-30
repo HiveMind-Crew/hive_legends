@@ -162,5 +162,12 @@
   "ui-power-ward",
   "ui-ability-ready",
   "ui-title-logo-base",
-  "ui-title-logo-glow"
+  "ui-title-logo-glow",
+  "tile-amber-resin-wall",
+  "tile-amber-resin-wall-inner",
+  "tile-amber-resin-wall-face",
+  "tile-amber-resin-floor-0",
+  "tile-amber-resin-floor-1",
+  "tile-amber-resin-floor-2",
+  "tile-amber-resin-floor-3"
 ]

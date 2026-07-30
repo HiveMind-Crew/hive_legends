@@ -325,3 +325,42 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   const fatal = consoleErrors.filter((e) => !e.includes('favicon'));
   expect(fatal).toEqual([]);
 });
+
+test('The Resin Galleries loads its dedicated amber-resin environment pack', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') consoleErrors.push(msg.text());
+  });
+  page.on('pageerror', (err) => consoleErrors.push(String(err)));
+
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'hive-legends-profile-v1',
+      JSON.stringify({
+        bank: 0,
+        upgrades: {},
+        missionsCompleted: 1,
+        bestClearTicks: null,
+        unlockedHeroes: [],
+        clearedLevels: ['brood-warrens'],
+        weapons: {},
+        xp: 0,
+        volume: 0.7,
+        muted: true
+      })
+    );
+  });
+
+  await page.goto('/');
+  await expect(page.locator('canvas')).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(500);
+  await page.keyboard.press('Enter'); // hero select → wheel, focused on Resin
+  await page.waitForTimeout(500);
+  await page.keyboard.press('Enter'); // wheel → Resin Galleries
+  await expect.poll(async () => (await getState(page))?.generators.length, { timeout: 15_000 }).toBe(3);
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'test-results/02b-resin-galleries-art.png' });
+
+  const fatal = consoleErrors.filter((error) => !error.includes('favicon'));
+  expect(fatal).toEqual([]);
+});
