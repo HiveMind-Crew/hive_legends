@@ -22,6 +22,8 @@ describe('content validity', () => {
     for (const def of Object.values(CONTENT.generators)) {
       expect(CONTENT.enemies[def.spawnsEnemyId], `${def.id} spawns`).toBeDefined();
     }
+    expect(CONTENT.combat.generatorSpawnExclusionArcDeg).toBeGreaterThanOrEqual(0);
+    expect(CONTENT.combat.generatorSpawnExclusionArcDeg).toBeLessThanOrEqual(360);
   });
 
   it('level props and decor reference defined content', () => {

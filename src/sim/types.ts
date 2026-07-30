@@ -667,6 +667,12 @@ export interface CombatDef {
   enemyHitstunTicks: number;
   /** Per-tick multiplier bleeding off an enemy's knockback impulse. */
   knockbackDecay: number;
+  /**
+   * Arc facing the nearest player that a generator avoids when choosing a
+   * spawn point. Falls back to the first wall-safe point if every sampled
+   * point is inside the arc, so cramped authored rooms cannot stop spawning.
+   */
+  generatorSpawnExclusionArcDeg: number;
 }
 
 export interface ContentDb {

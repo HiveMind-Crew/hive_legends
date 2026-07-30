@@ -21,5 +21,8 @@ export const COMBAT: CombatDef = {
   enemyHitstunTicks: 10,
   // Knockback bleeds off ~15% per tick, so a 260-impulse shove reads as a
   // short, punchy shunt rather than a long slide.
-  knockbackDecay: 0.85
+  knockbackDecay: 0.85,
+  // Prefer the half of a generator's spawn ring opposite the nearest player.
+  // Six seeded samples make a fallback rare while preserving wall safety.
+  generatorSpawnExclusionArcDeg: 180
 };
