@@ -7,6 +7,7 @@ const PROFILE_KEY = 'hive-legends-profile-v1';
 interface SettingsState {
   volume: number;
   muted: boolean;
+  reduceMotion: boolean;
   confirmingReset: boolean;
   returnScene: string;
 }
@@ -79,11 +80,14 @@ test('settings persist volume, reset the profile, and open from a paused run', a
   expect((await openSettings(page)).returnScene).toBe('hero-select');
   await page.keyboard.press('ArrowLeft');
   await expect.poll(async () => (await getSettings(page))?.volume).toBe(0.6);
+  await page.keyboard.press('a');
+  await expect.poll(async () => (await getSettings(page))?.reduceMotion).toBe(true);
   await page.screenshot({ path: 'test-results/01c-settings.png' });
 
   await page.reload();
   await expect(page.locator('canvas')).toBeVisible({ timeout: 15_000 });
   expect((await openSettings(page)).volume).toBe(0.6);
+  expect((await getSettings(page))?.reduceMotion).toBe(true);
 
   await page.keyboard.press('r');
   await expect.poll(async () => (await getSettings(page))?.confirmingReset).toBe(true);

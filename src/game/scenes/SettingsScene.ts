@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { resetProfile } from '../../meta/save';
+import { loadProfile, resetProfile, saveReduceMotion } from '../../meta/save';
 import { audio } from '../audio';
 import { bindFullscreenToggle } from '../fullscreen';
 import { masterVolumePercent, stepMasterVolume } from '../settings';
@@ -17,8 +17,10 @@ export class SettingsScene extends Phaser.Scene {
   private volumeFill!: Phaser.GameObjects.Rectangle;
   private volumeText!: Phaser.GameObjects.Text;
   private muteText!: Phaser.GameObjects.Text;
+  private motionText!: Phaser.GameObjects.Text;
   private resetPrompt!: Phaser.GameObjects.Container;
   private confirmingReset = false;
+  private reduceMotion = false;
 
   constructor() {
     super('settings');
@@ -28,6 +30,7 @@ export class SettingsScene extends Phaser.Scene {
     const { width, height } = this.scale;
     this.returnScene = data?.returnScene ?? 'hero-select';
     this.confirmingReset = false;
+    this.reduceMotion = loadProfile().reduceMotion;
 
     this.cameras.main.setBackgroundColor('#0a0a12');
     this.add.rectangle(0, 0, width, height, 0x0a0710).setOrigin(0, 0);
@@ -54,7 +57,7 @@ export class SettingsScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    this.add.rectangle(width / 2, 292, 620, 210, 0x171020, 0.96).setStrokeStyle(2, 0x544868);
+    this.add.rectangle(width / 2, 312, 620, 250, 0x171020, 0.96).setStrokeStyle(2, 0x544868);
     this.add
       .text(width / 2, 218, 'MASTER VOLUME', {
         fontFamily: 'monospace',
@@ -79,23 +82,30 @@ export class SettingsScene extends Phaser.Scene {
         color: '#cfc4de'
       })
       .setOrigin(0.5);
+    this.motionText = this.add
+      .text(width / 2, 404, '', {
+        fontFamily: 'monospace',
+        fontSize: '18px',
+        color: '#cfc4de'
+      })
+      .setOrigin(0.5);
 
     this.add
-      .text(width / 2, 456, 'R — RESET ALL PROGRESS', {
+      .text(width / 2, 486, 'R — RESET ALL PROGRESS', {
         fontFamily: 'monospace',
         fontSize: '18px',
         color: '#ff7a70'
       })
       .setOrigin(0.5);
     this.add
-      .text(width / 2, 502, 'ESC — BACK', {
+      .text(width / 2, 532, 'ESC — BACK', {
         fontFamily: 'monospace',
         fontSize: '18px',
         color: '#9fe06a'
       })
       .setOrigin(0.5);
     this.add
-      .text(width / 2, height - 74, '← → adjust volume     M toggle sound     F fullscreen', {
+      .text(width / 2, height - 74, '← → volume     M sound     A reduce motion     F fullscreen', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#756a86'
@@ -111,6 +121,7 @@ export class SettingsScene extends Phaser.Scene {
       getState: () => ({
         volume: audio.masterVolume,
         muted: audio.isMuted,
+        reduceMotion: this.reduceMotion,
         confirmingReset: this.confirmingReset,
         returnScene: this.returnScene
       })
@@ -166,6 +177,14 @@ export class SettingsScene extends Phaser.Scene {
       audio.toggleMute();
       this.refresh();
     });
+    kb?.on('keydown-A', () => {
+      if (this.confirmingReset) return;
+      this.reduceMotion = !this.reduceMotion;
+      saveReduceMotion(this.reduceMotion);
+      this.game.events.emit('reduce-motion-changed', this.reduceMotion);
+      audio.uiTick(this.reduceMotion ? 360 : 620);
+      this.refresh();
+    });
     kb?.on('keydown-R', () => {
       if (this.confirmingReset) return;
       this.confirmingReset = true;
@@ -193,6 +212,9 @@ export class SettingsScene extends Phaser.Scene {
     this.muteText
       .setText(audio.isMuted ? 'M — SOUND MUTED' : 'M — SOUND ON')
       .setColor(audio.isMuted ? '#ff7a70' : '#9fe06a');
+    this.motionText
+      .setText(this.reduceMotion ? 'A — REDUCED MOTION ON' : 'A — REDUCED MOTION OFF')
+      .setColor(this.reduceMotion ? '#9fe06a' : '#cfc4de');
   }
 
   private close(): void {

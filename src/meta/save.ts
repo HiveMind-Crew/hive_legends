@@ -57,6 +57,8 @@ export interface Profile {
   /** Master audio volume 0..1. */
   volume: number;
   muted: boolean;
+  /** Disables full-screen flashes, camera shake, and hit-stop. */
+  reduceMotion: boolean;
 }
 
 const STORAGE_KEY = 'hive-legends-profile-v1';
@@ -72,7 +74,8 @@ export function defaultProfile(): Profile {
     weapons: {},
     xp: 0,
     volume: 0.7,
-    muted: false
+    muted: false,
+    reduceMotion: false
   };
 }
 
@@ -458,6 +461,13 @@ export function saveAudioPrefs(volume: number, muted: boolean): void {
   const profile = loadProfile();
   profile.volume = volume;
   profile.muted = muted;
+  saveProfile(profile);
+}
+
+/** Persists the shared visual-comfort preference without touching progress. */
+export function saveReduceMotion(reduceMotion: boolean): void {
+  const profile = loadProfile();
+  profile.reduceMotion = reduceMotion;
   saveProfile(profile);
 }
 

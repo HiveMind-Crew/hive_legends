@@ -242,7 +242,7 @@ export class ResultsScene extends Phaser.Scene {
 
   private tryBuy(upgradeId: string): void {
     if (buyUpgrade(this.profile, upgradeId)) {
-      this.cameras.main.flash(150, 255, 215, 94);
+      if (!loadProfile().reduceMotion) this.cameras.main.flash(150, 255, 215, 94);
       audio.uiConfirm();
     } else {
       audio.uiTick(220); // low buzz on a failed purchase
@@ -263,7 +263,7 @@ export class ResultsScene extends Phaser.Scene {
   private tryBuyWeapon(): void {
     const next = this.nextWeaponToBuy();
     if (next && buyWeapon(this.profile, next.id)) {
-      this.cameras.main.flash(150, 100, 230, 255);
+      if (!loadProfile().reduceMotion) this.cameras.main.flash(150, 100, 230, 255);
       audio.uiConfirm();
     } else {
       audio.uiTick(220);

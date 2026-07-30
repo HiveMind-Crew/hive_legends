@@ -40,6 +40,12 @@ export type WorldObjectKey =
   | 'generator-brood-node-0'
   | 'generator-brood-node-1'
   | 'generator-brood-node-2'
+  | 'generator-husk-mound-0'
+  | 'generator-husk-mound-1'
+  | 'generator-husk-mound-2'
+  | 'generator-spitter-nest-0'
+  | 'generator-spitter-nest-1'
+  | 'generator-spitter-nest-2'
   | 'prop-resin-husk'
   | 'prop-amber-clutch'
   | 'decor-egg-cluster'
@@ -212,6 +218,80 @@ function broodNode(tier: 0 | 1 | 2): Bitmap {
   return image;
 }
 
+function huskMound(tier: 0 | 1 | 2): Bitmap {
+  const image = bitmap(44, 44);
+  // A low, wide carapace pile with three ivory ribs. It deliberately has
+  // neither the Brood Node's round dome nor the Spitter Nest's tall sacs.
+  ellipse(image, 22, 37, 19, 4, C.shadow, 0x70);
+  ellipse(image, 22, tier === 2 ? 30 : 28, 19, tier === 2 ? 9 : 13, C.resinDark);
+  ellipse(image, 22, tier === 2 ? 28 : 26, 17, tier === 2 ? 8 : 11, C.resin);
+  ellipse(image, 18, tier === 2 ? 26 : 23, 11, tier === 2 ? 6 : 8, C.resinHigh);
+
+  for (const [baseX, tipX, tipY] of [
+    [10, 13, 7 + tier * 5],
+    [22, 22, 3 + tier * 6],
+    [34, 32, 6 + tier * 6]
+  ] as const) {
+    line(image, baseX - 3, 34, tipX, tipY, C.shellDark);
+    line(image, baseX - 2, 34, tipX, tipY, C.webHigh);
+    line(image, baseX - 1, 34, tipX + 1, tipY + 1, C.broodWhite);
+    line(image, baseX + 3, 34, tipX, tipY, C.shellDark);
+  }
+
+  if (tier >= 1) {
+    for (const points of [
+      [7, 27, 18, 30],
+      [18, 30, 14, 39],
+      [36, 25, 26, 30]
+    ] as const) {
+      line(image, points[0], points[1], points[2], points[3], C.shellDark);
+    }
+    line(image, 18, 30, 22, 32, C.broodLight);
+  }
+  if (tier === 2) {
+    ellipse(image, 22, 31, 6, 4, C.broodLight);
+    disc(image, 21, 30, 2, C.broodWhite);
+    disc(image, 5, 39, 2, C.resinDark);
+    disc(image, 39, 38, 2, C.shellLow);
+  }
+  return image;
+}
+
+function spitterNest(tier: 0 | 1 | 2): Bitmap {
+  const image = bitmap(44, 44);
+  // Three luminous venom sacs rise above a root mat, with paired open vents.
+  // The green palette and vertical silhouette identify ranged pressure.
+  ellipse(image, 22, 38, 18, 4, C.shadow, 0x70);
+  ellipse(image, 22, 35, 17, 6, C.sporeDark);
+  ellipse(image, 13, 29, tier === 2 ? 7 : 10, tier === 2 ? 7 : 11, C.sporeDark);
+  ellipse(image, 31, 29, tier === 2 ? 7 : 10, tier === 2 ? 7 : 11, C.spore);
+  ellipse(image, 22, tier === 2 ? 28 : 23, tier === 2 ? 9 : 13, tier === 2 ? 9 : 14, C.sporeDark);
+  ellipse(image, 21, tier === 2 ? 26 : 21, tier === 2 ? 7 : 10, tier === 2 ? 7 : 11, C.spore);
+  ellipse(image, 18, tier === 2 ? 24 : 18, tier === 2 ? 3 : 5, tier === 2 ? 3 : 6, C.sporeHigh);
+  put(image, 17, tier === 2 ? 23 : 16, C.sporeLight);
+
+  line(image, 14, 22 + tier * 3, 11, 8 + tier * 7, C.sporeDark);
+  line(image, 15, 22 + tier * 3, 12, 8 + tier * 7, C.sporeHigh);
+  line(image, 29, 22 + tier * 3, 33, 9 + tier * 7, C.sporeDark);
+  line(image, 30, 22 + tier * 3, 34, 9 + tier * 7, C.sporeHigh);
+  ellipse(image, 11, 8 + tier * 7, 4, 2, C.sporeLight);
+  ellipse(image, 34, 9 + tier * 7, 4, 2, C.sporeLight);
+
+  if (tier >= 1) {
+    line(image, 10, 24, 22, 29, C.shellDark);
+    line(image, 22, 29, 17, 38, C.shellDark);
+    line(image, 26, 20, 23, 28, C.sporeLight);
+    ellipse(image, 29, 39, 4, 2, C.sporeHigh, 0xd8);
+  }
+  if (tier === 2) {
+    ellipse(image, 22, 29, 5, 4, C.sporeLight);
+    disc(image, 21, 28, 2, C.sporeLight);
+    disc(image, 7, 39, 2, C.sporeDark);
+    disc(image, 38, 38, 2, C.sporeDark);
+  }
+  return image;
+}
+
 function resinHusk(): Bitmap {
   const image = bitmap(20, 20);
   // Props own their small contact shadow.
@@ -328,6 +408,18 @@ export function worldObjectBitmap(key: WorldObjectKey): Bitmap {
       return broodNode(1);
     case 'generator-brood-node-2':
       return broodNode(2);
+    case 'generator-husk-mound-0':
+      return huskMound(0);
+    case 'generator-husk-mound-1':
+      return huskMound(1);
+    case 'generator-husk-mound-2':
+      return huskMound(2);
+    case 'generator-spitter-nest-0':
+      return spitterNest(0);
+    case 'generator-spitter-nest-1':
+      return spitterNest(1);
+    case 'generator-spitter-nest-2':
+      return spitterNest(2);
     case 'prop-resin-husk':
       return resinHusk();
     case 'prop-amber-clutch':
@@ -346,6 +438,12 @@ export function buildWorldObjectPack(): ReadonlyMap<WorldObjectKey, Uint8Array> 
     'generator-brood-node-0',
     'generator-brood-node-1',
     'generator-brood-node-2',
+    'generator-husk-mound-0',
+    'generator-husk-mound-1',
+    'generator-husk-mound-2',
+    'generator-spitter-nest-0',
+    'generator-spitter-nest-1',
+    'generator-spitter-nest-2',
     'prop-resin-husk',
     'prop-amber-clutch',
     'decor-egg-cluster',
