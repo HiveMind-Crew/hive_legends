@@ -70,7 +70,7 @@ one size where the bug is invisible — hence a separate spec that varies it.
 The live-resize case needs a foregrounded page: Phaser polls the parent element
 from inside the game loop, and the loop is suspended while a tab is hidden.
 
-## End-to-end test (`e2e/playthrough.spec.ts`)
+## End-to-end tests (`e2e/`)
 
 - Requires a production build first: `npm run build` (the Playwright config
   starts `npm run preview` automatically).
@@ -78,7 +78,7 @@ from inside the game loop, and the loop is suspended while a tab is hidden.
 - Screenshots of each stage land in `test-results/`:
   `01-hero-select` → `01b-mission-hub` → `02-mission-start` →
   `02b-resin-galleries-art` (dedicated amber-resin environment pack) →
-  `03-horde-combat` →
+  `02c-pause-menu` → `03-horde-combat` →
   `03b-combat-juice` (moment of the first kill) →
   `03c-node-damaged` (generator damage tiers) → `04-results` →
   `05-replay-upgraded`. CI uploads these as artifacts on every run.
@@ -91,7 +91,9 @@ from inside the game loop, and the loop is suspended while a tab is hidden.
   ```
 
   The same handle is handy for manual debugging (e.g. watching
-  `__hive.getState().generators[0].enrageTicksLeft` tick down).
+  `__hive.getState().generators[0].enrageTicksLeft` tick down). It exists only
+  while a mission is active and is removed when the run reaches results or is
+  abandoned.
 
 ## Sandbox / CI quirks
 

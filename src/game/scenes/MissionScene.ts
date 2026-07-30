@@ -143,6 +143,7 @@ export class MissionScene extends Phaser.Scene {
   private powerAura = new Map<EntityId, Phaser.GameObjects.Image>();
   private attackGuides = new Map<EntityId, Phaser.GameObjects.Rectangle>();
   private ended = false;
+  private runPaused = false;
   private hitStopMs = 0;
   private camFollow = { x: 0, y: 0 };
   private camKick = { x: 0, y: 0 };
@@ -185,6 +186,7 @@ export class MissionScene extends Phaser.Scene {
     this.startXp = profile.xp;
     this.accumulator = 0;
     this.ended = false;
+    this.runPaused = false;
     this.sprites.clear();
     this.shadows.clear();
     this.rings.clear();
@@ -236,6 +238,12 @@ export class MissionScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-M', () => {
       const muted = audio.toggleMute();
       (this.scene.get('hud') as HudScene).herald(muted ? 'SOUND OFF' : 'SOUND ON', '#a89bb8');
+    });
+    this.input.keyboard?.on('keydown-ESC', (event: KeyboardEvent) => {
+      if (!event.repeat) this.toggleRunPause();
+    });
+    this.input.keyboard?.on('keydown-A', (event: KeyboardEvent) => {
+      if (!event.repeat && this.runPaused) this.abandonRun();
     });
     // Bound here and not in HudScene: both scenes run at once, so two bindings
     // would toggle twice per press (issue #94).
@@ -431,7 +439,7 @@ export class MissionScene extends Phaser.Scene {
   }
 
   override update(_time: number, delta: number): void {
-    if (this.ended) return;
+    if (this.ended || this.runPaused) return;
 
     // Hit-stop: freeze the world for a few frames on big hits. The sim is
     // simply not stepped (and delta not accumulated), so no ticks are lost.
@@ -738,6 +746,7 @@ export class MissionScene extends Phaser.Scene {
     const p = this.sim.state.players[0]!;
     this.time.delayedCall(1400, () => {
       audio.stopMusic();
+      this.clearDebugHandle();
       this.scene.stop('hud');
       this.scene.start('results', {
         victory,
@@ -750,6 +759,26 @@ export class MissionScene extends Phaser.Scene {
         levelId: this.levelId
       });
     });
+  }
+
+  private toggleRunPause(): void {
+    if (this.ended) return;
+    this.runPaused = !this.runPaused;
+    (this.scene.get('hud') as HudScene).setRunPaused(this.runPaused);
+    audio.uiTick(this.runPaused ? 360 : 620);
+  }
+
+  private abandonRun(): void {
+    this.ended = true;
+    this.runPaused = false;
+    audio.stopMusic();
+    this.clearDebugHandle();
+    this.scene.stop('hud');
+    this.scene.start('mission-hub', { heroId: this.heroId, levelId: this.levelId });
+  }
+
+  private clearDebugHandle(): void {
+    delete (globalThis as Record<string, unknown>).__hive;
   }
 
   // -------------------------------------------------------------------------

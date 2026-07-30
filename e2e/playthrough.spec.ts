@@ -353,11 +353,20 @@ test('The Resin Galleries loads its dedicated amber-resin environment pack', asy
 
   await page.goto('/');
   await expect(page.locator('canvas')).toBeVisible({ timeout: 15_000 });
-  await page.waitForTimeout(500);
-  await page.keyboard.press('Enter'); // hero select → wheel, focused on Resin
-  await page.waitForTimeout(500);
-  await page.keyboard.press('Enter'); // wheel → Resin Galleries
-  await expect.poll(async () => (await getState(page))?.generators.length, { timeout: 15_000 }).toBe(3);
+  // Boot can keep generating textures after the canvas appears. Retry Enter
+  // through hero select and the wheel until the mission's state exists,
+  // matching the resilient startup flow used by the full playthrough above.
+  await expect
+    .poll(
+      async () => {
+        const state = await getState(page);
+        if (state !== null) return state.generators.length;
+        await page.keyboard.press('Enter');
+        return undefined;
+      },
+      { timeout: 20_000, intervals: [250] }
+    )
+    .toBe(3);
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'test-results/02b-resin-galleries-art.png' });
 
