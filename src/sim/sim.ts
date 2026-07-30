@@ -1579,21 +1579,37 @@ function updateGenerators(sim: Sim, events: SimEvent[]): void {
     const enemyDef = content.enemies[def.spawnsEnemyId];
     if (!enemyDef) continue;
 
-    // Pick a spawn point on a ring around the generator; retry a few angles.
-    let spawned = false;
-    for (let attempt = 0; attempt < 6 && !spawned; attempt++) {
+    // Pick a wall-safe point on the side of the generator away from the
+    // nearest player. Keep the first wall-safe point as a fallback so a node
+    // boxed into a corner can still spawn after all six seeded attempts.
+    const nearestPlayer = nearestLivingPlayer(s.players, g.pos);
+    const towardPlayer = nearestPlayer ? norm(sub(nearestPlayer.pos, g.pos)) : null;
+    const exclusionArc = clamp(content.combat.generatorSpawnExclusionArcDeg, 0, 360);
+    const exclusionCos = Math.cos(((exclusionArc / 2) * Math.PI) / 180);
+    let fallbackPos: Vec2 | null = null;
+    let spawnPos: Vec2 | null = null;
+    for (let attempt = 0; attempt < 6 && !spawnPos; attempt++) {
       const [v, next] = rngNext(s.rngState);
       s.rngState = next;
       const angle = v * Math.PI * 2;
       const dist = def.radius + enemyDef.radius + 6;
       const pos = { x: g.pos.x + Math.cos(angle) * dist, y: g.pos.y + Math.sin(angle) * dist };
       if (circleHitsWall(level, pos, enemyDef.radius, blockOf(sim, true))) continue;
+      fallbackPos ??= pos;
+      const dir = { x: Math.cos(angle), y: Math.sin(angle) };
+      if (towardPlayer && dir.x * towardPlayer.x + dir.y * towardPlayer.y > exclusionCos) continue;
+      spawnPos = pos;
+    }
+    const pos = spawnPos ?? fallbackPos;
+    if (pos) {
       const enemy: EnemyState = {
         id: s.nextEntityId++,
         typeId: enemyDef.id,
         pos,
         hp: enemyDef.maxHp,
-        attackCooldown: 0,
+        // A fresh spawn pays one authored recovery before it may begin a
+        // windup, matching the grace already used by on-death elites.
+        attackCooldown: enemyDef.attack.cooldownTicks,
         windupTicksLeft: 0,
         hitstunTicks: 0,
         knockback: { x: 0, y: 0 },
@@ -1603,7 +1619,6 @@ function updateGenerators(sim: Sim, events: SimEvent[]): void {
       };
       s.enemies.push(enemy);
       events.push({ type: 'enemy-spawned', enemyId: enemy.id, typeId: enemy.typeId, pos: { ...pos } });
-      spawned = true;
     }
     const baseInterval = g.enrageTicksLeft > 0 ? enragedInterval(def) : def.spawnIntervalTicks;
     g.spawnCooldown = Math.max(1, Math.round(baseInterval * pressureIntervalMult(sim)));

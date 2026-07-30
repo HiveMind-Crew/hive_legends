@@ -172,6 +172,62 @@ describe('generators', () => {
     }
   });
 
+  it('biases ring spawns away from an adjacent player', () => {
+    const sim = newSim(115);
+    const g = sim.state.generators.find((candidate) => candidate.typeId === 'brood-node')!;
+    const p = sim.state.players[0]!;
+    sim.state.generators = [g];
+    p.pos = { x: g.pos.x - 40, y: g.pos.y };
+    const towardPlayer = { x: -1, y: 0 };
+    const exclusionCos = Math.cos(((CONTENT.combat.generatorSpawnExclusionArcDeg / 2) * Math.PI) / 180);
+    let preferred = 0;
+
+    for (let i = 0; i < 80; i++) {
+      sim.state.enemies = [];
+      g.spawnCooldown = 0;
+      const spawned = simTick(sim, [EMPTY_INPUT]).find((event) => event.type === 'enemy-spawned');
+      expect(spawned).toBeDefined();
+      if (spawned?.type !== 'enemy-spawned') continue;
+      const enemy = sim.state.enemies.find((candidate) => candidate.id === spawned.enemyId)!;
+      const dx = enemy.pos.x - g.pos.x;
+      const dy = enemy.pos.y - g.pos.y;
+      const length = Math.hypot(dx, dy);
+      const dot = (dx / length) * towardPlayer.x + (dy / length) * towardPlayer.y;
+      if (dot <= exclusionCos) preferred++;
+    }
+
+    // A six-sample retry can deliberately fall back in cramped geometry, but
+    // a seeded open-room run should overwhelmingly use the player-safe half.
+    expect(preferred).toBeGreaterThanOrEqual(75);
+  });
+
+  it('gives fresh ring spawns an authored attack grace', () => {
+    const sim = newSim(115);
+    const g = sim.state.generators.find((candidate) => candidate.typeId === 'brood-node')!;
+    const p = sim.state.players[0]!;
+    sim.state.generators = [g];
+    p.pos = { x: g.pos.x - 40, y: g.pos.y };
+    g.spawnCooldown = 0;
+
+    const spawnEvents = simTick(sim, [EMPTY_INPUT]);
+    const spawned = spawnEvents.find((event) => event.type === 'enemy-spawned');
+    expect(spawned).toBeDefined();
+    if (spawned?.type !== 'enemy-spawned') return;
+    const enemy = sim.state.enemies.find((candidate) => candidate.id === spawned.enemyId)!;
+    const enemyDef = CONTENT.enemies[enemy.typeId]!;
+    enemy.pos = { x: p.pos.x + 20, y: p.pos.y };
+    g.spawnCooldown = 999;
+
+    const graceEvents = runTicks(sim, enemyDef.attack.cooldownTicks - 1);
+    expect(graceEvents.some((event) => event.type === 'enemy-windup')).toBe(false);
+    expect(graceEvents.some((event) => event.type === 'player-hit')).toBe(false);
+    expect(enemy.attackCooldown).toBe(1);
+
+    const firstReadyTick = runTicks(sim, 1);
+    expect(firstReadyTick.some((event) => event.type === 'enemy-windup')).toBe(true);
+    expect(firstReadyTick.some((event) => event.type === 'player-hit')).toBe(false);
+  });
+
   it('enrages exactly once below half HP, spawns faster, then calms down', () => {
     const sim = newSim();
     const def = CONTENT.generators['brood-node']!;
