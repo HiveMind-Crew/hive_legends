@@ -3,6 +3,7 @@ import { CONTENT, LEVELS } from '../../content';
 import { loadProfile, nodeLockState, spokeProgress, suggestedNode, type Profile } from '../../meta/save';
 import { endOfContentCopy, statusCopy } from '../hubCopy';
 import { audio } from '../audio';
+import { FULLSCREEN_HINT, bindFullscreenToggle } from '../fullscreen';
 import { TEX } from '../textures';
 
 /**
@@ -207,7 +208,7 @@ export class MissionHubScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(width / 2, height - 24, '↑↓ node   ←→ realm   Enter deploy   H hero select', {
+      .text(width / 2, height - 24, `↑↓ node   ←→ realm   Enter deploy   H hero select   ${FULLSCREEN_HINT}`, {
         fontFamily: 'monospace',
         fontSize: '13px',
         color: '#7a6f92'
@@ -281,6 +282,7 @@ export class MissionHubScene extends Phaser.Scene {
     kb?.on('keydown-D', () => jump(1));
     kb?.on('keydown-A', () => jump(-1));
 
+    bindFullscreenToggle(this);
     kb?.on('keydown-M', () => audio.toggleMute());
     kb?.on('keydown-H', () => {
       audio.unlock();

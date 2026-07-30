@@ -18,6 +18,7 @@ import {
   type Profile
 } from '../../meta/save';
 import { audio } from '../audio';
+import { bindFullscreenToggle } from '../fullscreen';
 import { TEX } from '../textures';
 
 interface ResultsData {
@@ -209,6 +210,7 @@ export class ResultsScene extends Phaser.Scene {
     kb.on('keydown-THREE', () => this.tryBuyWeapon());
     kb.on('keydown-FOUR', () => this.cycleWeapon());
     kb.on('keydown-M', () => audio.toggleMute());
+    bindFullscreenToggle(this);
     kb.once('keydown-R', () => {
       audio.uiConfirm();
       this.scene.start('mission', { heroId: this.heroId, levelId });

@@ -36,6 +36,7 @@ npm run build && npm run preview   # production build → http://localhost:4173
 | Static | `npm run lint && npm run typecheck` | Style + types, **and the sim-purity rules** (no Phaser/`Math.random`/`Date.now` inside `src/sim` or `src/content` — see ADR 0002) |
 | Unit (vitest) | `npm test` (watch: `npm run test:watch`) | The whole gameplay sim, headlessly: movement, combat, attack windups, generators and enrage, pickups and power-ups, keys/gates/secrets, the boss phase script, XP and levelling, and a determinism regression (same seed + inputs ⇒ byte-identical state) |
 | End-to-end (Playwright) | `npm run build && npm run test:e2e` | A bot plays the real production build through the browser keyboard path: BFS-pathfinds The Brood Warrens, destroys all three spawners, exits, banks gold and XP, buys an upgrade, and replays with both the upgrade and the earned level applied |
+| Viewport (Playwright) | same command | The fixed 960×720 canvas fits, keeps its aspect ratio and stays centred in windows smaller and larger than native, and re-fits on a live window resize (`e2e/viewport.spec.ts`) |
 
 The full pre-commit gate (identical to CI, `.github/workflows/ci.yml`):
 
@@ -56,6 +57,18 @@ npm run lint && npm run typecheck && npm test && npm run build && npm run test:e
   - `hashState(state)` equality for determinism checks.
 - Vitest only collects `tests/**/*.test.ts` (`vitest.config.ts`);
   `e2e/*.spec.ts` belongs to Playwright.
+
+## Viewport test (`e2e/viewport.spec.ts`)
+
+Guards the scale manager (issue #94). Every scene lays out against a constant
+960×720, so the only thing between the game and an arbitrary window is
+`Scale.FIT` in `src/main.ts`; without it the canvas is emitted at native size
+into an `overflow: hidden` body and anything outside 960×720 is cut off and
+unreachable. Note the playthrough spec runs at exactly 960×720, which is the
+one size where the bug is invisible — hence a separate spec that varies it.
+
+The live-resize case needs a foregrounded page: Phaser polls the parent element
+from inside the game loop, and the loop is suspended while a tab is hidden.
 
 ## End-to-end test (`e2e/playthrough.spec.ts`)
 
