@@ -238,9 +238,11 @@ export class HeroSelectScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    // Animated hero: idle two-frame cycle from the issue #2 frame set.
+    // Animated hero: idle two-frame cycle from the issue #2 frame set. Keep
+    // every authored hero in full colour even while locked — the border,
+    // muted name, and requirement pill communicate availability without
+    // hiding the character the player is deciding whether to recruit.
     this.heroSprite = this.add.image(cardX, 218, heroFrame(hero.id, 2, 'w0')).setScale(2.4);
-    if (!unlocked) this.heroSprite.setTint(0x0d0a14);
     this.time.addEvent({
       delay: 320,
       loop: true,
