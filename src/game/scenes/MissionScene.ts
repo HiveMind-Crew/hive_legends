@@ -232,18 +232,20 @@ export class MissionScene extends Phaser.Scene {
     this.scene.launch('hud');
 
     // Audio: the Enter press that started this scene is a valid gesture, so
-    // resume the context and kick off the combat loop. M toggles mute.
+    // resume the context and kick off the combat loop.
     audio.unlock();
     audio.startMusic();
-    this.input.keyboard?.on('keydown-M', () => {
-      const muted = audio.toggleMute();
-      (this.scene.get('hud') as HudScene).herald(muted ? 'SOUND OFF' : 'SOUND ON', '#a89bb8');
-    });
     this.input.keyboard?.on('keydown-ESC', (event: KeyboardEvent) => {
       if (!event.repeat) this.toggleRunPause();
     });
     this.input.keyboard?.on('keydown-A', (event: KeyboardEvent) => {
       if (!event.repeat && this.runPaused) this.abandonRun();
+    });
+    this.input.keyboard?.on('keydown-S', (event: KeyboardEvent) => {
+      if (event.repeat || !this.runPaused) return;
+      audio.uiConfirm();
+      this.scene.launch('settings', { returnScene: 'mission' });
+      this.scene.pause();
     });
     // Bound here and not in HudScene: both scenes run at once, so two bindings
     // would toggle twice per press (issue #94).

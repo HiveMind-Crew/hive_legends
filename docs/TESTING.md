@@ -17,11 +17,13 @@ npm run dev        # hot-reload dev server → http://localhost:5173
 ```
 
 Controls: **WASD/Arrows** move · **Space/J** attack · **Shift/K** ability ·
-**Q** quaff a potion · **Enter** confirm · **M** mute audio. On hero select,
+**Q** quaff a potion · **Enter** confirm · **Esc** pause. On hero select,
 **←→** pick a hero, **B** recruit. On the wheel, **↑↓** move along a spoke,
 **←→** jump between realms, **Enter** deploy, **H** back to hero select. In
 the results shop, **1/2** buy upgrades, **3/4** weapons, **N** next mission,
-**W** back to the wheel, **R** replay, **H** hero select.
+**W** back to the wheel, **R** replay, **H** hero select. Open settings with
+**S** from hero select or pause (**O** on the wheel/results); there, **←→**
+adjusts master volume and **M** toggles mute.
 
 To play the exact build that ships:
 
@@ -76,7 +78,8 @@ from inside the game loop, and the loop is suspended while a tab is hidden.
   starts `npm run preview` automatically).
 - Watch it play in a real window: `npx playwright test --headed`.
 - Screenshots of each stage land in `test-results/`:
-  `01-hero-select` → `01b-mission-hub` → `02-mission-start` →
+  `01-hero-select` → `01b-mission-hub` → `01c-settings` →
+  `01d-reset-confirm` → `02-mission-start` →
   `02b-resin-galleries-art` (dedicated amber-resin environment pack) →
   `02c-pause-menu` → `03-horde-combat` →
   `03b-combat-juice` (moment of the first kill) →
@@ -94,6 +97,9 @@ from inside the game loop, and the loop is suspended while a tab is hidden.
   `__hive.getState().generators[0].enrageTicksLeft` tick down). It exists only
   while a mission is active and is removed when the run reaches results or is
   abandoned.
+- Settings tests use a similarly read-only `__hiveSettings.getState()` handle
+  while that screen is open to observe volume, mute, reset confirmation, and
+  its return target without reaching into Phaser objects.
 
 ## Sandbox / CI quirks
 

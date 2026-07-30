@@ -24,11 +24,18 @@ import {
   nextLevelId,
   ownedWeapons,
   profileLevel,
+  resetProfile,
   resolveWeaponAttack,
   weaponsForHero,
   type Profile
 } from '../src/meta/save';
 import { WEAPONS } from '../src/content/weapons';
+
+describe('profile reset', () => {
+  it('restores every profile field to its default', () => {
+    expect(resetProfile()).toEqual(defaultProfile());
+  });
+});
 
 /**
  * Hero recruitment gates (issue #21). Unlock rules live in hero data

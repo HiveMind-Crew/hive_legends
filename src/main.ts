@@ -5,6 +5,7 @@ import { HudScene } from './game/scenes/HudScene';
 import { MissionHubScene } from './game/scenes/MissionHubScene';
 import { MissionScene } from './game/scenes/MissionScene';
 import { ResultsScene } from './game/scenes/ResultsScene';
+import { SettingsScene } from './game/scenes/SettingsScene';
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -27,5 +28,5 @@ new Phaser.Game({
   pixelArt: true,
   // Flow: boot → hero select → the wheel → mission (HudScene runs alongside)
   // → results, which returns through the wheel.
-  scene: [BootScene, HeroSelectScene, MissionHubScene, MissionScene, HudScene, ResultsScene]
+  scene: [BootScene, HeroSelectScene, MissionHubScene, MissionScene, HudScene, ResultsScene, SettingsScene]
 });

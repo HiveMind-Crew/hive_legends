@@ -102,6 +102,13 @@ export function saveProfile(profile: Profile): void {
   }
 }
 
+/** Replaces all saved progression and preferences with a fresh profile. */
+export function resetProfile(): Profile {
+  const profile = defaultProfile();
+  saveProfile(profile);
+  return profile;
+}
+
 export function upgradeLevel(profile: Profile, upgradeId: string): number {
   return profile.upgrades[upgradeId] ?? 0;
 }

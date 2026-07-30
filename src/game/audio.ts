@@ -65,6 +65,10 @@ class AudioEngine {
     return this.muted;
   }
 
+  get masterVolume(): number {
+    return this.volume;
+  }
+
   setVolume(v: number): void {
     this.volume = Math.max(0, Math.min(1, v));
     this.applyVolume();
@@ -76,6 +80,14 @@ class AudioEngine {
     this.applyVolume();
     saveAudioPrefs(this.volume, this.muted);
     return this.muted;
+  }
+
+  /** Synchronizes the engine after a full profile reset. */
+  setPreferences(volume: number, muted: boolean): void {
+    this.volume = Math.max(0, Math.min(1, volume));
+    this.muted = muted;
+    this.applyVolume();
+    saveAudioPrefs(this.volume, this.muted);
   }
 
   private applyVolume(): void {

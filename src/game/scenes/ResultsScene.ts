@@ -179,6 +179,13 @@ export class ResultsScene extends Phaser.Scene {
         color: '#64e6ff'
       })
       .setOrigin(0.5);
+    this.add
+      .text(width / 2, height - 48, 'O — settings', {
+        fontFamily: 'monospace',
+        fontSize: '13px',
+        color: '#7a6f92'
+      })
+      .setOrigin(0.5);
 
     // Gold count-up: roll the bank from its pre-mission value to the new
     // total, with a few rising coin ticks along the way.
@@ -209,7 +216,11 @@ export class ResultsScene extends Phaser.Scene {
     kb.on('keydown-TWO', () => this.tryBuy('might'));
     kb.on('keydown-THREE', () => this.tryBuyWeapon());
     kb.on('keydown-FOUR', () => this.cycleWeapon());
-    kb.on('keydown-M', () => audio.toggleMute());
+    kb.on('keydown-O', () => {
+      audio.uiConfirm();
+      this.scene.launch('settings', { returnScene: 'results' });
+      this.scene.pause();
+    });
     bindFullscreenToggle(this);
     kb.once('keydown-R', () => {
       audio.uiConfirm();
