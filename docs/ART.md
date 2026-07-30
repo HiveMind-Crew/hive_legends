@@ -136,7 +136,9 @@ Attack windups must make each family readable before its hit resolves:
 
 | Key | Size | Notes |
 | --- | --- | --- |
-| `generator-brood-node-0/1/2` | 44×44 | Damage tiers: intact / cracked-leaking / crumbling with exposed core |
+| `generator-brood-node-0/1/2` | 44×44 | Round violet brood chamber; intact / cracked-leaking / crumbling |
+| `generator-husk-mound-0/1/2` | 44×44 | Squat bone-and-chitin heavy spawner; intact / cracked / collapsed |
+| `generator-spitter-nest-0/1/2` | 44×44 | Bulbous venom sacs and raised vents; intact / leaking / ruptured |
 | `boss-mireveil-0/1/2` | 96×96 | Original intact / wounded / critical sprites, drawn facing south. One silhouette escalates from sealed shell to bright fissures to an exposed brood core; the renderer owns rotation, telegraph swelling/reddening, and charge tint. Concept: [`docs/design/concepts/mireveil-reference.png`](design/concepts/mireveil-reference.png) |
 
 The Mireveil pack is authored on a 48×48 logical grid in

@@ -166,9 +166,9 @@ const TIER_PALETTES: Record<EnemyTier, TierPalette> = {
   }
 };
 
-/** Damage tiers: 0 intact, 1 cracked/leaking, 2 crumbling. */
-export function broodNodeFrame(tier: number): string {
-  return `generator-brood-node-${tier}`;
+/** Generator family plus damage tier: 0 intact, 1 damaged, 2 crumbling. */
+export function generatorFrame(typeId: string, tier: number): string {
+  return `generator-${typeId}-${tier}`;
 }
 
 export const FLOOR_VARIANTS = 4;
@@ -379,10 +379,12 @@ export function generateTextures(scene: Phaser.Scene): void {
     }
   }
 
-  // Brood Node damage tiers: intact → cracked/leaking → crumbling.
-  drawBroodNode(g, 0);
-  drawBroodNode(g, 1);
-  drawBroodNode(g, 2);
+  // Generator families each carry three damage tiers.
+  for (const tier of [0, 1, 2] as const) {
+    drawBroodNode(g, tier);
+    drawHuskMound(g, tier);
+    drawSpitterNest(g, tier);
+  }
 
   // Mireveil, Mother of the Brood (issue #25) — same damage-tier language,
   // scaled up to a finale silhouette.
@@ -914,7 +916,73 @@ function drawBroodNode(g: Phaser.GameObjects.Graphics, tier: number): void {
     g.fillCircle(39, 36, 2.5);
     g.fillCircle(33, 40, 2);
   }
-  gen(broodNodeFrame(tier));
+  gen(generatorFrame('brood-node', tier));
+}
+
+/** Squat bone-and-chitin mound: a broad, armoured heavy-spawner silhouette. */
+function drawHuskMound(g: Phaser.GameObjects.Graphics, tier: number): void {
+  g.clear();
+  g.fillStyle(0x241910);
+  g.fillEllipse(22, 36, 40, 10);
+  g.fillStyle(tier === 2 ? 0x6d5738 : 0x8f7448);
+  g.fillEllipse(22, tier === 2 ? 29 : 27, 38, tier === 2 ? 20 : 26);
+  g.fillStyle(0xc8b47d);
+  g.fillTriangle(5, 29, 13, 8 + tier * 5, 18, 31);
+  g.fillTriangle(26, 31, 33, 6 + tier * 6, 40, 30);
+  g.fillStyle(0xe5d7a8);
+  g.fillTriangle(16, 28, 22, 4 + tier * 5, 28, 28);
+  g.lineStyle(3, 0x4a3821);
+  g.strokeEllipse(22, tier === 2 ? 29 : 27, 38, tier === 2 ? 20 : 26);
+  if (tier >= 1) {
+    g.lineBetween(10, 24, 20, 29);
+    g.lineBetween(20, 29, 17, 38);
+    g.lineBetween(33, 21, 25, 29);
+  }
+  if (tier === 2) {
+    g.fillStyle(0xf1dfad);
+    g.fillCircle(22, 30, 5);
+    g.fillStyle(0x4a3821);
+    g.fillCircle(5, 38, 3);
+    g.fillCircle(39, 37, 3);
+  }
+  gen(generatorFrame('husk-mound', tier));
+}
+
+/** Bulbous venom sacs and raised vents make the ranged nest read vertically. */
+function drawSpitterNest(g: Phaser.GameObjects.Graphics, tier: number): void {
+  g.clear();
+  g.fillStyle(0x162713);
+  g.fillEllipse(22, 37, 36, 8);
+  const sac = tier === 2 ? 0x486d2c : 0x65963c;
+  const glow = tier === 2 ? 0xc9f06b : 0xa9df55;
+  g.fillStyle(0x314d23);
+  g.fillCircle(13, 29, tier === 2 ? 8 : 11);
+  g.fillCircle(31, 29, tier === 2 ? 8 : 11);
+  g.fillStyle(sac);
+  g.fillCircle(22, tier === 2 ? 28 : 23, tier === 2 ? 10 : 14);
+  g.fillStyle(glow);
+  g.fillCircle(19, tier === 2 ? 26 : 20, tier === 2 ? 3 : 5);
+  g.lineStyle(4, 0x314d23);
+  g.lineBetween(17, 17 + tier * 4, 12, 7 + tier * 7);
+  g.lineBetween(27, 17 + tier * 4, 33, 8 + tier * 7);
+  g.fillStyle(glow);
+  g.fillEllipse(11, 7 + tier * 7, 8, 4);
+  g.fillEllipse(34, 8 + tier * 7, 8, 4);
+  g.lineStyle(2, 0x1f3519);
+  if (tier >= 1) {
+    g.lineBetween(14, 20, 23, 28);
+    g.lineBetween(23, 28, 18, 37);
+    g.fillStyle(0x8bc946);
+    g.fillCircle(29, 38, 3);
+  }
+  if (tier === 2) {
+    g.fillStyle(0xd8ff7a);
+    g.fillCircle(22, 29, 5);
+    g.fillStyle(0x314d23);
+    g.fillCircle(7, 38, 3);
+    g.fillCircle(38, 37, 2);
+  }
+  gen(generatorFrame('spitter-nest', tier));
 }
 
 /** Dispatch: one draw routine per silhouette family, palette from the tier. */

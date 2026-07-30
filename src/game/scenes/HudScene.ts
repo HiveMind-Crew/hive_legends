@@ -439,12 +439,12 @@ export class HudScene extends Phaser.Scene {
 
   private updateObjective(info: HudInfo): void {
     // On a boss realm the finale bar carries the objective, so the ribbon
-    // steps aside rather than reading "BROOD NODES: 0".
+    // steps aside rather than reading "SPAWNERS: 0".
     const label =
       info.phase === 'combat'
         ? info.boss
           ? ''
-          : `BROOD NODES: ${info.generatorsLeft}`
+          : `SPAWNERS: ${info.generatorsLeft}`
         : info.phase === 'exit-open'
           ? 'FIND THE EXIT!'
           : '';

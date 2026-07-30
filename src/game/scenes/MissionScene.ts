@@ -23,10 +23,10 @@ import {
   POWERUP_COLORS,
   TEX,
   bossFrame,
-  broodNodeFrame,
   enemyFrame,
   facingDirIndex,
   floorVariant,
+  generatorFrame,
   heroFrame,
   powerupTexture,
   propTexture,
@@ -144,6 +144,7 @@ export class MissionScene extends Phaser.Scene {
   private attackGuides = new Map<EntityId, Phaser.GameObjects.Rectangle>();
   private ended = false;
   private runPaused = false;
+  private reduceMotion = false;
   private hitStopMs = 0;
   private camFollow = { x: 0, y: 0 };
   private camKick = { x: 0, y: 0 };
@@ -187,6 +188,7 @@ export class MissionScene extends Phaser.Scene {
     this.accumulator = 0;
     this.ended = false;
     this.runPaused = false;
+    this.reduceMotion = profile.reduceMotion;
     this.sprites.clear();
     this.shadows.clear();
     this.rings.clear();
@@ -209,6 +211,10 @@ export class MissionScene extends Phaser.Scene {
     this.camFollow = { x: spawn.x, y: spawn.y };
     this.glows = [];
     this.commander = new KeyboardCommander(this);
+    this.game.events.on('reduce-motion-changed', this.setReduceMotion, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.off('reduce-motion-changed', this.setReduceMotion, this);
+    });
 
     this.drawLevel();
     this.drawDecor();
@@ -527,14 +533,14 @@ export class MissionScene extends Phaser.Scene {
           this.floatText(ev.pos, `LEVEL ${ev.level}`, '#ffd75e');
           this.flashRing(ev.pos, 70, 0xffd75e);
           this.burst(this.sparkFx, 16, ev.pos);
-          this.cameras.main.flash(90, 255, 215, 94);
+          this.cameraFlash(90, 255, 215, 94);
           hud.herald(`LEVEL ${ev.level} — YOU GROW STRONGER`, '#ffd75e');
           break;
         case 'pressure-rose': {
           // Escalating call so the player feels the clock without a timer UI.
           const line = ev.stage === 1 ? 'THE HIVE ROUSES' : ev.stage >= 4 ? 'THE HIVE IS FRENZIED' : 'THE HIVE SEETHES';
           hud.herald(line, '#ff5a4d');
-          this.cameras.main.shake(220, 0.006);
+          this.cameraShake(220, 0.006);
           break;
         }
         case 'potion-used':
@@ -542,7 +548,7 @@ export class MissionScene extends Phaser.Scene {
           hud.herald('HIVE-FIRE UNLEASHED', '#9fe06a');
           break;
         case 'ability-guard':
-          this.cameras.main.flash(60, 150, 175, 210);
+          this.cameraFlash(60, 150, 175, 210);
           this.flashRing(ev.pos, 40, 0xc2c8d2);
           break;
         case 'guard-block':
@@ -592,8 +598,8 @@ export class MissionScene extends Phaser.Scene {
         }
         case 'boss-phase':
           hud.herald(ev.name.toUpperCase(), '#ff5a4d');
-          this.cameras.main.flash(120, 200, 90, 110);
-          this.cameras.main.shake(240, 0.01);
+          this.cameraFlash(120, 200, 90, 110);
+          this.cameraShake(240, 0.01);
           this.burst(this.shardFx, 14, ev.pos);
           this.flashRing(ev.pos, 130, 0xff5a4d);
           break;
@@ -612,8 +618,8 @@ export class MissionScene extends Phaser.Scene {
           this.burst(this.shardFx, 24, ev.pos);
           this.burst(this.ichorFx, 24, ev.pos);
           this.burst(this.dustFx, 18, ev.pos);
-          this.cameras.main.shake(600, 0.02);
-          this.cameras.main.flash(200, 244, 227, 178);
+          this.cameraShake(600, 0.02);
+          this.cameraFlash(200, 244, 227, 178);
           this.hitStop(90);
           const at = { ...ev.pos };
           for (const delay of [180, 380, 620]) {
@@ -621,7 +627,7 @@ export class MissionScene extends Phaser.Scene {
               this.burst(this.shardFx, 14, at);
               this.burst(this.ichorFx, 10, at);
               this.flashRing(at, 120, 0xe1a6f0);
-              this.cameras.main.shake(180, 0.012);
+              this.cameraShake(180, 0.012);
             });
           }
           const scorch = this.add.circle(at.x, at.y, 54, 0x000000, 0.28).setDepth(DEPTH_DECAL + 1);
@@ -631,13 +637,13 @@ export class MissionScene extends Phaser.Scene {
         case 'generator-enraged':
           this.floatText(ev.pos, 'ENRAGED', '#ff5a4d');
           this.burst(this.shardFx, 6, ev.pos);
-          this.cameras.main.shake(100, 0.006);
+          this.cameraShake(100, 0.006);
           break;
         case 'generator-destroyed': {
           this.deathPuff(ev.pos, 0xa855c8, 1.8);
           this.burst(this.shardFx, 14, ev.pos);
           this.burst(this.dustFx, 10, ev.pos);
-          this.cameras.main.shake(250, 0.014);
+          this.cameraShake(250, 0.014);
           this.hitStop(70);
           // Second detonation stage + a scorch that lingers on the floor.
           const pos = { ...ev.pos };
@@ -672,7 +678,7 @@ export class MissionScene extends Phaser.Scene {
           break;
         }
         case 'player-hit':
-          this.cameras.main.shake(80, 0.004);
+          this.cameraShake(80, 0.004);
           break;
         case 'prop-destroyed':
           this.deathPuff(ev.pos, 0xd9b26a, 0.8);
@@ -690,7 +696,7 @@ export class MissionScene extends Phaser.Scene {
         case 'secret-revealed':
           this.deathPuff(ev.pos, 0x8a8298, 1.6);
           this.burst(this.dustFx, 14, ev.pos);
-          this.cameras.main.shake(180, 0.006);
+          this.cameraShake(180, 0.006);
           hud.herald('A HIDDEN PASSAGE!', '#bdf4ff');
           break;
         case 'projectile-fired':
@@ -949,8 +955,8 @@ export class MissionScene extends Phaser.Scene {
       seen.add(g.id);
       const frac = g.hp / g.maxHp;
       const tier = frac > 2 / 3 ? 0 : frac > 1 / 3 ? 1 : 2;
-      const spr = this.ensureSprite(g.id, broodNodeFrame(0));
-      spr.setTexture(broodNodeFrame(tier));
+      const spr = this.ensureSprite(g.id, generatorFrame(g.typeId, 0));
+      spr.setTexture(generatorFrame(g.typeId, tier));
       spr.setPosition(g.pos.x, g.pos.y).setDepth(g.pos.y);
 
       // Breathing (faster when enraged), pre-spawn bulge, and spawn squash-pop.
@@ -1181,7 +1187,21 @@ export class MissionScene extends Phaser.Scene {
   }
 
   private hitStop(ms: number): void {
+    if (this.reduceMotion) return;
     this.hitStopMs = Math.min(HIT_STOP_MAX_MS, Math.max(this.hitStopMs, ms));
+  }
+
+  private setReduceMotion(reduceMotion: boolean): void {
+    this.reduceMotion = reduceMotion;
+    if (reduceMotion) this.hitStopMs = 0;
+  }
+
+  private cameraFlash(duration: number, red: number, green: number, blue: number): void {
+    if (!this.reduceMotion) this.cameras.main.flash(duration, red, green, blue);
+  }
+
+  private cameraShake(duration: number, intensity: number): void {
+    if (!this.reduceMotion) this.cameras.main.shake(duration, intensity);
   }
 
   /** 2–3 px camera nudge in the player's facing when their melee connects. */
@@ -1219,8 +1239,8 @@ export class MissionScene extends Phaser.Scene {
 
   /** Resin Cage presentation: violet flash, ring, lingering hardened-web decal. */
   private resinCage(pos: Vec2, radius: number): void {
-    this.cameras.main.flash(50, 190, 150, 235);
-    this.cameras.main.shake(80, 0.004);
+    this.cameraFlash(50, 190, 150, 235);
+    this.cameraShake(80, 0.004);
     this.flashRing(pos, radius, 0xa855c8);
     const web = this.add
       .image(pos.x, pos.y, TEX.decorWeb)
@@ -1255,8 +1275,8 @@ export class MissionScene extends Phaser.Scene {
 
   /** Sunder Slam presentation: screen flash, double shockwave, scorch, heavy shake. */
   private shockwave(pos: Vec2, radius: number): void {
-    this.cameras.main.flash(60, 244, 227, 178);
-    this.cameras.main.shake(160, 0.012);
+    this.cameraFlash(60, 244, 227, 178);
+    this.cameraShake(160, 0.012);
     this.flashRing(pos, radius, 0xd9a441);
     const ring = this.add.circle(pos.x, pos.y, 14).setStrokeStyle(3, 0xf4e3b2, 0.9).setDepth(DEPTH_FX);
     this.tweens.add({ targets: ring, radius: radius * 1.15, alpha: 0, duration: 380, onComplete: () => ring.destroy() });
@@ -1332,7 +1352,7 @@ export class MissionScene extends Phaser.Scene {
     this.burst(this.dustFx, 6 + Math.round(cue.heft * 6), impact);
     this.burst(this.shardFx, 2 + Math.round(cue.heft * 3), impact);
     this.flashRing(impact, 12 + cue.heft * 8, cue.color);
-    this.cameras.main.shake(70 + cue.heft * 60, 0.003 + cue.heft * 0.004);
+    this.cameraShake(70 + cue.heft * 60, 0.003 + cue.heft * 0.004);
   }
 
   /** Skitter pounce: bright body streak, afterimages, and landing dust. */
@@ -1391,7 +1411,7 @@ export class MissionScene extends Phaser.Scene {
       crack.destroy();
       core.destroy();
     } });
-    this.cameras.main.shake(130, 0.009);
+    this.cameraShake(130, 0.009);
     this.burst(this.dustFx, 10, { x: pos.x + dir.x * length, y: pos.y + dir.y * length });
   }
 
@@ -1416,8 +1436,8 @@ export class MissionScene extends Phaser.Scene {
 
   /** Potion (#41): a big green hive-fire detonation — flash, shockwave, scorch. */
   private potionBurst(pos: Vec2, radius: number): void {
-    this.cameras.main.flash(90, 150, 224, 138);
-    this.cameras.main.shake(220, 0.016);
+    this.cameraFlash(90, 150, 224, 138);
+    this.cameraShake(220, 0.016);
     this.hitStop(60);
     this.flashRing(pos, radius, 0x9fe06a);
     const ring = this.add.circle(pos.x, pos.y, 16).setStrokeStyle(4, 0xd6ffd0, 0.9).setDepth(DEPTH_FX);
