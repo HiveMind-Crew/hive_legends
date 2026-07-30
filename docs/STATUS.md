@@ -166,9 +166,10 @@ the transition).
   a procedural ambient-combat loop (lookahead scheduler) that ducks on
   mission end, and "the Herald" queued announcement ribbon in the HUD for
   low-health / exit-open / elite-arrival / mission-end. Master volume + mute
-  persist to the profile (`Profile.volume`/`muted`, `saveAudioPrefs`); M
-  toggles mute. Context is created only on the first user gesture and no-ops
-  cleanly headless, so the e2e stays silent and error-free.
+  persist to the profile (`Profile.volume`/`muted`, `saveAudioPrefs`) and are
+  controlled from the settings screen. Context is created only on the first
+  user gesture and no-ops cleanly headless, so the e2e stays silent and
+  error-free.
 
 - [x] #9 Title & hero-select attract mode — layered pulsing logo with glow,
   two ambient drift layers (rising spores + sinking haze) plus a marching

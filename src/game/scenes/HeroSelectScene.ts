@@ -100,7 +100,7 @@ export class HeroSelectScene extends Phaser.Scene {
     this.tweens.add({ targets: prompt, alpha: 0.35, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
 
     this.add.rectangle(width / 2, height - 62, 900, 42, 0x120c1a, 0.8).setStrokeStyle(1, 0x3a2f4a);
-    const footer = `←→ switch hero   B recruit   Enter choose mission   Attack Space   Ability Shift   Mute M   ${FULLSCREEN_HINT}`;
+    const footer = `←→ switch hero   B recruit   Enter choose mission   Attack Space   Ability Shift   S settings   ${FULLSCREEN_HINT}`;
     this.add
       .text(width / 2, height - 62, footer, {
         fontFamily: 'monospace',
@@ -133,6 +133,12 @@ export class HeroSelectScene extends Phaser.Scene {
       } else {
         audio.uiTick(200); // can't afford it — low buzz
       }
+    });
+    kb?.on('keydown-S', () => {
+      audio.unlock();
+      audio.uiConfirm();
+      this.scene.launch('settings', { returnScene: 'hero-select' });
+      this.scene.pause();
     });
     kb?.on('keydown-ENTER', () => {
       // First user gesture: unlock the audio context here so the mission's

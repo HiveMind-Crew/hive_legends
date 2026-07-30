@@ -79,8 +79,8 @@ synthesis can replace the text later without changing the trigger/queue.
 
 The engine never creates an `AudioContext` before a user gesture (autoplay
 policy) and no-ops cleanly when WebAudio is unavailable, so headless e2e runs
-stay silent and error-free. Master volume + mute persist to the profile; M
-toggles mute in-game.
+stay silent and error-free. Master volume + mute persist to the profile and
+are controlled from the shared settings screen.
 
 ## Roadmap
 

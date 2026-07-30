@@ -69,7 +69,6 @@ export class HudScene extends Phaser.Scene {
   private bossBar!: Phaser.GameObjects.Rectangle;
   private bossShown = 0; // eased bar fill, so chip damage reads as a drain
   private pauseLayer!: Phaser.GameObjects.Container;
-  private pauseAudioText!: Phaser.GameObjects.Text;
 
   constructor() {
     super('hud');
@@ -142,14 +141,13 @@ export class HudScene extends Phaser.Scene {
   /** Shows or hides the screen-space pause menu owned by the parallel HUD. */
   setRunPaused(paused: boolean): void {
     this.pauseLayer.setVisible(paused);
-    if (paused) this.refreshPauseAudioCopy();
   }
 
   private buildPauseLayer(): void {
     const { width, height } = this.scale;
     const backdrop = this.add.rectangle(0, 0, width, height, 0x07050c, 0.82).setOrigin(0, 0);
     const panel = this.add
-      .rectangle(width / 2, height / 2, 520, 300, 0x171020, 0.98)
+      .rectangle(width / 2, height / 2, 520, 320, 0x171020, 0.98)
       .setStrokeStyle(3, 0x64e6ff, 0.8);
     const title = this.add
       .text(width / 2, height / 2 - 104, 'RUN PAUSED', {
@@ -181,15 +179,15 @@ export class HudScene extends Phaser.Scene {
         color: '#ff7a70'
       })
       .setOrigin(0.5);
-    this.pauseAudioText = this.add
-      .text(width / 2, height / 2 + 92, '', {
+    const settings = this.add
+      .text(width / 2, height / 2 + 92, 'S — SETTINGS', {
         fontFamily: 'monospace',
-        fontSize: '15px',
+        fontSize: '18px',
         color: '#cfc4de'
       })
       .setOrigin(0.5);
     const note = this.add
-      .text(width / 2, height / 2 + 122, 'Abandoning forfeits all rewards from this run.', {
+      .text(width / 2, height / 2 + 132, 'Abandoning forfeits all rewards from this run.', {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#756a86'
@@ -197,13 +195,9 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.pauseLayer = this.add
-      .container(0, 0, [backdrop, panel, title, subtitle, resume, abandon, this.pauseAudioText, note])
+      .container(0, 0, [backdrop, panel, title, subtitle, resume, abandon, settings, note])
       .setDepth(10_000)
       .setVisible(false);
-  }
-
-  private refreshPauseAudioCopy(): void {
-    this.pauseAudioText.setText(audio.isMuted ? 'M — SOUND ON' : 'M — SOUND OFF');
   }
 
   /** Enqueue a Herald announcement; shown one at a time in arrival order. */
@@ -347,8 +341,7 @@ export class HudScene extends Phaser.Scene {
     const roused = info.pressureStage > 0 && !info.boss;
     this.pressureText.setVisible(roused);
     if (roused) this.pressureText.setText(`HIVE ROUSED ${'\u25B2'.repeat(info.pressureStage)}`);
-    this.muteIcon.setText(audio.isMuted ? '♪ muted (M)' : '♪ (M)');
-    if (this.pauseLayer.visible) this.refreshPauseAudioCopy();
+    this.muteIcon.setText(audio.isMuted ? '♪ muted' : '♪');
   }
 
   /** The finale meter: name, eased HP drain, and the current phase title. */

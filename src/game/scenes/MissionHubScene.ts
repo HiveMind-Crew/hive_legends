@@ -208,7 +208,7 @@ export class MissionHubScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(width / 2, height - 24, `↑↓ node   ←→ realm   Enter deploy   H hero select   ${FULLSCREEN_HINT}`, {
+      .text(width / 2, height - 24, `↑↓ node   ←→ realm   Enter deploy   H hero select   O settings   ${FULLSCREEN_HINT}`, {
         fontFamily: 'monospace',
         fontSize: '13px',
         color: '#7a6f92'
@@ -283,7 +283,12 @@ export class MissionHubScene extends Phaser.Scene {
     kb?.on('keydown-A', () => jump(-1));
 
     bindFullscreenToggle(this);
-    kb?.on('keydown-M', () => audio.toggleMute());
+    kb?.on('keydown-O', () => {
+      audio.unlock();
+      audio.uiConfirm();
+      this.scene.launch('settings', { returnScene: 'mission-hub' });
+      this.scene.pause();
+    });
     kb?.on('keydown-H', () => {
       audio.unlock();
       audio.uiConfirm();

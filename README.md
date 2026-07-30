@@ -23,8 +23,10 @@ npm run dev        # http://localhost:5173
 ```
 
 Controls: **WASD/Arrows** move · **Space/J** attack · **Shift/K** hero ability ·
-**Q** quaff a potion · **Enter** confirm · **M** mute audio · **F** fullscreen.
+**Q** quaff a potion · **Enter** confirm · **Esc** pause · **F** fullscreen.
 Missions are chosen on the wheel: **↑↓** node · **←→** realm · **Enter** deploy.
+Open settings with **S** from hero select or pause (**O** on the wheel/results);
+there, **←→** adjusts volume and **M** toggles mute.
 
 The game is authored at a fixed 960×720 and letterboxed to fit whatever window
 it is given, so it is playable at any size.
