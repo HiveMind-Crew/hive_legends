@@ -1,7 +1,9 @@
-# The mission wheel
+# The mission map
 
 How a player moves through the game, and how to add a realm without touching
-any code outside `src/content`.
+any code outside `src/content`. The map presents each spoke as a resin rail
+with labeled honeycomb cells; the rules below are unchanged by that visual
+treatment.
 
 **Humans:** the model and the walkthrough below are the whole story. **Agents:**
 every rule stated here that can be machine-checked is checked — the tests are
@@ -13,22 +15,21 @@ The wheel is a hub with one **spoke** per realm. A spoke is **three missions
 played in order, capped by a boss**.
 
 Laid out as the hub draws it — mission 1 nearest the centre, the boss furthest
-out, and unauthored realms as stub arms:
+out, and unauthored realms as dim future arms:
 
 ```
-                ● boss ......... The Hollow Throne
+                ⬡ BOSS · The Hollow Throne
                 │
-                ● mission 3 .... The Cobalt Combs
+                ⬡ M3 · The Cobalt Combs
                 │
-                ● mission 2 .... The Resin Galleries
+                ⬡ M2 · The Resin Galleries
                 │
-                ● mission 1 .... The Brood Warrens
+                ⬡ M1 · The Brood Warrens
                 │
-             ( HIVE )                      ← The Azure Reach
+             ⬡ HIVE                         ← The Azure Reach
               ╱     ╲
-             ○       ○                     ← teasers, not yet authored
-    The Glass         The Ashen
-      Hollows           Spiral
+       ? The Glass   The Ashen ?             ← dim future realms
+          Hollows      Spiral
 ```
 
 Four rules, and that is the entire system:
