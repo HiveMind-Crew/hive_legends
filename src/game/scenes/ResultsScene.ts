@@ -25,6 +25,7 @@ import { audio } from '../audio';
 import { clearTimeCopy, formatClearTime } from '../clearTimes';
 import { continuesSpentCopy } from '../continueCopy';
 import { bindFullscreenToggle } from '../fullscreen';
+import { bindPadMenu } from '../padMenu';
 import { TEX } from '../textures';
 import { xpResultCopy } from '../xpCopy';
 
@@ -239,11 +240,18 @@ export class ResultsScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.add
-      .text(width / 2, height - 48, 'O — settings', {
-        fontFamily: 'monospace',
-        fontSize: '13px',
-        color: '#7a6f92'
-      })
+      .text(
+        width / 2,
+        height - 48,
+        `O — settings      Pad: ${
+          nextName ? '(A) next realm  (B) the wheel  (X) replay' : '(A) replay  (B) the wheel'
+        }  LB/RB/(Y) buy`,
+        {
+          fontFamily: 'monospace',
+          fontSize: '13px',
+          color: '#7a6f92'
+        }
+      )
       .setOrigin(0.5);
 
     // Gold count-up: roll the bank from its pre-mission value to the new
@@ -277,20 +285,23 @@ export class ResultsScene extends Phaser.Scene {
     kb.on('keydown-TWO', () => this.tryBuy('might'));
     kb.on('keydown-THREE', () => this.tryBuyWeapon());
     kb.on('keydown-FOUR', () => this.cycleWeapon());
-    kb.on('keydown-O', () => {
+    const openSettings = (): void => {
       audio.uiConfirm();
       this.scene.launch('settings', { returnScene: 'results' });
       this.scene.pause();
-    });
+    };
+    kb.on('keydown-O', openSettings);
     bindFullscreenToggle(this);
-    kb.once('keydown-R', () => {
+    const replay = (): void => {
       audio.uiConfirm();
       this.scene.start('mission', { heroId: this.heroId, levelId });
-    });
-    kb.once('keydown-H', () => {
+    };
+    const toHeroSelect = (): void => {
       audio.uiConfirm();
       this.scene.start('hero-select', { heroId: this.heroId });
-    });
+    };
+    kb.once('keydown-R', replay);
+    kb.once('keydown-H', toHeroSelect);
     // Back to the wheel. `levelId` seeds the cursor so the hub opens on the
     // node just unlocked (or, with nothing left, the realm just finished).
     const toWheel = (focus: string): void => {
@@ -299,6 +310,23 @@ export class ResultsScene extends Phaser.Scene {
     };
     kb.once('keydown-W', () => toWheel(levelId));
     if (nextId) kb.once('keydown-N', () => toWheel(nextId));
+
+    // The shop and its exits on a pad (issue #98). Confirm takes the forward
+    // path a player almost always wants — the next realm when one just opened,
+    // otherwise a replay of this one — and the shoulders spend gold, keeping
+    // the four purchase keys reachable without a cursor this screen never had.
+    bindPadMenu(this, {
+      confirm: () => (nextId ? toWheel(nextId) : replay()),
+      cancel: () => toWheel(levelId),
+      alt: replay,
+      alt2: () => this.tryBuyWeapon(),
+      shoulderLeft: () => this.tryBuy('vitality'),
+      shoulderRight: () => this.tryBuy('might'),
+      left: () => this.cycleWeapon(),
+      right: () => this.cycleWeapon(),
+      back: toHeroSelect,
+      menu: openSettings
+    });
   }
 
   private tryBuy(upgradeId: string): void {

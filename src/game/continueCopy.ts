@@ -45,7 +45,7 @@ export function continueOfferCopy(offer: ContinueOffer): string {
 /** The prompt's action line, or the fall-through when it cannot be taken. */
 export function continueActionCopy(offer: ContinueOffer, secondsLeft: number): string {
   if (offer.bank < offer.cost) return 'ESC — to the results';
-  return `ENTER — continue  ·  ESC — give up  ·  ${Math.max(0, Math.ceil(secondsLeft))}`;
+  return `ENTER / (A) — continue  ·  ESC / (B) — give up  ·  ${Math.max(0, Math.ceil(secondsLeft))}`;
 }
 
 /** Results-screen line naming what continues cost this run; empty when none. */

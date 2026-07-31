@@ -16,6 +16,7 @@ import type { HeroDef, HeroModifiers } from '../../sim/types';
 import { audio } from '../audio';
 import { formatClearTime } from '../clearTimes';
 import { FULLSCREEN_HINT, bindFullscreenToggle } from '../fullscreen';
+import { bindPadMenu } from '../padMenu';
 import { TEX, enemyFrame, heroFrame } from '../textures';
 
 /**
@@ -108,13 +109,24 @@ export class HeroSelectScene extends Phaser.Scene {
       .setOrigin(0.5);
     this.tweens.add({ targets: prompt, alpha: 0.35, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
 
-    this.add.rectangle(width / 2, height - 62, 900, 42, 0x120c1a, 0.8).setStrokeStyle(1, 0x3a2f4a);
+    this.add.rectangle(width / 2, height - 62, 900, 50, 0x120c1a, 0.8).setStrokeStyle(1, 0x3a2f4a);
+    // Two lines: the keyboard the game shipped with, and the pad it now also
+    // answers to (issue #98). The pad legend lives on this screen because it is
+    // the front door — the mapping is the same on every later screen.
     const footer = `←→ switch hero   B recruit   Enter choose mission   Attack Space   Ability Shift   S settings   ${FULLSCREEN_HINT}`;
+    const padFooter = 'Gamepad  stick/d-pad move  (A) attack, confirm  (X) ability  (Y) potion  (B) back  START pause';
     this.add
-      .text(width / 2, height - 62, footer, {
+      .text(width / 2, height - 70, footer, {
         fontFamily: 'monospace',
         fontSize: '13px',
         color: '#a89bb8'
+      })
+      .setOrigin(0.5);
+    this.add
+      .text(width / 2, height - 52, padFooter, {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        color: '#7a6f92'
       })
       .setOrigin(0.5);
 
@@ -131,7 +143,7 @@ export class HeroSelectScene extends Phaser.Scene {
     kb?.on('keydown-RIGHT', () => cycle(1));
     kb?.on('keydown-A', () => cycle(-1));
     kb?.on('keydown-D', () => cycle(1));
-    kb?.on('keydown-B', () => {
+    const recruit = (): void => {
       // Recruit a gold-locked hero from the bank, then re-enter on the same
       // hero so its now-unlocked card renders. Any other state just buzzes.
       audio.unlock();
@@ -142,14 +154,14 @@ export class HeroSelectScene extends Phaser.Scene {
       } else {
         audio.uiTick(200); // can't afford it — low buzz
       }
-    });
-    kb?.on('keydown-S', () => {
+    };
+    const openSettings = (): void => {
       audio.unlock();
       audio.uiConfirm();
       this.scene.launch('settings', { returnScene: 'hero-select' });
       this.scene.pause();
-    });
-    kb?.on('keydown-ENTER', () => {
+    };
+    const choose = (): void => {
       // First user gesture: unlock the audio context here so the mission's
       // music can start without tripping the browser autoplay policy.
       audio.unlock();
@@ -162,6 +174,17 @@ export class HeroSelectScene extends Phaser.Scene {
       // goes. The hub parks its cursor on suggestedNode, so a second Enter
       // there always deploys the next thing to play.
       this.scene.start('mission-hub', { heroId: hero.id });
+    };
+    kb?.on('keydown-B', recruit);
+    kb?.on('keydown-S', openSettings);
+    kb?.on('keydown-ENTER', choose);
+    // The pad reaches the same four handlers (issue #98).
+    bindPadMenu(this, {
+      left: () => cycle(-1),
+      right: () => cycle(1),
+      confirm: choose,
+      alt: recruit,
+      menu: openSettings
     });
   }
 

@@ -39,7 +39,7 @@ describe('the continue prompt', () => {
     expect(continueActionCopy(offer(), 9.2)).toContain('10');
     expect(continueActionCopy(offer(), 1)).toContain('1');
     expect(continueActionCopy(offer(), -0.4)).toContain('0');
-    expect(continueActionCopy(offer(), 5)).toContain('ENTER — continue');
+    expect(continueActionCopy(offer(), 5)).toContain('ENTER / (A) — continue');
   });
 });
 
