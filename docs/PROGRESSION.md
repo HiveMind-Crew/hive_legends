@@ -40,6 +40,35 @@ Four rules, and that is the entire system:
 3. The **boss opens when every mission in its spoke is cleared**.
 4. A locked spoke locks everything in it, whatever else is cleared.
 
+## The content plan
+
+The v1 target is **three complete spokes and 75–105 minutes for a first clear**.
+That keeps the arcade run under two hours while giving each mechanic enough
+room to develop beyond its introduction. The two arms already announced on the
+wheel are committed v1 realms, not indefinite placeholders.
+
+The M2 content track owns both remaining spokes:
+
+| Order | Realm | Delivery target | First-clear time | Novelty promise |
+| --- | --- | --- | --- | --- |
+| 1 | The Azure Reach | Shipped in M1 | 20–30 min | Establishes spawners, secrets, relics, an elite and Mireveil |
+| 2 | The Ashen Spiral | First M2 content slice | 25–35 min | Ember-mite enemy family, vent hazard, Kilnback elite, Ash Regent boss |
+| 3 | The Glass Hollows | Second M2 content slice / v1 content-complete | 30–40 min | Prism-wing enemy family, fracture hazard, Mirror Husk elite, Glass Choir boss |
+
+Every new spoke must ship with all of the following:
+
+1. One enemy family with a silhouette and combat job not already on the wheel.
+2. One environmental hazard used differently across its three missions.
+3. One elite that recombines the realm's pressure rather than enlarging a
+   common enemy.
+4. One boss with at least one action shape absent from earlier bosses.
+5. Its own tiles, props, decor, palette and ambient treatment.
+
+Existing families can return in supporting roles, but a spoke cannot satisfy
+its novelty budget by remixing the Azure Reach roster alone. Fifteen concurrent
+hostiles remains the readability ceiling; new families increase encounter
+vocabulary, not the number of bodies on screen.
+
 ### Nothing is stored per spoke
 
 Every rule above is derived from `Profile.clearedLevels` — an array of level

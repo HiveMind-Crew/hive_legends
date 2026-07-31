@@ -675,6 +675,14 @@ export interface CombatDef {
   generatorSpawnExclusionArcDeg: number;
 }
 
+/** Predictable meta-economy rewards paid on top of gold collected in a run. */
+export interface EconomyDef {
+  /** One-time bounty for the first victory on an ordinary mission. */
+  firstClearMissionBonus: number;
+  /** One-time bounty for the first victory on a boss mission. */
+  firstClearBossBonus: number;
+}
+
 export interface ContentDb {
   heroes: Record<string, HeroDef>;
   enemies: Record<string, EnemyDef>;
@@ -687,6 +695,7 @@ export interface ContentDb {
   progression: ProgressionDef;
   pressure: PressureDef;
   combat: CombatDef;
+  economy: EconomyDef;
   /** Mission-wheel branches, in wheel order (issue #53). */
   spokes: readonly SpokeDef[];
   /** Announced-but-unauthored branches, drawn as locked teasers (issue #63). */

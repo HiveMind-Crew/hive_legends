@@ -1,0 +1,54 @@
+# Economy
+
+Hive Legends uses a **completion-forward** economy. A player who explores the
+authored spoke once should be able to buy every shared upgrade and both weapon
+tiers for a chosen hero. Replays are welcome, but they are not required to make
+a complete build.
+
+## The decisions
+
+- Ordinary missions pay a 150g first-clear bounty; bosses pay 250g. These are
+  added to gold collected in the run and are never paid twice.
+- Both five-rank shared upgrades use flat prices: 80g per Vigor rank and 100g
+  per Edge rank. Later ranks no longer cost multiple full missions.
+- The four heroes continue to share one bank. Shared upgrades benefit the
+  whole roster; recruitment and weapons are the longer-term roster sink.
+- Clearing a mission with a new hero earns a persistent **hero mastery** seal.
+  The wheel shows seals out of four, giving every cleared node a replay goal
+  that is not another currency payout.
+
+This deliberately leaves some sink after a first Azure Reach clear. One hero
+can be completed in one pass; completing the entire roster takes exploration,
+mastery replays, or future spokes.
+
+## Generated balance report
+
+The static opportunity column includes authored gold pickups, spawner and boss
+drops, and the average value of gold props. It excludes enemy drops because
+their count varies with pressure and player speed. The checked-in report is
+regenerated from `src/content` and fails tests if it drifts.
+
+<!-- BEGIN GENERATED: economy-tables -->
+| Level | Static opportunity | First-clear bounty | Modeled first clear |
+| --- | --- | --- | --- |
+| The Brood Warrens | 284 | 150 | 434 |
+| The Resin Galleries | 305.5 | 150 | 455.5 |
+| The Cobalt Combs | 310.5 | 150 | 460.5 |
+| The Hollow Throne | 193 | 250 | 443 |
+
+Modeled Azure Reach income: **1793g** (1093g static opportunity + 700g bounties). Dynamic enemy drops are extra.
+
+| Upgrade track | Curve | Total |
+| --- | --- | --- |
+| Hearthstone Vigor | 5 × 80g | 400 |
+| Sharpened Edge | 5 × 100g | 500 |
+
+| Permanent sink | Gold |
+| --- | --- |
+| Shared upgrades | 900 |
+| All hero weapon tiers | 1360 |
+| All hero recruitment | 500 |
+| **Everything** | **2760** |
+
+Full-roster sink / modeled first-clear income: **1.54×**.
+<!-- END GENERATED: economy-tables -->

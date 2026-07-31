@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
-import { CONTENT, LEVELS, MISSION_ORDER } from '../../content';
+import { CONTENT, firstClearBonus, LEVELS, MISSION_ORDER } from '../../content';
 import {
   buyUpgrade,
   buyWeapon,
   equipWeapon,
   equippedWeaponId,
   loadProfile,
+  markHeroMastery,
   markLevelCleared,
   nextLevelId,
   nextTeaser,
@@ -54,9 +55,15 @@ export class ResultsScene extends Phaser.Scene {
     const levelId = LEVELS[data.levelId] ? data.levelId : MISSION_ORDER[0]!;
     const realmName = LEVELS[levelId]?.name ?? 'The Brood Warrens';
 
-    // Bank the run's gold exactly once, on scene entry.
+    // Bank the run's gold exactly once, on scene entry. A completion-focused
+    // first-clear bounty keeps progress predictable even when optional caches
+    // are missed; replays instead pursue hero-mastery seals.
     this.profile = loadProfile();
-    this.profile.bank += data.gold;
+    const wasCleared = this.profile.clearedLevels.includes(levelId);
+    const clearBonus = data.victory && !wasCleared ? firstClearBonus(LEVELS[levelId]!) : 0;
+    const bankedGold = data.gold + clearBonus;
+    this.profile.bank += bankedGold;
+    let newMastery = false;
     // XP banks whether or not the run was won — you keep what you fought for.
     this.profile.xp += Math.max(0, data.xpEarned ?? 0);
     if (data.victory) {
@@ -64,6 +71,7 @@ export class ResultsScene extends Phaser.Scene {
       if (this.profile.bestClearTicks === null || data.ticks < this.profile.bestClearTicks) {
         this.profile.bestClearTicks = data.ticks;
       }
+      newMastery = markHeroMastery(this.profile, levelId, this.heroId);
       markLevelCleared(this.profile, levelId); // unlocks the next realm
     }
     saveProfile(this.profile);
@@ -114,8 +122,9 @@ export class ResultsScene extends Phaser.Scene {
       .text(
         width / 2,
         165,
-        `Gold collected: ${data.gold}    Kills: ${data.kills}    Time: ${seconds}s\n` +
-          `XP earned: ${data.xpEarned ?? 0}    Hero level: ${data.heroLevel ?? 1}`,
+        `Gold collected: ${data.gold}${clearBonus ? ` + ${clearBonus} first-clear bounty` : ''}    Kills: ${data.kills}    Time: ${seconds}s\n` +
+          `XP earned: ${data.xpEarned ?? 0}    Hero level: ${data.heroLevel ?? 1}` +
+          (data.victory ? `    ${newMastery ? 'NEW ' : ''}HERO MASTERY` : ''),
         { fontFamily: 'monospace', fontSize: '18px', color: '#f4e3b2', align: 'center' }
       )
       .setOrigin(0.5);
@@ -189,9 +198,9 @@ export class ResultsScene extends Phaser.Scene {
 
     // Gold count-up: roll the bank from its pre-mission value to the new
     // total, with a few rising coin ticks along the way.
-    this.shownBank = this.profile.bank - data.gold;
+    this.shownBank = this.profile.bank - bankedGold;
     this.refreshTexts();
-    if (data.gold > 0) {
+    if (bankedGold > 0) {
       const counter = { v: this.shownBank };
       this.bankTween = this.tweens.add({
         targets: counter,
