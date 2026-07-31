@@ -754,6 +754,13 @@ export interface EnemyState {
   slowMult: number;
   /** Generator that spawned this enemy (for the alive-cap), if any. */
   sourceGen: EntityId | null;
+  /**
+   * Ticks left routing around geometry instead of charging straight (#107).
+   * Absent or 0 means the straight line is working and steering is unchanged;
+   * it is set when a chase actually fails to make headway against a wall, and
+   * held until the enemy can see its target again.
+   */
+  pathTicks?: number;
 }
 
 export interface GeneratorState {

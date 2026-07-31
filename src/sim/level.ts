@@ -80,6 +80,34 @@ export function moveCircle(level: LevelDef, pos: Vec2, radius: number, dx: numbe
   }
 }
 
+/**
+ * True if a circle of `radius` cannot travel the straight segment from → to
+ * without touching blocked geometry. Sampled at half-radius steps, which is
+ * fine enough that no wall thinner than the circle can slip between probes.
+ *
+ * Used to ask "can this body just walk at the target?" — the question that
+ * decides whether an enemy needs to path around something (issue #107).
+ */
+export function segmentHitsWall(
+  level: LevelDef,
+  from: Vec2,
+  to: Vec2,
+  radius: number,
+  blk?: Blockage
+): boolean {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy);
+  if (length < 1e-6) return circleHitsWall(level, from, radius, blk);
+  const stride = Math.max(2, radius / 2);
+  const steps = Math.ceil(length / stride);
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    if (circleHitsWall(level, { x: from.x + dx * t, y: from.y + dy * t }, radius, blk)) return true;
+  }
+  return false;
+}
+
 /** Validates a level definition; returns a list of problems (empty = ok). */
 export function validateLevel(level: LevelDef): string[] {
   const problems: string[] = [];
