@@ -764,7 +764,6 @@ export class MissionScene extends Phaser.Scene {
         kills: p.kills,
         ticks: this.sim.state.tick,
         xpEarned: Math.max(0, p.xp - this.startXp),
-        heroLevel: p.level,
         heroId: this.heroId,
         levelId: this.levelId
       });

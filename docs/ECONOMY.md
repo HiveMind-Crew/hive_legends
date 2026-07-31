@@ -16,6 +16,12 @@ a complete build.
 - Clearing a mission with a new hero earns a persistent **hero mastery** seal.
   The wheel shows seals out of four, giving every cleared node a replay goal
   that is not another currency payout.
+- Once a hero is at the level cap, XP converts to gold at **0.25 g/XP** — the
+  veteran's dividend (issue #103). It is the only income that scales with
+  replays rather than with first clears: a Warrens replay pays about 71g, well
+  under the 150g bounty an unplayed realm still holds. Modelled first-clear
+  income below is unaffected, because a first pass through the Azure Reach ends
+  short of the cap. See `docs/PROGRESSION.md` for the cap itself.
 
 This deliberately leaves some sink after a first Azure Reach clear. One hero
 can be completed in one pass; completing the entire roster takes exploration,

@@ -4,6 +4,7 @@ import { playerAccent } from '../colors';
 import { TEX, heroPortrait } from '../textures';
 import { POWERUP_KINDS } from '../../sim/types';
 import { MAX_PLAYERS, anchorOffset, panelLayout } from '../hudLayout';
+import { heroLevelCopy } from '../xpCopy';
 import type { HudInfo, MissionScene } from './MissionScene';
 
 /**
@@ -401,12 +402,16 @@ export class HudScene extends Phaser.Scene {
     panel.potionIcon.setVisible(hasPotions);
     panel.potionText.setVisible(hasPotions).setText(hasPotions ? `x${p.potions}` : '');
 
-    // Hero level and progress toward the next; the bar fills solid at the cap.
-    panel.levelText.setText(`Lv ${p.level}`);
+    // Hero level and progress toward the next. At the cap the bar fills solid
+    // and the chip says MAX (issue #103) — a full bar alone read as "nearly
+    // there" for the rest of the player's time with the game.
     const span = p.xpForLevel;
-    const frac = span === null ? 1 : Math.max(0, Math.min(1, p.xpIntoLevel / span));
+    const atCap = span === null;
+    panel.levelText.setText(heroLevelCopy(p.level, atCap));
+    panel.levelText.setColor(atCap ? '#9fe06a' : '#ffd75e');
+    const frac = atCap ? 1 : Math.max(0, Math.min(1, p.xpIntoLevel / span));
     panel.xpBar.width = (panel.width - 6) * frac;
-    panel.xpBar.setFillStyle(span === null ? 0x9fe06a : 0xffd75e);
+    panel.xpBar.setFillStyle(atCap ? 0x9fe06a : 0xffd75e);
 
     // Large health number with a low-health pulse.
     panel.hpText.setText(String(Math.ceil(p.hp)));

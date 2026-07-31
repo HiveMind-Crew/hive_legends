@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CONTENT, firstClearBonus, LEVELS, MISSION_ORDER } from '../../content';
 import {
+  bankXp,
   buyUpgrade,
   buyWeapon,
   equipWeapon,
@@ -24,15 +25,19 @@ import { audio } from '../audio';
 import { clearTimeCopy, formatClearTime } from '../clearTimes';
 import { bindFullscreenToggle } from '../fullscreen';
 import { TEX } from '../textures';
+import { xpResultCopy } from '../xpCopy';
 
 interface ResultsData {
   victory: boolean;
   gold: number;
   kills: number;
   ticks: number;
-  /** XP earned this run and the level it left the hero at (issue #46). */
+  /**
+   * XP earned this run (issue #46). The level it bought is *not* passed: the
+   * banked profile decides that, because past the cap the run's XP buys gold
+   * instead (issue #103) and only `bankXp` knows the split.
+   */
   xpEarned: number;
-  heroLevel: number;
   /** Hero played this run; kept so replay and hero-select return to it. */
   heroId: string;
   /** Level played this run; kept so replay/next-mission target the right realm. */
@@ -69,7 +74,10 @@ export class ResultsScene extends Phaser.Scene {
     let newMastery = false;
     let clearTime: ClearTimeResult | null = null;
     // XP banks whether or not the run was won — you keep what you fought for.
-    this.profile.xp += Math.max(0, data.xpEarned ?? 0);
+    // Past the level cap `bankXp` pays it out as gold instead of adding to a
+    // total that no longer moves (issue #103), so it can add to the bank here.
+    const xpEarned = Math.max(0, data.xpEarned ?? 0);
+    const xpResult = bankXp(this.profile, xpEarned);
     if (data.victory) {
       this.profile.missionsCompleted += 1;
       // Per-realm record (issue #100). Only a won run sets one — a death is not
@@ -127,7 +135,7 @@ export class ResultsScene extends Phaser.Scene {
         width / 2,
         165,
         `Gold collected: ${data.gold}${clearBonus ? ` + ${clearBonus} first-clear bounty` : ''}    Kills: ${data.kills}    Time: ${runTime}\n` +
-          `XP earned: ${data.xpEarned ?? 0}    Hero level: ${data.heroLevel ?? 1}` +
+          xpResultCopy(xpEarned, xpResult) +
           (data.victory ? `    ${newMastery ? 'NEW ' : ''}HERO MASTERY` : ''),
         { fontFamily: 'monospace', fontSize: '18px', color: '#f4e3b2', align: 'center' }
       )
@@ -218,10 +226,12 @@ export class ResultsScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     // Gold count-up: roll the bank from its pre-mission value to the new
-    // total, with a few rising coin ticks along the way.
-    this.shownBank = this.profile.bank - bankedGold;
+    // total, with a few rising coin ticks along the way. A capped hero's XP
+    // dividend is gold like any other, so it rolls up with the rest.
+    const rolledGold = bankedGold + xpResult.gold;
+    this.shownBank = this.profile.bank - rolledGold;
     this.refreshTexts();
-    if (bankedGold > 0) {
+    if (rolledGold > 0) {
       const counter = { v: this.shownBank };
       this.bankTween = this.tweens.add({
         targets: counter,
