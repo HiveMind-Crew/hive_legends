@@ -22,7 +22,7 @@ import {
   type InteractionObjectKey
 } from '../scripts/art/interactionObjectPack';
 import { buildUiArtPack, uiArtBitmap, type UiArtKey } from '../scripts/art/uiArtPack';
-import { TEXTURE_SPECS } from '../src/game/textureSpecs';
+import { GENERATED_FOREVER_FX_TEXTURE_KEYS, TEXTURE_SPECS } from '../src/game/textureSpecs';
 
 /**
  * Guards the drop-in art contract in `docs/ART.md` from the one side the
@@ -36,6 +36,7 @@ import { TEXTURE_SPECS } from '../src/game/textureSpecs';
  */
 const ART_DIR = fileURLToPath(new URL('../public/art/', import.meta.url));
 const MANIFEST = `${ART_DIR}manifest.json`;
+const ART_DOC = fileURLToPath(new URL('../docs/ART.md', import.meta.url));
 
 function manifestKeys(): string[] {
   return JSON.parse(readFileSync(MANIFEST, 'utf8')) as string[];
@@ -45,6 +46,31 @@ function manifestKeys(): string[] {
 function pngSize(file: string): { w: number; h: number } {
   const buf = readFileSync(file);
   return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+}
+
+interface FxPolicyRow {
+  key: string;
+  size: string;
+  decision: string;
+  runtime: string;
+  caveat: string;
+}
+
+function documentedFxPolicyRows(): FxPolicyRow[] {
+  const doc = readFileSync(ART_DOC, 'utf8');
+  const start = doc.indexOf('### Effects (generated forever; no PNG overrides)');
+  const end = doc.indexOf('\n## ', start);
+  if (start < 0 || end < 0) throw new Error('docs/ART.md is missing the generated-forever FX policy table');
+
+  return [...doc.slice(start, end).matchAll(/^\| `([^`]+)` \| ([^|]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \|$/gm)].map(
+    ([, key, size, decision, runtime, caveat]) => ({
+      key: key!.trim(),
+      size: size!.trim(),
+      decision: decision!.trim(),
+      runtime: runtime!.trim(),
+      caveat: caveat!.trim()
+    })
+  );
 }
 
 // Under `npm run art:build` the pack below is still being written, so the
@@ -71,6 +97,35 @@ describe.skipIf(process.env.UPDATE_ART)('public/art', () => {
       .map((name) => name.slice(0, -4));
     for (const key of shipped) {
       expect(listed.has(key), `${key}.png is checked in but unlisted, so it never loads`).toBe(true);
+    }
+  });
+
+  it('keeps the current art pack complete except for generated-forever FX', () => {
+    const manifest = new Set(manifestKeys());
+    const unoverridden = Object.keys(TEXTURE_SPECS)
+      .filter((key) => !manifest.has(key))
+      .sort();
+    const generatedFx = [...GENERATED_FOREVER_FX_TEXTURE_KEYS].sort();
+
+    // This is intentionally scoped to the current repository pack. The
+    // loader still permits partial packs for future realms/content.
+    expect(unoverridden).toEqual(generatedFx);
+    for (const key of Object.keys(TEXTURE_SPECS).filter((key) => !key.startsWith('fx-'))) {
+      expect(manifest.has(key), `${key} is a current non-FX texture without an art override`).toBe(true);
+    }
+  });
+
+  it('documents the exact generated-forever FX set and sizes', () => {
+    const rows = documentedFxPolicyRows();
+    expect(rows.map((row) => row.key)).toEqual([...GENERATED_FOREVER_FX_TEXTURE_KEYS]);
+
+    for (const row of rows) {
+      const spec = TEXTURE_SPECS[row.key];
+      expect(spec, `${row.key} is not in TEXTURE_SPECS`).toBeDefined();
+      expect(row.decision, `${row.key} must remain generated forever`).toBe('Yes — generated forever');
+      expect(row.size, `${row.key} size drifted from TEXTURE_SPECS`).toBe(`${spec!.w}×${spec!.h}`);
+      expect(row.runtime, `${row.key} needs a runtime usage/tint note`).not.toBe('');
+      expect(row.caveat, `${row.key} needs an authoring caveat`).not.toBe('');
     }
   });
 });
