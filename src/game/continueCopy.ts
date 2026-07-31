@@ -25,9 +25,18 @@ export interface ContinueOffer {
   used: number;
 }
 
+/**
+ * Whether this offer can actually be taken. One predicate, used by the copy,
+ * by the prompt's clock, and by the scene deciding what a keypress means —
+ * five copies of `bank >= cost` is five chances to disagree.
+ */
+export function canTakeOffer(offer: ContinueOffer): boolean {
+  return offer.bank >= offer.cost;
+}
+
 /** The headline: an offer, or the reason there isn't one. */
 export function continueTitleCopy(offer: ContinueOffer): string {
-  return offer.bank >= offer.cost ? 'CONTINUE?' : 'THE HIVE PREVAILS';
+  return canTakeOffer(offer) ? 'CONTINUE?' : 'THE HIVE PREVAILS';
 }
 
 /**
@@ -35,7 +44,7 @@ export function continueTitleCopy(offer: ContinueOffer): string {
  * have, because "not enough gold" without the numbers reads as a bug.
  */
 export function continueOfferCopy(offer: ContinueOffer): string {
-  if (offer.bank < offer.cost) {
+  if (!canTakeOffer(offer)) {
     return `Stand up: ${offer.cost} gold — you have ${offer.bank}`;
   }
   const again = offer.used > 0 ? ` (continue ${offer.used + 1})` : '';
@@ -44,7 +53,7 @@ export function continueOfferCopy(offer: ContinueOffer): string {
 
 /** The prompt's action line, or the fall-through when it cannot be taken. */
 export function continueActionCopy(offer: ContinueOffer, secondsLeft: number): string {
-  if (offer.bank < offer.cost) return 'ESC — to the results';
+  if (!canTakeOffer(offer)) return 'ESC — to the results';
   return `ENTER / (A) — continue  ·  ESC / (B) — give up  ·  ${Math.max(0, Math.ceil(secondsLeft))}`;
 }
 

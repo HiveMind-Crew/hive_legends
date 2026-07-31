@@ -4,7 +4,6 @@ import {
   bestClearTicks,
   buyContinue,
   buyHeroUnlock,
-  canAffordContinue,
   continueCost,
   buyWeapon,
   defaultProfile,
@@ -510,12 +509,10 @@ describe('continues', () => {
   it('spends the bank, and only when the bank covers it', () => {
     const profile = defaultProfile();
     profile.bank = base;
-    expect(canAffordContinue(profile, 0)).toBe(true);
     expect(buyContinue(profile, 0)).toBe(true);
     expect(profile.bank).toBe(0);
 
     // The second one costs more, and the empty bank cannot pay for it.
-    expect(canAffordContinue(profile, 1)).toBe(false);
     expect(buyContinue(profile, 1)).toBe(false);
     expect(profile.bank).toBe(0); // a refused continue charges nothing
   });

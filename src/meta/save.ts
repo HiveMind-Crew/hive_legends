@@ -187,11 +187,6 @@ export function continueCost(continuesUsed: number): number {
   return ECONOMY.continueBaseCost + ECONOMY.continueCostStep * used;
 }
 
-/** Whether the bank covers the next continue. */
-export function canAffordContinue(profile: Profile, continuesUsed: number): boolean {
-  return profile.bank >= continueCost(continuesUsed);
-}
-
 /**
  * Spends the bank on a continue, returning false (and charging nothing) when
  * it cannot be paid for. The sim-side revive is `revivePlayer`; this is only

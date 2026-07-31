@@ -16,6 +16,7 @@ import { audio } from '../audio';
 import {
   CONTINUE_SECONDS,
   DECLINED_SECONDS,
+  canTakeOffer,
   continueActionCopy,
   continueOfferCopy,
   continueTitleCopy,
@@ -528,6 +529,11 @@ export class MissionScene extends Phaser.Scene {
       this.handleEvents(events);
       this.accumulator -= TICK_DT;
       steps++;
+      // Stop the moment the run ends or falls: `simTick` still advances `tick`
+      // once the phase is terminal, so continuing to step this frame pads
+      // mission time — the clear-time record on a win, and the "frozen while
+      // the offer is up" guarantee on a death.
+      if (this.ended || this.continueOffer) break;
     }
     if (steps === MAX_STEPS_PER_FRAME) this.accumulator = 0; // avoid spiral of death
 
@@ -825,7 +831,7 @@ export class MissionScene extends Phaser.Scene {
       bank: this.profile.bank,
       used: this.continuesUsed
     };
-    const affordable = offer.bank >= offer.cost;
+    const affordable = canTakeOffer(offer);
     this.continueOffer = offer;
     this.continueEndsAt = this.time.now + (affordable ? CONTINUE_SECONDS : DECLINED_SECONDS) * 1000;
     (this.scene.get('hud') as HudScene).herald(
@@ -840,7 +846,7 @@ export class MissionScene extends Phaser.Scene {
     const offer = this.continueOffer;
     if (!offer) return;
     const secondsLeft = Math.max(0, (this.continueEndsAt - this.time.now) / 1000);
-    const total = offer.bank >= offer.cost ? CONTINUE_SECONDS : DECLINED_SECONDS;
+    const total = canTakeOffer(offer) ? CONTINUE_SECONDS : DECLINED_SECONDS;
     (this.scene.get('hud') as HudScene).showContinue(
       continueTitleCopy(offer),
       continueOfferCopy(offer),
