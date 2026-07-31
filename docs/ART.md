@@ -7,8 +7,10 @@ contract.
 
 The pipeline is live and already in use — all four heroes, all three enemy
 families, Mireveil, the Realm 1 environment/object sets, the interaction
-objects, and the HUD/title UI ship as real art in `public/art/`. Partial packs
-remain supported for future realms and content.
+objects, and the HUD/title UI ship as real art in `public/art/`. In the current
+repository, every non-FX texture key has an override; the eleven FX primitives
+listed below are the intentional generated-only exception. Partial packs
+remain supported by the loader for future realms and content.
 
 ## The one hard rule: originality
 
@@ -182,12 +184,27 @@ chips are hidden rather than recoloured.
 **The complete UI set is covered by an original deterministic art pack.** Its
 reviewable source is `scripts/art/uiArtPack.ts`.
 
-### Effects (usually fine as generated; tintable = draw in white)
+### Effects (generated forever; no PNG overrides)
 
-`fx-shadow` 32×14 · `fx-accent-ring` 40×40 (white, tinted per player) ·
-`fx-chevron` 14×14 (white, points +x) · `fx-glow` 48×48 (white radial) ·
-`fx-bolt` 12×6 (white capsule, points +x) · `fx-mote` 4×4 · particles:
-`fx-ichor` 6×6, `fx-shard` 8×8, `fx-spark` 6×6, `fx-dust` 8×8, `fx-heart` 7×7.
+These eleven keys intentionally remain generated forever. They are tiny
+renderer primitives, and their runtime tinting, additive compositing, and
+pooled particle use make the generated forms more reusable and color-safe than
+fixed art. Do not add them to `public/art/manifest.json` or check in PNG
+overrides for them.
+
+| Key | Size | Decision | Runtime tint / blend / usage | Authoring caveat |
+| --- | --- | --- | --- | --- |
+| `fx-accent-ring` | 40×40 | Yes — generated forever | White source, runtime-tinted; squashed ground ring reused under players, elites, generators, and Mireveil. | Keep the ring white with a transparent center; do not bake a player or enemy hue. |
+| `fx-bolt` | 12×6 | Yes — generated forever | Additive projectile capsule; runtime-tinted by hostile/player source and rotated with velocity. | Keep the capsule pointing +x; do not bake hero or enemy colors. |
+| `fx-chevron` | 14×14 | Yes — generated forever | Runtime-tinted by player accent and rotated to facing; compact facing marker. | Keep the +x pointing silhouette and dark inset; do not create facing-specific art. |
+| `fx-dust` | 8×8 | Yes — generated forever | Pooled combat particle; fades and expands for telegraphs, movement, and dust bursts. | Keep a soft neutral particle; do not bake an attack or realm color. |
+| `fx-glow` | 48×48 | Yes — generated forever | White radial used with additive blend; runtime-tinted and scaled for auras, portals, ambient lights, and UI. | Keep smooth white radial alpha with no hard edge or fixed light hue. |
+| `fx-heart` | 7×7 | Yes — generated forever | Pooled health-pickup burst; rises, scales down, and fades with its red semantic color. | Preserve the readable heart silhouette at 1×; health color is the cue. |
+| `fx-ichor` | 6×6 | Yes — generated forever | Pooled green combat particle; bursts on bile/enemy hits, scales down, and falls under gravity. | Keep the tiny round splat readable at 1×; green is the bile cue. |
+| `fx-mote` | 4×4 | Yes — generated forever | Particle emitter for ambient drift and portal motes; runtime-tinted by the realm accent and faded over time. | Keep a single round point; do not bake a realm accent hue. |
+| `fx-shadow` | 32×14 | Yes — generated forever | Neutral alpha ellipse used as a scaled ground decal beneath entities. | Keep it color-neutral and transparent; do not bake an actor or light direction. |
+| `fx-shard` | 8×8 | Yes — generated forever | Pooled violet combat particle; rotates, falls, and scales down in damage and boss bursts. | Keep a simple faceted silhouette; pooled motion supplies the variation. |
+| `fx-spark` | 6×6 | Yes — generated forever | Pooled gold combat particle; rises and fades for hits, rewards, pickups, and ability feedback. | Keep the compact four-point flash; pooled motion supplies the variation. |
 
 ## Lighting and shadows
 

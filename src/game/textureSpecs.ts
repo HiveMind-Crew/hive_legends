@@ -14,6 +14,25 @@ export interface TextureSpec {
   h: number;
 }
 
+/**
+ * FX primitives intentionally kept as generated programmer art. These are
+ * small, reusable renderer textures whose runtime tinting, blending, or
+ * particle pooling is more valuable than a fixed art override.
+ */
+export const GENERATED_FOREVER_FX_TEXTURE_KEYS = [
+  'fx-accent-ring',
+  'fx-bolt',
+  'fx-chevron',
+  'fx-dust',
+  'fx-glow',
+  'fx-heart',
+  'fx-ichor',
+  'fx-mote',
+  'fx-shadow',
+  'fx-shard',
+  'fx-spark'
+] as const;
+
 const ENEMY_FAMILY_SIZES: Record<EnemyFamily, TextureSpec> = {
   skitter: { w: 24, h: 24 },
   husk: { w: 32, h: 32 },
