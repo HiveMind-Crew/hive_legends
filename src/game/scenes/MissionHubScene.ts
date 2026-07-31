@@ -13,6 +13,7 @@ import { bestClearCopy } from '../clearTimes';
 import { endOfContentCopy, statusCopy } from '../hubCopy';
 import { audio } from '../audio';
 import { FULLSCREEN_HINT, bindFullscreenToggle } from '../fullscreen';
+import { bindPadMenu } from '../padMenu';
 import { TEX } from '../textures';
 
 /**
@@ -217,7 +218,7 @@ export class MissionHubScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(width / 2, height - 24, `↑↓ node   ←→ realm   Enter deploy   H hero select   O settings   ${FULLSCREEN_HINT}`, {
+      .text(width / 2, height - 24, `↑↓ node   ←→ realm   Enter deploy   H hero select   O settings   ${FULLSCREEN_HINT}   ·   Pad (A) deploy (B) back`, {
         fontFamily: 'monospace',
         fontSize: '13px',
         color: '#7a6f92'
@@ -299,18 +300,18 @@ export class MissionHubScene extends Phaser.Scene {
     kb?.on('keydown-A', () => jump(-1));
 
     bindFullscreenToggle(this);
-    kb?.on('keydown-O', () => {
+    const openSettings = (): void => {
       audio.unlock();
       audio.uiConfirm();
       this.scene.launch('settings', { returnScene: 'mission-hub' });
       this.scene.pause();
-    });
-    kb?.on('keydown-H', () => {
+    };
+    const toHeroSelect = (): void => {
       audio.unlock();
       audio.uiConfirm();
       this.scene.start('hero-select', { heroId: this.heroId });
-    });
-    kb?.on('keydown-ENTER', () => {
+    };
+    const deploy = (): void => {
       audio.unlock();
       const node = this.nodes[this.cursor];
       if (!node) return;
@@ -320,6 +321,20 @@ export class MissionHubScene extends Phaser.Scene {
       }
       audio.uiConfirm();
       this.scene.start('mission', { heroId: this.heroId, levelId: node.levelId });
+    };
+    kb?.on('keydown-O', openSettings);
+    kb?.on('keydown-H', toHeroSelect);
+    kb?.on('keydown-ENTER', deploy);
+    // The wheel on a pad (issue #98): the same verbs the keys drive, with the
+    // stick and d-pad walking the spoke and jumping between realms.
+    bindPadMenu(this, {
+      down: () => step(1),
+      up: () => step(-1),
+      right: () => jump(1),
+      left: () => jump(-1),
+      confirm: deploy,
+      cancel: toHeroSelect,
+      menu: openSettings
     });
   }
 }

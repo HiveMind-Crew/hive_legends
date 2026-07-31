@@ -24,6 +24,9 @@ npm run dev        # http://localhost:5173
 
 Controls: **WASD/Arrows** move · **Space/J** attack · **Shift/K** hero ability ·
 **Q** quaff a potion · **Enter** confirm · **Esc** pause · **F** fullscreen.
+Gamepad (any standard-mapping pad, hot-pluggable): **left stick / d-pad** move ·
+**(A)** attack and confirm · **(X)** ability · **(Y)** potion · **(B)** back ·
+**START** pause and settings · **LB/RB** buy upgrades in the results shop.
 Missions are chosen on the wheel: **↑↓** node · **←→** realm · **Enter** deploy.
 Open settings with **S** from hero select or pause (**O** on the wheel/results);
 there, **←→** adjusts volume and **M** toggles mute.
