@@ -13,8 +13,16 @@ import {
   buildEnvironmentTilePack,
   environmentTileBitmap,
   type AmberResinTileKey,
-  type EnvironmentTileKey
+  type EnvironmentTileKey,
+  buildHollowThroneTilePack,
+  hollowThroneTileBitmap,
+  type HollowThroneTileKey
 } from '../scripts/art/environmentTilePack';
+import {
+  buildHollowThroneDecorPack,
+  hollowThroneDecorBitmap,
+  type HollowThroneDecorKey
+} from '../scripts/art/hollowThronePack';
 import { buildWorldObjectPack, worldObjectBitmap, type WorldObjectKey } from '../scripts/art/worldObjectPack';
 import {
   buildInteractionObjectPack,
@@ -238,6 +246,155 @@ describe('the amber-resin environment tile pack (#28)', () => {
       // substitution compare equal while preserving the underlying drawing.
       expect(colourPattern(amber.rgba)).not.toEqual(colourPattern(realmOne.rgba));
     }
+  });
+});
+
+describe('the Hollow Throne environment tile pack (#110)', () => {
+  const keys: readonly HollowThroneTileKey[] = [
+    'tile-hollow-throne-wall',
+    'tile-hollow-throne-wall-inner',
+    'tile-hollow-throne-wall-face',
+    'tile-hollow-throne-floor-0',
+    'tile-hollow-throne-floor-1',
+    'tile-hollow-throne-floor-2',
+    'tile-hollow-throne-floor-3'
+  ];
+
+  it('matches the reviewable pixel source', () => {
+    const pack = buildHollowThroneTilePack();
+
+    if (process.env.UPDATE_ART) {
+      const listed = manifestKeys();
+      for (const [key, png] of pack) {
+        writeFileSync(`${ART_DIR}${key}.png`, png);
+        if (!listed.includes(key)) listed.push(key);
+      }
+      writeFileSync(MANIFEST, `${JSON.stringify(listed, null, 2)}\n`);
+      return;
+    }
+
+    for (const [key, png] of pack) {
+      const file = `${ART_DIR}${key}.png`;
+      expect(existsSync(file), `${key}.png is missing — run \`npm run art:build\``).toBe(true);
+      expect(readFileSync(file).equals(Buffer.from(png)), `${key}.png is stale — run \`npm run art:build\``).toBe(true);
+    }
+  });
+
+  it('covers four floors and three wall surfaces at contract sizes', () => {
+    expect([...buildHollowThroneTilePack().keys()]).toEqual(keys);
+    for (const key of keys) {
+      const image = hollowThroneTileBitmap(key);
+      expect({ w: image.w, h: image.h }).toEqual(TEXTURE_SPECS[key]);
+      for (let i = 3; i < image.rgba.length; i += 4) expect(image.rgba[i]).toBe(0xff);
+    }
+  });
+
+  it('tiles without horizontal or vertical seams', () => {
+    for (const key of keys) {
+      const image = hollowThroneTileBitmap(key);
+      for (let y = 0; y < image.h; y++) {
+        const left = y * image.w * 4;
+        const right = (y * image.w + image.w - 1) * 4;
+        expect(image.rgba.slice(left, left + 4), `${key} horizontal seam at y=${y}`).toEqual(
+          image.rgba.slice(right, right + 4)
+        );
+      }
+      if (key === 'tile-hollow-throne-wall-face') continue;
+      for (let x = 0; x < image.w; x++) {
+        const top = x * 4;
+        const bottom = ((image.h - 1) * image.w + x) * 4;
+        expect(image.rgba.slice(top, top + 4), `${key} vertical seam at x=${x}`).toEqual(
+          image.rgba.slice(bottom, bottom + 4)
+        );
+      }
+    }
+  });
+
+  it('keeps Hollow Throne floors dark enough for actors and telegraphs to dominate', () => {
+    for (let variant = 0; variant < 4; variant++) {
+      const image = hollowThroneTileBitmap(`tile-hollow-throne-floor-${variant}` as HollowThroneTileKey);
+      let luminance = 0;
+      for (let i = 0; i < image.rgba.length; i += 4) {
+        luminance += 0.2126 * image.rgba[i]! + 0.7152 * image.rgba[i + 1]! + 0.0722 * image.rgba[i + 2]!;
+      }
+      expect(luminance / (image.w * image.h)).toBeLessThan(45);
+    }
+  });
+
+  it('is structurally distinct from the Realm 1 floors, not a palette swap', () => {
+    const colourPattern = (rgba: Uint8Array): number[] => {
+      const colours = new Map<string, number>();
+      const pattern: number[] = [];
+      for (let i = 0; i < rgba.length; i += 4) {
+        const colour = `${rgba[i]},${rgba[i + 1]},${rgba[i + 2]},${rgba[i + 3]}`;
+        if (!colours.has(colour)) colours.set(colour, colours.size);
+        pattern.push(colours.get(colour)!);
+      }
+      return pattern;
+    };
+    for (let variant = 0; variant < 4; variant++) {
+      const realmOne = environmentTileBitmap(`tile-floor-${variant}` as EnvironmentTileKey);
+      const throne = hollowThroneTileBitmap(`tile-hollow-throne-floor-${variant}` as HollowThroneTileKey);
+      expect(colourPattern(throne.rgba)).not.toEqual(colourPattern(realmOne.rgba));
+    }
+  });
+});
+
+describe('the Hollow Throne decor pack (#110)', () => {
+  const keys: readonly HollowThroneDecorKey[] = [
+    'decor-throne-dais',
+    'decor-throne-pillar',
+    'decor-spent-casings',
+    'decor-hanging-sacs'
+  ];
+
+  it('matches the reviewable pixel source', () => {
+    const pack = buildHollowThroneDecorPack();
+
+    if (process.env.UPDATE_ART) {
+      const listed = manifestKeys();
+      for (const [key, png] of pack) {
+        writeFileSync(`${ART_DIR}${key}.png`, png);
+        if (!listed.includes(key)) listed.push(key);
+      }
+      writeFileSync(MANIFEST, `${JSON.stringify(listed, null, 2)}\n`);
+      return;
+    }
+
+    for (const [key, png] of pack) {
+      const file = `${ART_DIR}${key}.png`;
+      expect(existsSync(file), `${key}.png is missing — run \`npm run art:build\``).toBe(true);
+      expect(readFileSync(file).equals(Buffer.from(png)), `${key}.png is stale — run \`npm run art:build\``).toBe(true);
+    }
+  });
+
+  it('uses exact contract sizes, visible pixels, and transparent corners', () => {
+    expect([...buildHollowThroneDecorPack().keys()]).toEqual(keys);
+    for (const key of keys) {
+      const image = hollowThroneDecorBitmap(key);
+      expect({ w: image.w, h: image.h }).toEqual(TEXTURE_SPECS[key]);
+      expect(image.rgba.some((value, index) => index % 4 === 3 && value > 0), `${key} has no visible pixels`).toBe(true);
+      for (const [x, y] of [
+        [0, 0],
+        [image.w - 1, 0],
+        [0, image.h - 1],
+        [image.w - 1, image.h - 1]
+      ] as const) {
+        expect(image.rgba[(y * image.w + x) * 4 + 3], `${key} needs transparent canvas corners`).toBe(0);
+      }
+    }
+  });
+
+  it('gives each motif a distinct silhouette and bitmap', () => {
+    const masks = keys.map((key) => {
+      const { rgba } = hollowThroneDecorBitmap(key);
+      let mask = '';
+      for (let i = 3; i < rgba.length; i += 4) mask += rgba[i]! > 0 ? '1' : '0';
+      return mask;
+    });
+    const images = keys.map((key) => Buffer.from(buildHollowThroneDecorPack().get(key)!).toString('base64'));
+    expect(new Set(masks)).toHaveLength(keys.length);
+    expect(new Set(images)).toHaveLength(keys.length);
   });
 });
 

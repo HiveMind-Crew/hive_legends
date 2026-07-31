@@ -33,6 +33,9 @@ import {
   POWERUP_COLORS,
   TEX,
   bossFrame,
+  decorGlowColor,
+  decorIsYSorted,
+  decorTexture,
   enemyFrame,
   facingDirIndex,
   floorVariant,
@@ -368,16 +371,14 @@ export class MissionScene extends Phaser.Scene {
     for (const d of level.decor ?? []) {
       const x = d.tx * ts + ts / 2;
       const y = d.ty * ts + ts / 2;
-      if (d.kind === 'egg-cluster') {
-        this.add.image(x, y, TEX.decorEgg).setDepth(y); // has height: y-sorted
-      } else if (d.kind === 'resin-web') {
-        this.add.image(x, y, TEX.decorWeb).setDepth(DEPTH_DECAL);
-      } else {
-        this.add.image(x, y, TEX.decorSpore).setDepth(DEPTH_DECAL);
+      const depth = d.surface === 'wall' ? (d.ty + 1) * ts + 1 : decorIsYSorted(d.kind) ? y : DEPTH_DECAL;
+      this.add.image(x, y, decorTexture(d.kind)).setDepth(depth);
+      const glowColor = decorGlowColor(d.kind);
+      if (glowColor !== undefined) {
         const glow = this.add
           .image(x, y, TEX.glow)
           .setBlendMode(Phaser.BlendModes.ADD)
-          .setTint(0x9fe06a)
+          .setTint(glowColor)
           .setAlpha(0.3)
           .setScale(1.4)
           .setDepth(DEPTH_DECAL + 1);

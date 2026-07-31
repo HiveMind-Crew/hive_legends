@@ -124,11 +124,19 @@ export function validateLevel(level: LevelDef): string[] {
     ...(level.props ?? []).map((p, i) => ({ what: `prop[${i}]`, tx: p.tx, ty: p.ty })),
     ...(level.gates ?? []).map((g, i) => ({ what: `gate[${i}]`, tx: g.tx, ty: g.ty })),
     ...(level.secrets ?? []).map((s, i) => ({ what: `secret[${i}]`, tx: s.tx, ty: s.ty })),
-    ...(level.decor ?? []).map((d, i) => ({ what: `decor[${i}]`, tx: d.tx, ty: d.ty })),
     { what: 'exit', tx: level.exit.tx, ty: level.exit.ty }
   ];
   for (const { what, tx, ty } of mustBeFloor) {
     if (isWallTile(level, tx, ty)) problems.push(`${what} at (${tx},${ty}) is not on a floor tile`);
+  }
+  for (const [i, decor] of (level.decor ?? []).entries()) {
+    if (decor.surface === 'wall') {
+      if (!isWallTile(level, decor.tx, decor.ty)) {
+        problems.push(`decor[${i}] at (${decor.tx},${decor.ty}) is not on a wall tile`);
+      }
+    } else if (isWallTile(level, decor.tx, decor.ty)) {
+      problems.push(`decor[${i}] at (${decor.tx},${decor.ty}) is not on a floor tile`);
+    }
   }
   if (level.playerSpawns.length === 0) problems.push('level has no player spawns');
   return problems;

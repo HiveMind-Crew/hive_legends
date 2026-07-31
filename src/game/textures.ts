@@ -1,5 +1,11 @@
 import Phaser from 'phaser';
-import { ENEMY_FAMILIES, ENEMY_TIERS, type EnemyFamily, type EnemyTier } from '../sim/types';
+import {
+  ENEMY_FAMILIES,
+  ENEMY_TIERS,
+  type DecorKind,
+  type EnemyFamily,
+  type EnemyTier
+} from '../sim/types';
 import { TEXTURE_SPECS } from './textureSpecs';
 
 /**
@@ -172,6 +178,40 @@ export function generatorFrame(typeId: string, tier: number): string {
 }
 
 export const FLOOR_VARIANTS = 4;
+
+const DECOR_TEXTURES: Record<DecorKind, string> = {
+  'egg-cluster': 'decor-egg-cluster',
+  'resin-web': 'decor-resin-web',
+  'spore-patch': 'decor-spore-patch',
+  'throne-dais': 'decor-throne-dais',
+  'throne-pillar': 'decor-throne-pillar',
+  'spent-casings': 'decor-spent-casings',
+  'hanging-sacs': 'decor-hanging-sacs'
+};
+
+const DECOR_Y_SORTED = new Set<DecorKind>([
+  'egg-cluster',
+  'throne-dais',
+  'throne-pillar',
+  'hanging-sacs'
+]);
+
+const DECOR_GLOW_COLORS: Partial<Record<DecorKind, number>> = {
+  'spore-patch': 0x9fe06a
+};
+
+export function decorTexture(kind: DecorKind): string {
+  return DECOR_TEXTURES[kind];
+}
+
+export function decorIsYSorted(kind: DecorKind): boolean {
+  return DECOR_Y_SORTED.has(kind);
+}
+
+export function decorGlowColor(kind: DecorKind): number | undefined {
+  return DECOR_GLOW_COLORS[kind];
+}
+
 export function floorVariant(i: number, tileSet?: string): string {
   return tileSet ? `tile-${tileSet}-floor-${i}` : `tile-floor-${i}`;
 }
@@ -355,6 +395,73 @@ export function generateTextures(scene: Phaser.Scene): void {
       g.fillTriangle(23, 20, 28, 24, 21, 26);
     }
     gen(floorVariant(v, 'amber-resin'));
+  }
+
+  // Hollow Throne fallback set. The original pack overrides these keys, but
+  // partial manifests still need a coherent, subdued grown-chitin room.
+  g.clear();
+  g.fillStyle(0x3c2535);
+  g.fillRect(0, 0, 32, 32);
+  g.lineStyle(2, 0x71394f);
+  g.strokeEllipse(7, 7, 18, 13);
+  g.strokeEllipse(23, 20, 21, 16);
+  g.lineStyle(1, 0x6d3852);
+  g.lineBetween(4, 3, 1, 13);
+  g.lineBetween(16, 3, 16, 14);
+  g.lineBetween(28, 3, 31, 13);
+  g.fillStyle(0xa84f6c);
+  g.fillCircle(6, 4, 1.5);
+  g.fillCircle(22, 13, 1.5);
+  gen(wallTexture('top', 'hollow-throne'));
+
+  g.clear();
+  g.fillStyle(0x241622);
+  g.fillRect(0, 0, 32, 32);
+  g.lineStyle(1, 0x512b42);
+  g.strokeEllipse(7, 7, 19, 14);
+  g.strokeEllipse(24, 22, 24, 18);
+  g.lineBetween(5, 0, 8, 31);
+  g.lineBetween(22, 0, 19, 31);
+  gen(wallTexture('inner', 'hollow-throne'));
+
+  g.clear();
+  g.fillStyle(0x241622);
+  g.fillRect(0, 0, 32, 16);
+  g.fillStyle(0x71394f);
+  g.fillRect(0, 0, 32, 2);
+  g.fillStyle(0x3c2535);
+  for (const x of [1, 8, 16, 23]) g.fillRect(x, 3, 6, 10);
+  g.fillStyle(0x6d3852);
+  for (const x of [2, 17, 27]) g.fillRect(x, 4, 1, 9);
+  g.fillStyle(0x0c080e);
+  g.fillRect(0, 14, 32, 2);
+  gen(wallTexture('face', 'hollow-throne'));
+
+  for (let v = 0; v < FLOOR_VARIANTS; v++) {
+    g.clear();
+    g.fillStyle(0x19131c);
+    g.fillRect(0, 0, 32, 32);
+    g.fillStyle(0x241724);
+    g.fillEllipse(7, 7, 13 + v * 2, 9 + v);
+    g.fillEllipse(24, 22, 15 - v, 10);
+    if (v === 1) {
+      g.lineStyle(1, 0x0c080e);
+      g.lineBetween(0, 8, 11, 17);
+      g.lineBetween(11, 17, 8, 25);
+      g.lineBetween(22, 0, 20, 8);
+    } else if (v === 2) {
+      g.lineStyle(1, 0x4b2940);
+      g.strokeEllipse(16, 15, 22, 16);
+      g.lineBetween(0, 16, 32, 16);
+    } else if (v === 3) {
+      g.lineStyle(1, 0x6d3852);
+      g.lineBetween(6, 8, 11, 11);
+      g.lineBetween(11, 11, 8, 15);
+      g.lineBetween(20, 23, 26, 19);
+      g.fillStyle(0x312036);
+      g.fillCircle(14, 16, 2);
+    }
+    gen(floorVariant(v, 'hollow-throne'));
   }
 
   // Hero frame sets: every roster hero x 8 directions x (walk0, walk1,
@@ -562,6 +669,85 @@ export function generateTextures(scene: Phaser.Scene): void {
   g.fillCircle(8, 8, 1);
   g.fillCircle(15, 11, 0.8);
   gen(TEX.decorSpore);
+
+  // Hollow Throne dressing fallbacks: a central brood dais, grown pillars,
+  // discarded shell casings, and hanging sacs. Real art overrides these keys.
+  g.clear();
+  g.fillStyle(0x0b0710, 0.65);
+  g.fillEllipse(48, 53, 78, 16);
+  g.fillStyle(0x382039);
+  g.fillRect(17, 43, 62, 10);
+  g.fillStyle(0x5d2f4d);
+  g.fillEllipse(28, 33, 26, 34);
+  g.fillEllipse(68, 33, 26, 34);
+  g.fillStyle(0x713c50);
+  g.fillEllipse(48, 28, 28, 40);
+  g.fillStyle(0x291627);
+  g.fillEllipse(48, 34, 14, 10);
+  g.fillStyle(0xb45a7a, 0.75);
+  g.fillEllipse(48, 33, 8, 6);
+  g.lineStyle(2, 0x87445f);
+  g.lineBetween(39, 17, 34, 4);
+  g.lineBetween(44, 12, 42, 0);
+  g.lineBetween(48, 10, 48, 0);
+  g.lineBetween(52, 12, 54, 0);
+  g.lineBetween(57, 17, 62, 4);
+  gen(decorTexture('throne-dais'));
+
+  g.clear();
+  g.fillStyle(0x0b0710, 0.6);
+  g.fillEllipse(32, 56, 44, 10);
+  g.fillStyle(0x382039);
+  g.fillEllipse(32, 42, 32, 26);
+  g.fillStyle(0x5d2f4d);
+  g.fillEllipse(32, 35, 24, 40);
+  g.fillStyle(0x87445f);
+  g.fillEllipse(20, 42, 16, 22);
+  g.fillEllipse(44, 42, 16, 22);
+  g.lineStyle(2, 0x713c50);
+  g.lineBetween(32, 52, 32, 10);
+  g.lineBetween(29, 40, 24, 8);
+  g.lineBetween(35, 40, 40, 8);
+  g.fillStyle(0x291627);
+  g.fillEllipse(32, 40, 8, 16);
+  g.fillStyle(0xb45a7a, 0.7);
+  g.fillEllipse(32, 39, 4, 10);
+  gen(decorTexture('throne-pillar'));
+
+  g.clear();
+  g.fillStyle(0x0b0710, 0.55);
+  g.fillEllipse(12, 14, 20, 6);
+  g.fillStyle(0x382039);
+  g.fillCircle(5, 11, 4);
+  g.fillCircle(12, 8, 5);
+  g.fillCircle(19, 11, 4);
+  g.fillStyle(0x291627);
+  g.fillCircle(5, 11, 2);
+  g.fillCircle(12, 8, 2.5);
+  g.fillCircle(19, 11, 2);
+  g.fillStyle(0x9b674b);
+  g.fillRect(2, 12, 5, 1);
+  g.fillRect(17, 12, 5, 1);
+  gen(decorTexture('spent-casings'));
+
+  g.clear();
+  g.lineStyle(1, 0x87445f);
+  g.lineBetween(14, 1, 14, 9);
+  g.lineBetween(14, 6, 7, 14);
+  g.lineBetween(14, 6, 21, 14);
+  g.fillStyle(0x382039);
+  g.fillEllipse(7, 19, 12, 18);
+  g.fillEllipse(14, 14, 14, 20);
+  g.fillEllipse(21, 19, 12, 18);
+  g.fillStyle(0x713c50);
+  g.fillEllipse(7, 18, 9, 14);
+  g.fillEllipse(14, 13, 11, 16);
+  g.fillEllipse(21, 18, 9, 14);
+  g.fillStyle(0xb45a7a, 0.7);
+  g.fillEllipse(6, 17, 4, 8);
+  g.fillEllipse(13, 11, 4, 9);
+  g.fillEllipse(20, 17, 4, 8);
+  gen(decorTexture('hanging-sacs'));
 
   // Radial glow (white, tinted per light source, additive blend).
   g.clear();

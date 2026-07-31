@@ -16,9 +16,9 @@ export const HOLLOW_THRONE: LevelDef = {
   id: 'hollow-throne',
   name: 'The Hollow Throne',
   tileSize: 32,
-  // A fleshy, blood-warm throne room, distinct from the violet Warrens and
-  // the amber Galleries.
-  theme: { wall: 0xc0707e, floor: 0xb07a80, accent: 0xff7a9a },
+  // Dedicated grown-chitin art makes the finale read as Mireveil's brood
+  // chamber instead of a tinted copy of either earlier Realm 1 room.
+  theme: { tileSet: 'hollow-throne', accent: 0xff7a9a },
   walls: [
     '##############################',
     '#............................#',
@@ -75,17 +75,23 @@ export const HOLLOW_THRONE: LevelDef = {
     { typeId: 'resin-husk', tx: 21, ty: 3 }
   ],
   decor: [
-    { kind: 'egg-cluster', tx: 13, ty: 6 },
-    { kind: 'egg-cluster', tx: 17, ty: 6 },
-    { kind: 'egg-cluster', tx: 12, ty: 9 },
-    { kind: 'egg-cluster', tx: 18, ty: 9 },
-    { kind: 'resin-web', tx: 1, ty: 1 },
-    { kind: 'resin-web', tx: 28, ty: 1 },
-    { kind: 'resin-web', tx: 1, ty: 20 },
-    { kind: 'resin-web', tx: 28, ty: 20 },
-    { kind: 'spore-patch', tx: 10, ty: 13 },
-    { kind: 'spore-patch', tx: 20, ty: 13 },
-    { kind: 'spore-patch', tx: 15, ty: 16 }
+    // The dais sits beneath Mireveil; the boss sprite is rendered above it.
+    { kind: 'throne-dais', tx: 15, ty: 8 },
+    // These four are the same solid landmarks as the collision pillars, now
+    // dressed as grown brood-throne columns without entering the sim.
+    { kind: 'throne-pillar', tx: 6, ty: 4, surface: 'wall' },
+    { kind: 'throne-pillar', tx: 20, ty: 4, surface: 'wall' },
+    { kind: 'throne-pillar', tx: 6, ty: 14, surface: 'wall' },
+    { kind: 'throne-pillar', tx: 20, ty: 14, surface: 'wall' },
+    // Quiet environmental evidence of the final brood cycle.
+    { kind: 'hanging-sacs', tx: 3, ty: 4 },
+    { kind: 'hanging-sacs', tx: 27, ty: 4 },
+    { kind: 'hanging-sacs', tx: 3, ty: 17 },
+    { kind: 'hanging-sacs', tx: 27, ty: 17 },
+    { kind: 'spent-casings', tx: 11, ty: 11 },
+    { kind: 'spent-casings', tx: 19, ty: 11 },
+    { kind: 'spent-casings', tx: 13, ty: 16 },
+    { kind: 'spent-casings', tx: 17, ty: 16 }
   ],
   // Sealed behind her: the way out opens only once Mireveil falls.
   exit: { tx: 15, ty: 1 }

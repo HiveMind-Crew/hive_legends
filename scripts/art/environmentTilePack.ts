@@ -45,6 +45,15 @@ export type AmberResinTileKey =
   | 'tile-amber-resin-floor-2'
   | 'tile-amber-resin-floor-3';
 
+export type HollowThroneTileKey =
+  | 'tile-hollow-throne-wall'
+  | 'tile-hollow-throne-wall-inner'
+  | 'tile-hollow-throne-wall-face'
+  | 'tile-hollow-throne-floor-0'
+  | 'tile-hollow-throne-floor-1'
+  | 'tile-hollow-throne-floor-2'
+  | 'tile-hollow-throne-floor-3';
+
 const AMBER = {
   floor: 0x1b1510,
   floorLow: 0x120e0b,
@@ -60,6 +69,22 @@ const AMBER = {
   wallHigh: 0x7a521f,
   wallGlow: 0xc4852d,
   shadow: 0x0d0906
+} as const;
+
+const THRONE = {
+  floor: 0x19131c,
+  floorLow: 0x100c13,
+  floorMid: 0x241724,
+  floorHigh: 0x312036,
+  rib: 0x4b2940,
+  ribEdge: 0x6d3852,
+  pulse: 0x8a425d,
+  wallLow: 0x241622,
+  wall: 0x3c2535,
+  wallMid: 0x512b42,
+  wallHigh: 0x71394f,
+  wallGlow: 0xa84f6c,
+  shadow: 0x0c080e
 } as const;
 
 function rgb(n: number): readonly [number, number, number, number] {
@@ -498,6 +523,197 @@ function amberWallFace(): Bitmap {
   return image;
 }
 
+function throneMottle(image: Bitmap, seed: number, density: number): void {
+  for (let y = 0; y < image.h; y++) {
+    for (let x = 0; x < image.w; x++) {
+      const n = hash(x, y, seed) % 100;
+      if (n < density) put(image, x, y, THRONE.floorMid);
+      else if (n > 98) put(image, x, y, THRONE.floorLow);
+    }
+  }
+}
+
+/** Dark, ringed floor plates make the throne chamber feel grown rather than tiled. */
+function throneFloorPlates(): Bitmap {
+  const image = bitmap(32, 32, THRONE.floor);
+  throneMottle(image, 71, 10);
+  for (const [x, y, rx, ry] of [
+    [5, 5, 8, 5],
+    [22, 12, 10, 7],
+    [10, 27, 9, 6],
+    [31, 29, 7, 5]
+  ] as const) {
+    ellipseOutline(image, x, y, rx, ry, THRONE.rib);
+    ellipseOutline(image, x + 1, y, Math.max(2, rx - 3), Math.max(2, ry - 2), THRONE.floorHigh);
+  }
+  for (const [x, y] of [
+    [4, 4],
+    [20, 10],
+    [8, 25]
+  ] as const) {
+    put(image, x, y, THRONE.pulse, true);
+  }
+  sealOppositeEdges(image);
+  return image;
+}
+
+/** Hairline root channels radiate across the walking surface without glowing. */
+function throneFloorRoots(): Bitmap {
+  const image = bitmap(32, 32, THRONE.floor);
+  throneMottle(image, 73, 9);
+  for (const points of [
+    [
+      [0, 8],
+      [6, 11],
+      [11, 17],
+      [8, 24],
+      [16, 31]
+    ],
+    [
+      [22, 0],
+      [20, 7],
+      [25, 13],
+      [31, 15]
+    ],
+    [
+      [31, 27],
+      [25, 24],
+      [20, 27],
+      [15, 25]
+    ]
+  ] as const) {
+    for (let i = 0; i < points.length - 1; i++) {
+      line(image, points[i]![0], points[i]![1], points[i + 1]![0], points[i + 1]![1], THRONE.shadow, true);
+    }
+  }
+  line(image, 11, 17, 18, 14, THRONE.ribEdge, true);
+  line(image, 8, 24, 3, 28, THRONE.rib, true);
+  for (const [x, y] of [
+    [11, 17],
+    [20, 7],
+    [25, 13],
+    [20, 27]
+  ] as const) {
+    put(image, x, y, THRONE.ribEdge, true);
+  }
+  sealOppositeEdges(image);
+  return image;
+}
+
+/** Overlapping brood membranes, with a few dark vents to keep the floor quiet. */
+function throneFloorMembranes(): Bitmap {
+  const image = bitmap(32, 32, THRONE.floor);
+  throneMottle(image, 79, 7);
+  for (const [x, y, rx, ry] of [
+    [5, 7, 8, 6],
+    [16, 8, 7, 6],
+    [27, 6, 8, 5],
+    [9, 21, 10, 7],
+    [24, 23, 11, 8]
+  ] as const) {
+    ellipseOutline(image, x, y, rx, ry, THRONE.rib);
+    ellipseOutline(image, x, y + 1, Math.max(2, rx - 3), Math.max(2, ry - 2), THRONE.floorHigh);
+  }
+  line(image, 0, 16, 31, 16, THRONE.rib, true);
+  for (const x of [4, 17, 29]) disc(image, x, 16, 1, THRONE.pulse, true);
+  sealOppositeEdges(image);
+  return image;
+}
+
+/** Small dark shell remnants suggest a lived-in brood chamber without visual noise. */
+function throneFloorRemnants(): Bitmap {
+  const image = bitmap(32, 32, THRONE.floor);
+  throneMottle(image, 83, 11);
+  for (const [x, y, dx, dy] of [
+    [6, 8, 5, 3],
+    [20, 23, 6, -4],
+    [28, 6, 4, 3]
+  ] as const) {
+    line(image, x, y, x + dx, y + dy, THRONE.rib, true);
+    line(image, x + dx, y + dy, x + Math.sign(dx), y + dy + 4, THRONE.ribEdge, true);
+    line(image, x + Math.sign(dx), y + dy + 4, x, y, THRONE.shadow, true);
+  }
+  disc(image, 14, 16, 2, THRONE.rib, true);
+  disc(image, 14, 16, 1, THRONE.floorLow, true);
+  sealOppositeEdges(image);
+  return image;
+}
+
+/** Layered crown plates and restrained veins give every Hollow Throne wall a grown silhouette. */
+function throneWallRoof(): Bitmap {
+  const image = bitmap(32, 32, THRONE.wall);
+  for (let y = 0; y < image.h; y++) {
+    for (let x = 0; x < image.w; x++) {
+      const n = hash(x, y, 89) % 100;
+      if (n < 8) put(image, x, y, THRONE.wallMid);
+      else if (n > 97) put(image, x, y, THRONE.wallLow);
+    }
+  }
+  for (const [x, y, rx, ry] of [
+    [4, 5, 10, 7],
+    [20, 7, 11, 8],
+    [10, 20, 12, 9],
+    [29, 24, 10, 8]
+  ] as const) {
+    ellipseOutline(image, x, y, rx, ry, THRONE.wallHigh);
+    ellipseOutline(image, x, y + 2, Math.max(3, rx - 2), Math.max(3, ry - 2), THRONE.wallLow);
+  }
+  line(image, 0, 2, 31, 2, THRONE.wallHigh, true);
+  line(image, 4, 3, 1, 13, THRONE.ribEdge, true);
+  line(image, 16, 3, 16, 14, THRONE.rib, true);
+  line(image, 28, 3, 31, 13, THRONE.ribEdge, true);
+  for (const x of [5, 17, 28]) disc(image, x, 3, 1, THRONE.wallGlow, true);
+  sealOppositeEdges(image);
+  return image;
+}
+
+function throneWallInner(): Bitmap {
+  const image = bitmap(32, 32, THRONE.wallLow);
+  for (const [x, y, rx, ry] of [
+    [4, 4, 10, 7],
+    [22, 5, 12, 8],
+    [8, 19, 12, 9],
+    [27, 23, 13, 9]
+  ] as const) {
+    ellipseOutline(image, x, y, rx, ry, THRONE.wall);
+    ellipseOutline(image, x + 1, y + 1, Math.max(3, rx - 3), Math.max(3, ry - 3), THRONE.wallMid);
+  }
+  line(image, 0, 15, 31, 15, THRONE.rib, true);
+  line(image, 5, 0, 8, 31, THRONE.shadow, true);
+  line(image, 22, 0, 19, 31, THRONE.shadow, true);
+  for (const [x, y] of [
+    [5, 5],
+    [19, 13],
+    [28, 25]
+  ] as const) {
+    put(image, x, y, THRONE.wallGlow);
+  }
+  sealOppositeEdges(image);
+  return image;
+}
+
+/** South-facing wall faces descend as dark root curtains beneath a hard crown edge. */
+function throneWallFace(): Bitmap {
+  const image = bitmap(32, 16, THRONE.wallLow);
+  rect(image, 0, 0, 32, 2, THRONE.wallHigh);
+  rect(image, 0, 2, 32, 2, THRONE.wall);
+  for (const [x, width, drop] of [
+    [1, 5, 11],
+    [8, 6, 8],
+    [16, 5, 13],
+    [23, 7, 10]
+  ] as const) {
+    rect(image, x, 3, width, drop, THRONE.wall);
+    line(image, x + 1, 4, x + 1, Math.min(13, drop), THRONE.wallMid);
+    line(image, x + width - 2, 4, x + width - 2, Math.min(12, drop), THRONE.rib, true);
+  }
+  line(image, 4, 3, 4, 12, THRONE.wallGlow, true);
+  line(image, 27, 3, 27, 10, THRONE.wallGlow, true);
+  rect(image, 0, 14, 32, 2, THRONE.shadow);
+  for (let y = 0; y < image.h; y++) copyPixel(image, 0, y, image.w - 1, y);
+  return image;
+}
+
 export function environmentTileBitmap(key: EnvironmentTileKey): Bitmap {
   switch (key) {
     case 'tile-wall':
@@ -560,4 +776,36 @@ export function buildAmberResinTilePack(): ReadonlyMap<AmberResinTileKey, Uint8A
     'tile-amber-resin-floor-3'
   ];
   return new Map(keys.map((key) => [key, encodePng(amberResinTileBitmap(key), 0)]));
+}
+
+export function hollowThroneTileBitmap(key: HollowThroneTileKey): Bitmap {
+  switch (key) {
+    case 'tile-hollow-throne-wall':
+      return throneWallRoof();
+    case 'tile-hollow-throne-wall-inner':
+      return throneWallInner();
+    case 'tile-hollow-throne-wall-face':
+      return throneWallFace();
+    case 'tile-hollow-throne-floor-0':
+      return throneFloorPlates();
+    case 'tile-hollow-throne-floor-1':
+      return throneFloorRoots();
+    case 'tile-hollow-throne-floor-2':
+      return throneFloorMembranes();
+    case 'tile-hollow-throne-floor-3':
+      return throneFloorRemnants();
+  }
+}
+
+export function buildHollowThroneTilePack(): ReadonlyMap<HollowThroneTileKey, Uint8Array> {
+  const keys: readonly HollowThroneTileKey[] = [
+    'tile-hollow-throne-wall',
+    'tile-hollow-throne-wall-inner',
+    'tile-hollow-throne-wall-face',
+    'tile-hollow-throne-floor-0',
+    'tile-hollow-throne-floor-1',
+    'tile-hollow-throne-floor-2',
+    'tile-hollow-throne-floor-3'
+  ];
+  return new Map(keys.map((key) => [key, encodePng(hollowThroneTileBitmap(key), 0)]));
 }

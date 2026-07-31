@@ -442,13 +442,23 @@ export interface PropDef {
 }
 
 /** Non-colliding set dressing, rendered only (never enters the sim state). */
-export const DECOR_KINDS = ['egg-cluster', 'resin-web', 'spore-patch'] as const;
+export const DECOR_KINDS = [
+  'egg-cluster',
+  'resin-web',
+  'spore-patch',
+  'throne-dais',
+  'throne-pillar',
+  'spent-casings',
+  'hanging-sacs'
+] as const;
 export type DecorKind = (typeof DECOR_KINDS)[number];
 
 export interface LevelDecorDef {
   kind: DecorKind;
   tx: number;
   ty: number;
+  /** Floor decor is the default; wall decor may anchor to a solid landmark. */
+  surface?: 'floor' | 'wall';
 }
 
 export interface LevelPropDef {

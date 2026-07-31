@@ -73,6 +73,9 @@ tables below summarize it.
 | `tile-amber-resin-wall`, `tile-amber-resin-wall-inner` | 32×32 | Resin Galleries roof slab / surrounded-wall surface |
 | `tile-amber-resin-wall-face` | 32×16 | Resin Galleries south-facing curtain edge |
 | `tile-amber-resin-floor-0`…`3` | 32×32 | Pools / fissures / sealed cells / frozen inclusions |
+| `tile-hollow-throne-wall`, `tile-hollow-throne-wall-inner` | 32×32 | Hollow Throne grown crown plates / surrounded brood wall |
+| `tile-hollow-throne-wall-face` | 32×16 | Hollow Throne south-facing root curtain |
+| `tile-hollow-throne-floor-0`…`3` | 32×32 | Brood plates / root channels / membranes / shell remnants |
 
 **The Realm 1 floor and wall keys are covered by an original art pack.** Its
 reviewable pixel source is `scripts/art/environmentTilePack.ts`; the larger
@@ -85,6 +88,13 @@ realm can add another seven-key pack without a scene branch. The amber-resin
 source shares `scripts/art/environmentTilePack.ts` with Realm 1 and is guarded
 for exact dimensions, seamless edges, subdued floor luminance, and visual
 distinctness from the violet exports.
+
+**The Hollow Throne has its own complete grown-chitin set**, selected by
+`LevelTheme.tileSet: 'hollow-throne'`. Its crown plates, root curtains, brood
+membranes, and shell remnants are original pixel art—not a recolour of Realm 1.
+The deterministic source is the Hollow Throne section of
+`scripts/art/environmentTilePack.ts`; the set is guarded for exact dimensions,
+seamless edges, subdued floor luminance, and distinct pixel structure.
 
 ### Heroes (36×36 per frame)
 
@@ -153,11 +163,22 @@ a different creature.
 | `level-gate` | 32×32 | Key-locked barred door, fills its tile |
 | `exit-portal` | 48×48 | Renderer spins/pulses it; design for rotation |
 | `decor-egg-cluster` | 24×20 | `decor-resin-web` 28×28, `decor-spore-patch` 24×18 |
+| `decor-throne-dais` | 96×64 | Raised brood birthing dais / throne mass |
+| `decor-throne-pillar` | 64×64 | Grown treatment for an existing solid pillar landmark |
+| `decor-spent-casings` | 24×18 | Hollow shell casings left by a finished brood cycle |
+| `decor-hanging-sacs` | 28×36 | Quiet sacs suspended from chamber roots |
 
 **The Brood Node states, both breakable props, and all three decor keys are
 covered by an original Realm 1 art pack.** Its reviewable source is
 `scripts/art/worldObjectPack.ts`; the direction sheet is
 `docs/design/concepts/realm-one-world-objects-reference.png`.
+
+**The four Hollow Throne decor keys are a separate original pack** authored in
+`scripts/art/hollowThronePack.ts`. They are render-only `DecorKind` values, so
+the dais and grown pillar treatments never alter collision or sim state. The
+generic decor renderer owns their depth and texture lookup; levels only place
+the keys. Wall-mounted motifs use `LevelDecorDef.surface: 'wall'`, a reusable
+anchor that keeps them attached to solid landmarks without changing gameplay.
 
 **All seven pickups, the level gate, and the exit portal are covered by an
 original interaction-object pack.** Its reviewable source is
