@@ -26,6 +26,10 @@ new Phaser.Game({
   },
   backgroundColor: '#0a0a12',
   pixelArt: true,
+  // Phaser's gamepad plugin is off by default (issue #98). A couch co-op
+  // brawler cannot ship without it, and the plugin refreshes its pad list from
+  // `navigator.getGamepads()` every update, so hot-plug costs nothing extra.
+  input: { gamepad: true },
   // Flow: boot → hero select → the wheel → mission (HudScene runs alongside)
   // → results, which returns through the wheel.
   scene: [BootScene, HeroSelectScene, MissionHubScene, MissionScene, HudScene, ResultsScene, SettingsScene]

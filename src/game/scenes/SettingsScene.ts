@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { loadProfile, resetProfile, saveReduceMotion } from '../../meta/save';
 import { audio } from '../audio';
 import { bindFullscreenToggle } from '../fullscreen';
+import { bindPadMenu } from '../padMenu';
 import { masterVolumePercent, stepMasterVolume } from '../settings';
 import { TEX } from '../textures';
 
@@ -170,31 +171,33 @@ export class SettingsScene extends Phaser.Scene {
       audio.uiTick(420 + masterVolumePercent(next) * 4);
       this.refresh();
     };
-    kb?.on('keydown-LEFT', () => adjust(-1));
-    kb?.on('keydown-RIGHT', () => adjust(1));
-    kb?.on('keydown-M', () => {
+    const toggleMute = (): void => {
       if (this.confirmingReset) return;
       audio.toggleMute();
       this.refresh();
-    });
-    kb?.on('keydown-A', () => {
+    };
+    const toggleReduceMotion = (): void => {
       if (this.confirmingReset) return;
       this.reduceMotion = !this.reduceMotion;
       saveReduceMotion(this.reduceMotion);
       this.game.events.emit('reduce-motion-changed', this.reduceMotion);
       audio.uiTick(this.reduceMotion ? 360 : 620);
       this.refresh();
-    });
+    };
+    kb?.on('keydown-LEFT', () => adjust(-1));
+    kb?.on('keydown-RIGHT', () => adjust(1));
+    kb?.on('keydown-M', toggleMute);
+    kb?.on('keydown-A', toggleReduceMotion);
     kb?.on('keydown-R', () => {
       if (this.confirmingReset) return;
       this.confirmingReset = true;
       this.resetPrompt.setVisible(true);
       audio.uiTick(240);
     });
-    kb?.on('keydown-ENTER', () => {
+    const confirm = (): void => {
       if (this.confirmingReset) this.confirmReset();
-    });
-    kb?.on('keydown-ESC', () => {
+    };
+    const cancel = (): void => {
       if (this.confirmingReset) {
         this.confirmingReset = false;
         this.resetPrompt.setVisible(false);
@@ -202,6 +205,21 @@ export class SettingsScene extends Phaser.Scene {
       } else {
         this.close();
       }
+    };
+    kb?.on('keydown-ENTER', confirm);
+    kb?.on('keydown-ESC', cancel);
+    // Pad (issue #98). Profile reset stays keyboard-only on purpose: it is the
+    // one irreversible action in the game, and it should not sit one stray
+    // face-button press away — but its confirm prompt must be answerable by
+    // whoever opened it, so confirm and cancel are bound.
+    bindPadMenu(this, {
+      left: () => adjust(-1),
+      right: () => adjust(1),
+      alt: toggleMute,
+      alt2: toggleReduceMotion,
+      confirm,
+      cancel,
+      menu: cancel
     });
   }
 

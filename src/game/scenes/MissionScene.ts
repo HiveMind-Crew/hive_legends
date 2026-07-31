@@ -16,7 +16,8 @@ import { audio } from '../audio';
 import { enemyAttackCue, heroAttackCue } from '../attackCues';
 import { bindFullscreenToggle } from '../fullscreen';
 import { playerAccent } from '../colors';
-import { KeyboardCommander } from '../input';
+import { PlayerCommander, type Commander } from '../input';
+import { bindPadMenu } from '../padMenu';
 import type { HudScene } from './HudScene';
 import {
   FLOOR_VARIANTS,
@@ -120,7 +121,7 @@ const HATCH_TICKS = 10;
 /** Runs the deterministic sim at a fixed tick rate and renders its state. */
 export class MissionScene extends Phaser.Scene {
   private sim!: Sim;
-  private commander!: KeyboardCommander;
+  private commanders: Commander[] = [];
   private accumulator = 0;
   private sprites = new Map<EntityId, Phaser.GameObjects.Image>();
   private shadows = new Map<EntityId, Phaser.GameObjects.Image>();
@@ -210,7 +211,11 @@ export class MissionScene extends Phaser.Scene {
     const spawn = this.sim.state.players[0]?.pos ?? { x: 0, y: 0 };
     this.camFollow = { x: spawn.x, y: spawn.y };
     this.glows = [];
-    this.commander = new KeyboardCommander(this);
+    // One commander per player slot (issue #98): slot 0 answers to the keyboard
+    // and pad 0 together, later slots to their own pad. The sim has always been
+    // N-player, so adding player 2 in M3 is a longer players array, not a
+    // change here.
+    this.commanders = this.sim.state.players.map((_, slot) => new PlayerCommander(this, slot));
     this.game.events.on('reduce-motion-changed', this.setReduceMotion, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.game.events.off('reduce-motion-changed', this.setReduceMotion, this);
@@ -251,9 +256,19 @@ export class MissionScene extends Phaser.Scene {
     });
     this.input.keyboard?.on('keydown-S', (event: KeyboardEvent) => {
       if (event.repeat || !this.runPaused) return;
-      audio.uiConfirm();
-      this.scene.launch('settings', { returnScene: 'mission' });
-      this.scene.pause();
+      this.openSettings();
+    });
+    // The same three verbs on a pad (issue #98). START pauses and resumes; the
+    // pause menu's two exits are the pad's cancel and alt buttons, and neither
+    // does anything while the run is live.
+    bindPadMenu(this, {
+      menu: () => this.toggleRunPause(),
+      cancel: () => {
+        if (this.runPaused) this.abandonRun();
+      },
+      alt: () => {
+        if (this.runPaused) this.openSettings();
+      }
     });
     // Bound here and not in HudScene: both scenes run at once, so two bindings
     // would toggle twice per press (issue #94).
@@ -462,7 +477,10 @@ export class MissionScene extends Phaser.Scene {
     this.accumulator += delta / 1000;
     let steps = 0;
     while (this.accumulator >= TICK_DT && steps < MAX_STEPS_PER_FRAME) {
-      const events = simTick(this.sim, [this.commander.sample()]);
+      const events = simTick(
+        this.sim,
+        this.commanders.map((commander) => commander.sample())
+      );
       this.handleEvents(events);
       this.accumulator -= TICK_DT;
       steps++;
@@ -775,6 +793,13 @@ export class MissionScene extends Phaser.Scene {
     this.runPaused = !this.runPaused;
     (this.scene.get('hud') as HudScene).setRunPaused(this.runPaused);
     audio.uiTick(this.runPaused ? 360 : 620);
+  }
+
+  /** Opens settings over the paused run; shared by the S key and the pad. */
+  private openSettings(): void {
+    audio.uiConfirm();
+    this.scene.launch('settings', { returnScene: 'mission' });
+    this.scene.pause();
   }
 
   private abandonRun(): void {

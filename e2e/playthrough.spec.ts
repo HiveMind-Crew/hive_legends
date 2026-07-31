@@ -1,79 +1,18 @@
 import { expect, test, type Page } from '@playwright/test';
-import { BROOD_WARRENS } from '../src/content/levels/broodWarrens';
 import { PROGRESSION } from '../src/content/progression';
 import { levelForXp } from '../src/sim/sim';
-import type { SimState } from '../src/sim/types';
+import { actionToKeys, getState, WarrensBot } from './bot';
 
 /**
  * Full gameplay verification: a bot plays the mission through the real
  * input path (keyboard events), navigating with BFS over the level's wall
  * grid, destroying both Brood Nodes, and walking to the exit. Asserts the
  * mission completes and progression is banked to localStorage.
+ *
+ * The bot itself lives in `./bot.ts`, because the gamepad playthrough
+ * (`gamepad.spec.ts`, issue #98) plays the same mission with the same brain
+ * through a different device.
  */
-
-const TILE = BROOD_WARRENS.tileSize;
-
-function isWall(tx: number, ty: number): boolean {
-  const row = BROOD_WARRENS.walls[ty];
-  return row === undefined || row[tx] !== '.';
-}
-
-/** BFS shortest tile path; returns the next waypoint's world position. */
-function nextWaypoint(from: { x: number; y: number }, to: { x: number; y: number }): { x: number; y: number } | null {
-  const start = { tx: Math.floor(from.x / TILE), ty: Math.floor(from.y / TILE) };
-  const goal = { tx: Math.floor(to.x / TILE), ty: Math.floor(to.y / TILE) };
-  if (start.tx === goal.tx && start.ty === goal.ty) return to;
-
-  const w = BROOD_WARRENS.walls[0]!.length;
-  const h = BROOD_WARRENS.walls.length;
-  const key = (tx: number, ty: number) => ty * w + tx;
-  const prev = new Map<number, number>();
-  const queue = [key(start.tx, start.ty)];
-  prev.set(queue[0]!, -1);
-  let found = false;
-  while (queue.length > 0 && !found) {
-    const cur = queue.shift()!;
-    const cx = cur % w;
-    const cy = Math.floor(cur / w);
-    for (const [dx, dy] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1]
-    ] as const) {
-      const nx = cx + dx;
-      const ny = cy + dy;
-      if (nx < 0 || ny < 0 || nx >= w || ny >= h || isWall(nx, ny)) continue;
-      const nk = key(nx, ny);
-      if (prev.has(nk)) continue;
-      prev.set(nk, cur);
-      if (nx === goal.tx && ny === goal.ty) {
-        found = true;
-        break;
-      }
-      queue.push(nk);
-    }
-  }
-  if (!found) return null;
-
-  // Walk back from goal to the first step after start.
-  let cur = key(goal.tx, goal.ty);
-  let step = cur;
-  while (prev.get(cur) !== -1) {
-    step = cur;
-    cur = prev.get(cur)!;
-  }
-  return { x: (step % w) * TILE + TILE / 2, y: Math.floor(step / w) * TILE + TILE / 2 };
-}
-
-async function getState(page: Page): Promise<SimState> {
-  return (await page.evaluate(() => {
-    const hive = (globalThis as Record<string, unknown>).__hive as
-      | { getState: () => unknown }
-      | undefined;
-    return hive ? hive.getState() : null;
-  })) as SimState;
-}
 
 class KeyDriver {
   private held = new Set<string>();
@@ -147,15 +86,12 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   await page.screenshot({ path: 'test-results/02-mission-start.png' });
 
   const driver = new KeyDriver(page);
+  const bot = new WarrensBot();
   const deadline = Date.now() + 180_000;
   let lastPhase = 'combat';
   let screenshotTaken = false;
   let juiceShotTaken = false;
   let damagedNodeShotTaken = false;
-  let healMode = false;
-  let prevPos = { x: -1, y: -1 };
-  let stuckPolls = 0;
-  const trace: string[] = [];
 
   while (Date.now() < deadline) {
     const state = await getState(page);
@@ -164,93 +100,7 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
     if (state.phase === 'complete' || state.phase === 'failed') break;
 
     const me = state.players[0]!;
-
-    // Survival first: break off and heal when hurt — from a health pickup or
-    // by smashing an amber clutch (the bot swings constantly, so walking onto
-    // the prop breaks it and the drop is collected on contact). Hysteresis
-    // matters: without it the +30 heal lands right at the threshold and the
-    // bot oscillates between distant heal spots until the swarm grinds it
-    // down. Enter heal mode at <=55, stay in it until >=75 or spots run out.
-    const healSpots = [
-      ...state.pickups.filter((pk) => pk.kind === 'health').map((pk) => pk.pos),
-      ...state.props.filter((pr) => pr.typeId === 'amber-clutch').map((pr) => pr.pos)
-    ];
-    // Exit only near full: a committed push to a node through the chasing
-    // swarm costs 30-50 HP, so leaving heal mode at 75 just oscillates.
-    if (healMode && (me.hp >= Math.min(100, me.maxHp) || healSpots.length === 0)) healMode = false;
-    else if (!healMode && me.hp <= 55 && healSpots.length > 0) healMode = true;
-    const needHeal = healMode;
-    const targets = needHeal
-      ? healSpots
-      : state.generators.length > 0
-        ? state.generators.map((g) => g.pos)
-        : [state.exitPos];
-    targets.sort(
-      (a, b) => Math.hypot(a.x - me.pos.x, a.y - me.pos.y) - Math.hypot(b.x - me.pos.x, b.y - me.pos.y)
-    );
-    const target = targets[0]!;
-    const distToTarget = Math.hypot(target.x - me.pos.x, target.y - me.pos.y);
-
-    const keys: string[] = [];
-    const inAttackRange = !needHeal && state.generators.length > 0 && distToTarget < 55;
-
-    if (!inAttackRange) {
-      const wp = nextWaypoint(me.pos, target) ?? target;
-      const dx = wp.x - me.pos.x;
-      const dy = wp.y - me.pos.y;
-      // Tolerance must stay under (tileSize/2 - heroRadius) = 4, or the bot
-      // can clip a wall corner by a pixel and deadlock on axis-separated
-      // collision (it never presses the perpendicular key to slide free).
-      if (dx > 3) keys.push('ArrowRight');
-      if (dx < -3) keys.push('ArrowLeft');
-      if (dy > 3) keys.push('ArrowDown');
-      if (dy < -3) keys.push('ArrowUp');
-    } else {
-      // Face the generator so the melee arc connects.
-      const dx = target.x - me.pos.x;
-      const dy = target.y - me.pos.y;
-      if (Math.abs(dx) > Math.abs(dy)) keys.push(dx > 0 ? 'ArrowRight' : 'ArrowLeft');
-      else keys.push(dy > 0 ? 'ArrowDown' : 'ArrowUp');
-    }
-
-    // Swing constantly; drop the Sunder Slam when swarmed.
-    keys.push('Space');
-    const nearbyEnemies = state.enemies.filter(
-      (e) => Math.hypot(e.pos.x - me.pos.x, e.pos.y - me.pos.y) < 100
-    ).length;
-    // Slam offensively when swarmed, or defensively when cornered at low HP.
-    const touchingEnemies = state.enemies.filter(
-      (e) => Math.hypot(e.pos.x - me.pos.x, e.pos.y - me.pos.y) < 50
-    ).length;
-    if ((nearbyEnemies >= 2 || (me.hp <= 45 && touchingEnemies >= 1)) && me.abilityCooldown === 0) {
-      keys.push('Shift');
-    }
-
-    // Stuck insurance: if we're holding movement keys but not moving, jiggle
-    // perpendicular to slide off whatever geometry has us pinned.
-    const moving = keys.some((k) => k.startsWith('Arrow'));
-    if (moving && Math.abs(me.pos.x - prevPos.x) < 1 && Math.abs(me.pos.y - prevPos.y) < 1) stuckPolls++;
-    else stuckPolls = 0;
-    prevPos = { x: me.pos.x, y: me.pos.y };
-    if (stuckPolls >= 6) {
-      const horizontal = keys.includes('ArrowLeft') || keys.includes('ArrowRight');
-      const jiggle = horizontal
-        ? stuckPolls % 8 < 4
-          ? 'ArrowUp'
-          : 'ArrowDown'
-        : stuckPolls % 8 < 4
-          ? 'ArrowLeft'
-          : 'ArrowRight';
-      if (!keys.includes(jiggle)) keys.push(jiggle);
-    }
-
-    trace.push(
-      `t=${state.tick} hp=${Math.round(me.hp)} pos=${Math.round(me.pos.x)},${Math.round(me.pos.y)} ` +
-        `gens=${state.generators.map((g) => Math.round(g.hp)).join('/') || '-'} enemies=${state.enemies.length} ` +
-        `kills=${me.kills} heal=${healMode} keys=${keys.join('+')}`
-    );
-
-    await driver.set(keys);
+    await driver.set(actionToKeys(bot.decide(state)));
 
     if (!screenshotTaken && state.enemies.length >= 4) {
       await page.screenshot({ path: 'test-results/03-horde-combat.png' });
@@ -274,8 +124,8 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
 
   // On failure, dump the bot's recent decisions so flakes diagnose themselves.
   if (lastPhase !== 'complete') {
-    console.log(`--- bot trace (last 80 of ${trace.length} polls) ---`);
-    for (const line of trace.slice(-80)) console.log(line);
+    console.log(`--- bot trace (last 80 of ${bot.trace.length} polls) ---`);
+    for (const line of bot.trace.slice(-80)) console.log(line);
   }
   expect(lastPhase).toBe('complete');
   // The end-of-mission banner shows first; poll until the results scene has

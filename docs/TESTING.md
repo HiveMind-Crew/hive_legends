@@ -17,7 +17,9 @@ npm run dev        # hot-reload dev server → http://localhost:5173
 ```
 
 Controls: **WASD/Arrows** move · **Space/J** attack · **Shift/K** ability ·
-**Q** quaff a potion · **Enter** confirm · **Esc** pause. On hero select,
+**Q** quaff a potion · **Enter** confirm · **Esc** pause. On a gamepad:
+**left stick / d-pad** move · **(A)** attack and confirm · **(X)** ability ·
+**(Y)** potion · **(B)** back · **START** pause. On hero select,
 **←→** pick a hero, **B** recruit. On the wheel, **↑↓** move along a spoke,
 **←→** jump between realms, **Enter** deploy, **H** back to hero select. In
 the results shop, **1/2** buy upgrades, **3/4** weapons, **N** next mission,
@@ -38,6 +40,7 @@ npm run build && npm run preview   # production build → http://localhost:4173
 | Static | `npm run lint && npm run typecheck` | Style + types, **and the sim-purity rules** (no Phaser/`Math.random`/`Date.now` inside `src/sim` or `src/content` — see ADR 0002) |
 | Unit (vitest) | `npm test` (watch: `npm run test:watch`) | The whole gameplay sim, headlessly: movement, combat, attack windups, generators and enrage, pickups and power-ups, keys/gates/secrets, the boss phase script, XP and levelling, and a determinism regression (same seed + inputs ⇒ byte-identical state) |
 | End-to-end (Playwright) | `npm run build && npm run test:e2e` | A bot plays the real production build through the browser keyboard path: BFS-pathfinds The Brood Warrens, destroys all three spawners, exits, banks gold and XP, buys an upgrade, and replays with both the upgrade and the earned level applied |
+| Gamepad (Playwright) | same command | The same bot clears the same mission on a pad, navigating hero select, the wheel and results with it, and a pad plugged in mid-run takes over without a reload (`e2e/gamepad.spec.ts`) |
 | Viewport (Playwright) | same command | The fixed 960×720 canvas fits, keeps its aspect ratio and stays centred in windows smaller and larger than native, and re-fits on a live window resize (`e2e/viewport.spec.ts`) |
 
 The full pre-commit gate (identical to CI, `.github/workflows/ci.yml`):
@@ -84,7 +87,9 @@ from inside the game loop, and the loop is suspended while a tab is hidden.
   `02c-pause-menu` → `03-horde-combat` →
   `03b-combat-juice` (moment of the first kill) →
   `03c-node-damaged` (generator damage tiers) → `04-results` →
-  `05-replay-upgraded`. CI uploads these as artifacts on every run.
+  `05-replay-upgraded`, plus the gamepad run's
+  `07-gamepad-mission-start` → `08-gamepad-results` → `09-gamepad-wheel` →
+  `10-gamepad-hotplug`. CI uploads these as artifacts on every run.
 - The bot reads game state through a read-only debug handle the game exposes
   on `globalThis`:
 
@@ -100,6 +105,34 @@ from inside the game loop, and the loop is suspended while a tab is hidden.
 - Settings tests use a similarly read-only `__hiveSettings.getState()` handle
   while that screen is open to observe volume, mute, reset confirmation, and
   its return target without reaching into Phaser objects.
+
+## Gamepad test (`e2e/gamepad.spec.ts`)
+
+Guards the pad path added in issue #98, and needs no hardware. The spec
+installs a fake entry in `navigator.getGamepads()` before the page loads:
+Phaser rebuilds its pad list from that call on every update, so a fake pad is
+indistinguishable from a real one — and that same polling is why hot-plug works
+in the game without any connect/disconnect handling of its own.
+
+Two details are easy to get wrong when extending it:
+
+- The fake's `timestamp` must be **live** (a getter returning
+  `performance.now()`). Phaser drops any pad frame stamped earlier than the
+  moment it first saw the device, so a fixed timestamp silently freezes input.
+- Phaser's button press threshold is `1`, so a pressed button must report
+  `value: 1`, not merely `pressed: true`.
+
+The bot brain is shared with the keyboard playthrough (`e2e/bot.ts`), which is
+the point: the pad run proves the *device*, not a second, easier bot. Its
+driver pushes the stick to 0.85 rather than 1 so the deadzone and quantisation
+are actually exercised.
+
+**The input contract did not change.** `InputCommand.moveX/moveY` are still
+integers in {-1,0,1}: `src/game/padMapping.ts` quantises a stick past
+`STICK_DEADZONE` into exactly the value the matching key produces, so
+`hashState` and the determinism regression are untouched by gamepad support.
+Widening those fields to floats for analogue speed is a deliberate, separate
+change — it is sim-visible, and it re-baselines determinism.
 
 ## Sandbox / CI quirks
 
