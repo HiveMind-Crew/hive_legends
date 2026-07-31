@@ -15,7 +15,7 @@ the first real art pack #44 all landed).
   in #29. Note the full four-hero roster and realms 2–3, once slated here and
   for M4, landed early during M1.
 - M3 — Co-op (local first, then online lockstep): not started. The
-  deterministic sim (ADR 0002) and the four-slot HUD are the groundwork;
+  deterministic sim (ADR 0002) and the party-sized HUD are the groundwork;
   generator pressure and objective XP already have per-player hooks noted in
   the code.
 - M4 — Content expansion (further realms, hazards, economy): not started.
@@ -138,12 +138,15 @@ Landed:
   persistent ground ring. Content-validity unit test added. (All three
   silhouettes are now in use: Carapace Husk, Bile Spitter and the elite
   Gravebound Ravager — added as pure content data, exactly as intended.)
-- [x] #4 Arcade HUD — four fixed per-player panels (accent frame, portrait,
-  large health number with low-health pulse, rolling gold counter, kills,
-  ability meter with READY! flash), dimmed JOIN placeholders for empty
-  slots, centered objective ribbon with pop animation, and full-screen
-  victory/defeat banners before the results scene. Panel data flows from
-  `SimState.players`, not a hardcoded single player.
+- [x] #4 Arcade HUD — one per-player panel (accent frame, portrait, large
+  health number with low-health pulse, rolling gold counter, kills, ability
+  meter with READY! flash), centered objective ribbon with pop animation, and
+  full-screen victory/defeat banners before the results scene. Panel data
+  flows from `SimState.players`, not a hardcoded single player. The bar is
+  sized to the party rather than to four fixed slots (#96): the dimmed JOIN
+  placeholders are gone, geometry lives in the unit-tested
+  `src/game/hudLayout.ts`, and a four-player bar still resolves to the
+  original layout exactly.
 
 The e2e bot now retreats to health pickups when hurt and slams earlier —
 the enrage mechanic legitimately killed the old face-tank strategy (a good

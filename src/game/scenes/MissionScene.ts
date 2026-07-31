@@ -235,7 +235,9 @@ export class MissionScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, levelWidthPx(level), levelHeightPx(level));
     this.cameras.main.setZoom(1.25);
 
-    this.scene.launch('hud');
+    // The HUD sizes its panels to the party (issue #96), and the party is a
+    // property of the sim — not something the bar decides for itself.
+    this.scene.launch('hud', { playerCount: this.sim.state.players.length });
 
     // Audio: the Enter press that started this scene is a valid gesture, so
     // resume the context and kick off the combat loop.

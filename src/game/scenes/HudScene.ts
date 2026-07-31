@@ -3,22 +3,24 @@ import { audio } from '../audio';
 import { playerAccent } from '../colors';
 import { TEX, heroPortrait } from '../textures';
 import { POWERUP_KINDS } from '../../sim/types';
+import { MAX_PLAYERS, anchorOffset, panelLayout } from '../hudLayout';
 import type { HudInfo, MissionScene } from './MissionScene';
 
 /**
- * Arcade HUD (issue #4): four fixed per-player panels along the top edge —
- * accent-colored frame, portrait, large health number, rolling gold counter,
- * kills, and an ability meter with a READY! flash. Empty slots render dimmed
- * JOIN placeholders as co-op groundwork. Rendered by a parallel scene so the
+ * Arcade HUD (issue #4): one per-player panel along the top edge — accent-
+ * colored frame, portrait, large health number, rolling gold counter, kills,
+ * and an ability meter with a READY! flash. Rendered by a parallel scene so the
  * mission camera's zoom and scroll never distort it.
+ *
+ * Panels are built from the live player count (issue #96), so the bar is always
+ * full: solo play gets the whole of it instead of one panel beside three dimmed
+ * JOIN placeholders advertising a mode that does not exist yet. Geometry lives
+ * in `src/game/hudLayout.ts` and is unit-tested; at four players it reproduces
+ * the original fixed layout exactly.
  */
 
-const SLOTS = 4;
-const PANEL_W = 225;
 const PANEL_H = 54;
-const PANEL_GAP = 8;
 const PANEL_Y = 8;
-const PANELS_W = SLOTS * PANEL_W + (SLOTS - 1) * PANEL_GAP;
 const LOW_HP_FRACTION = 0.3;
 
 /** Widths of the two centred finale meters, kept out of the layout maths. */
@@ -47,13 +49,14 @@ interface Panel {
   abilityBar: Phaser.GameObjects.Rectangle;
   readyFlare: Phaser.GameObjects.Image;
   powerIcons: Phaser.GameObjects.Image[];
-  joinText: Phaser.GameObjects.Text;
+  /** This panel's own width; the layout gives wider panels to smaller parties. */
+  width: number;
 }
 
 export class HudScene extends Phaser.Scene {
   private panels: Panel[] = [];
-  private goldShown = [0, 0, 0, 0];
-  private prevAbilityCd = [0, 0, 0, 0];
+  private goldShown: number[] = [];
+  private prevAbilityCd: number[] = [];
   private objectiveBg!: Phaser.GameObjects.Rectangle;
   private objectiveText!: Phaser.GameObjects.Text;
   private prevObjective = '';
@@ -74,15 +77,19 @@ export class HudScene extends Phaser.Scene {
     super('hud');
   }
 
-  create(): void {
+  create(data?: { playerCount?: number }): void {
+    // The party size comes from the mission's SimState, so the bar has no
+    // opinion of its own about how many players there are.
+    const count = Math.max(1, Math.min(MAX_PLAYERS, data?.playerCount ?? 1));
     this.panels = [];
-    this.goldShown = [0, 0, 0, 0];
-    this.prevAbilityCd = [0, 0, 0, 0];
+    this.goldShown = new Array<number>(count).fill(0);
+    this.prevAbilityCd = new Array<number>(count).fill(0);
     this.prevObjective = '';
     this.heraldQueue = [];
     this.heraldBusy = false;
     this.drawVignette();
-    for (let i = 0; i < SLOTS; i++) this.panels.push(this.buildPanel(i));
+    const layout = panelLayout(count, this.scale.width);
+    layout.xs.forEach((x, i) => this.panels.push(this.buildPanel(i, x, layout.width)));
 
     const cx = this.scale.width / 2;
 
@@ -246,15 +253,25 @@ export class HudScene extends Phaser.Scene {
     }
   }
 
-  private buildPanel(i: number): Panel {
-    const x = (this.scale.width - PANELS_W) / 2 + i * (PANEL_W + PANEL_GAP);
+  /**
+   * Builds one panel at `x`, `w` wide.
+   *
+   * Offsets are the ones the panel was authored with, each tagged with the edge
+   * it belongs to: identity left, tallies centre, meters right. `anchorOffset`
+   * is zero at the authored width, so a four-player bar is pixel-identical to
+   * the old fixed layout while a solo bar spreads the same three clusters
+   * across the screen instead of huddling them at the left edge.
+   */
+  private buildPanel(i: number, x: number, w: number): Panel {
     const y = PANEL_Y;
     const accent = playerAccent(i);
+    const mid = anchorOffset('center', w);
+    const end = anchorOffset('right', w);
     const mono = (tx: number, ty: number, size: number, color: string, style = '') =>
       this.add.text(x + tx, y + ty, '', { fontFamily: 'monospace', fontSize: `${size}px`, color, fontStyle: style });
 
-    this.add.rectangle(x, y, PANEL_W, PANEL_H, 0x000000, 0.55).setOrigin(0, 0);
-    const border = this.add.rectangle(x, y, PANEL_W, PANEL_H).setOrigin(0, 0).setStrokeStyle(2, accent);
+    this.add.rectangle(x, y, w, PANEL_H, 0x000000, 0.55).setOrigin(0, 0);
+    const border = this.add.rectangle(x, y, w, PANEL_H).setOrigin(0, 0).setStrokeStyle(2, accent);
 
     const chip = this.add.rectangle(x, y, 26, 16, accent).setOrigin(0, 0);
     const chipText = mono(4, 2, 11, '#101020', 'bold');
@@ -264,44 +281,41 @@ export class HudScene extends Phaser.Scene {
 
     const hpText = mono(46, 6, 22, '#ffffff', 'bold');
     const maxHpText = mono(112, 15, 11, '#8a8298');
-    const goldIcon = this.add.image(x + 52, y + 39, TEX.uiGold);
-    const goldText = mono(59, 33, 12, '#ffd75e');
-    const killsIcon = this.add.image(x + 88, y + 39, TEX.uiKills);
-    const killsText = mono(95, 33, 12, '#cfc4de');
+    const goldIcon = this.add.image(x + mid + 52, y + 39, TEX.uiGold);
+    const goldText = mono(mid + 59, 33, 12, '#ffd75e');
+    const killsIcon = this.add.image(x + mid + 88, y + 39, TEX.uiKills);
+    const killsText = mono(mid + 95, 33, 12, '#cfc4de');
 
     // Key tally, shown only while the party is carrying keys.
-    const keyIcon = this.add.image(x + 122, y + 39, TEX.uiKey).setVisible(false);
-    const keyText = mono(129, 33, 12, '#e6c34a');
+    const keyIcon = this.add.image(x + mid + 122, y + 39, TEX.uiKey).setVisible(false);
+    const keyText = mono(mid + 129, 33, 12, '#e6c34a');
 
     // Potion tally (bottom-centre), shown only while carrying potions.
-    const potionIcon = this.add.image(x + 156, y + 39, TEX.uiPotion).setVisible(false);
-    const potionText = mono(163, 33, 12, '#7be08a');
+    const potionIcon = this.add.image(x + mid + 156, y + 39, TEX.uiPotion).setVisible(false);
+    const potionText = mono(mid + 163, 33, 12, '#7be08a');
 
     // Hero level, tucked into the free space left of the ability meter, with
     // its progress as a thin strip along the panel's bottom edge (issue #46).
     // Deliberately clear of the gold/kills/key row, which is already crowded.
     const levelText = mono(112, 1, 11, '#ffd75e', 'bold');
-    const xpBack = this.add.rectangle(x + 3, y + PANEL_H - 3, PANEL_W - 6, 3, 0x2a2438).setOrigin(0, 0.5);
-    const xpBar = this.add.rectangle(x + 3, y + PANEL_H - 3, PANEL_W - 6, 3, 0xffd75e).setOrigin(0, 0.5);
+    const xpBack = this.add.rectangle(x + 3, y + PANEL_H - 3, w - 6, 3, 0x2a2438).setOrigin(0, 0.5);
+    const xpBar = this.add.rectangle(x + 3, y + PANEL_H - 3, w - 6, 3, 0xffd75e).setOrigin(0, 0.5);
 
     const readyFlare = this.add
-      .image(x + 184, y + 12, TEX.uiAbilityReady)
+      .image(x + end + 184, y + 12, TEX.uiAbilityReady)
       .setTint(accent)
       .setBlendMode(Phaser.BlendModes.ADD)
       .setVisible(false);
-    const abilityBack = this.add.rectangle(x + 150, y + 8, 68, 8, 0x2a2438).setOrigin(0, 0);
-    const abilityBar = this.add.rectangle(x + 150, y + 8, 68, 8, accent).setOrigin(0, 0);
+    const abilityBack = this.add.rectangle(x + end + 150, y + 8, 68, 8, 0x2a2438).setOrigin(0, 0);
+    const abilityBar = this.add.rectangle(x + end + 150, y + 8, 68, 8, accent).setOrigin(0, 0);
 
     const powerTextures = [TEX.uiPowerFrenzy, TEX.uiPowerSwiftness, TEX.uiPowerWard] as const;
     const powerIcons = powerTextures.map((texture, index) =>
-      this.add.image(x + 190 + index * 13, y + 39, texture).setVisible(false)
+      this.add.image(x + end + 190 + index * 13, y + 39, texture).setVisible(false)
     );
 
-    const joinText = mono(PANEL_W / 2 - 24, PANEL_H / 2 - 8, 14, '#55506a');
-    joinText.setText('JOIN');
-    joinText.setX(x + PANEL_W / 2 - joinText.width / 2);
-
     return {
+      width: w,
       border,
       chip,
       chipText,
@@ -322,8 +336,7 @@ export class HudScene extends Phaser.Scene {
       abilityBack,
       abilityBar,
       readyFlare,
-      powerIcons,
-      joinText
+      powerIcons
     };
   }
 
@@ -332,7 +345,7 @@ export class HudScene extends Phaser.Scene {
     const info = mission.hudInfo();
     if (!info) return;
 
-    for (let i = 0; i < SLOTS; i++) {
+    for (let i = 0; i < this.panels.length; i++) {
       this.updatePanel(i, info);
     }
     this.updateObjective(info);
@@ -368,7 +381,8 @@ export class HudScene extends Phaser.Scene {
     const p = info.players[i];
     const active = p !== undefined;
 
-    panel.joinText.setVisible(!active);
+    // A panel only exists for a player who is in the run, so `active` is a
+    // guard against a mid-run party change rather than an empty-slot state.
     panel.border.setAlpha(active ? 1 : 0.35);
     for (const obj of [panel.chip, panel.chipText, panel.portrait, panel.hpText, panel.maxHpText, panel.goldIcon, panel.goldText, panel.killsIcon, panel.killsText, panel.keyIcon, panel.keyText, panel.potionIcon, panel.potionText, panel.levelText, panel.xpBack, panel.xpBar, panel.abilityBack, panel.abilityBar]) {
       obj.setVisible(active);
@@ -391,7 +405,7 @@ export class HudScene extends Phaser.Scene {
     panel.levelText.setText(`Lv ${p.level}`);
     const span = p.xpForLevel;
     const frac = span === null ? 1 : Math.max(0, Math.min(1, p.xpIntoLevel / span));
-    panel.xpBar.width = (PANEL_W - 6) * frac;
+    panel.xpBar.width = (panel.width - 6) * frac;
     panel.xpBar.setFillStyle(span === null ? 0x9fe06a : 0xffd75e);
 
     // Large health number with a low-health pulse.
