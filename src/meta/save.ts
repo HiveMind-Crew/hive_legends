@@ -41,7 +41,13 @@ export interface Profile {
   bank: number;
   upgrades: Record<string, number>;
   missionsCompleted: number;
-  bestClearTicks: number | null;
+  /**
+   * Fastest recorded clear, in sim ticks, keyed by level id (#100). Per level
+   * rather than global: a single number is owned forever by the shortest realm,
+   * which is the first one, so it stops meaning anything the moment a second
+   * realm exists. A level with no clear on record is simply absent.
+   */
+  bestClearTicks: Record<string, number>;
   /** Ids of heroes recruited with gold (mission-gated heroes still need the clears). */
   unlockedHeroes: string[];
   /** Ids of levels the player has cleared at least once (mission unlock gate). */
@@ -70,7 +76,7 @@ export function defaultProfile(): Profile {
     bank: 0,
     upgrades: {},
     missionsCompleted: 0,
-    bestClearTicks: null,
+    bestClearTicks: {},
     unlockedHeroes: [],
     clearedLevels: [],
     mastery: {},
@@ -82,6 +88,24 @@ export function defaultProfile(): Profile {
   };
 }
 
+/**
+ * Reads the per-level clear times out of a stored profile.
+ *
+ * Profiles written before #100 hold a single global `number | null` here. That
+ * number names no level, so there is nothing to migrate it *to* — it is dropped
+ * and the player starts recording per-realm bests from their next clear. The
+ * coercion matters more than the loss: leaving a bare number in this slot would
+ * make every reader index into a primitive.
+ */
+function migrateClearTicks(stored: Profile['bestClearTicks'] | number | null | undefined): Record<string, number> {
+  if (!stored || typeof stored !== 'object') return {};
+  const out: Record<string, number> = {};
+  for (const [levelId, ticks] of Object.entries(stored)) {
+    if (typeof ticks === 'number' && Number.isFinite(ticks) && ticks > 0) out[levelId] = ticks;
+  }
+  return out;
+}
+
 export function loadProfile(): Profile {
   try {
     const raw = globalThis.localStorage?.getItem(STORAGE_KEY);
@@ -91,6 +115,7 @@ export function loadProfile(): Profile {
       ...defaultProfile(),
       ...parsed,
       upgrades: { ...(parsed.upgrades ?? {}) },
+      bestClearTicks: migrateClearTicks(parsed.bestClearTicks),
       unlockedHeroes: [...(parsed.unlockedHeroes ?? [])],
       clearedLevels: [...(parsed.clearedLevels ?? [])],
       mastery: Object.fromEntries(
@@ -338,6 +363,62 @@ export function markLevelCleared(profile: Profile, levelId: string): void {
     profile.clearedLevels.push(levelId);
     saveProfile(profile);
   }
+}
+
+// --- Clear times (issue #100) ------------------------------------------------
+
+/** How a finished run compared with the level's standing record. */
+export interface ClearTimeResult {
+  /** The record after this run — always the fastest of the two. */
+  best: number;
+  /** The record this run was measured against, or null on a first clear. */
+  previous: number | null;
+  /** True only when an existing record was beaten; a first clear sets one. */
+  improved: boolean;
+}
+
+/** Fastest recorded clear of a level in ticks, or null if never cleared. */
+export function bestClearTicks(profile: Profile, levelId: string): number | null {
+  return profile.bestClearTicks[levelId] ?? null;
+}
+
+/**
+ * Records a victorious run's duration against a level, keeping the faster of
+ * the two, and persists. Returns what happened so the caller can celebrate a
+ * beaten record without re-deriving it.
+ */
+export function recordClearTicks(profile: Profile, levelId: string, ticks: number): ClearTimeResult {
+  const previous = bestClearTicks(profile, levelId);
+  if (!Number.isFinite(ticks) || ticks <= 0) {
+    return { best: previous ?? 0, previous, improved: false };
+  }
+  const improved = previous !== null && ticks < previous;
+  const best = previous === null ? ticks : Math.min(previous, ticks);
+  if (best !== previous) {
+    profile.bestClearTicks[levelId] = best;
+    saveProfile(profile);
+  }
+  return { best, previous, improved };
+}
+
+/**
+ * The player's single fastest clear across every realm, for a profile summary
+ * that has no level in hand. Ties resolve to the first level in wheel order so
+ * the headline never flickers between two equal records.
+ */
+export function fastestClear(profile: Profile): { levelId: string; ticks: number } | null {
+  const order = SPOKES.flatMap((spoke) => [...spoke.missions, spoke.boss]);
+  const ranked = Object.keys(profile.bestClearTicks).sort((a, b) => {
+    const ai = order.indexOf(a);
+    const bi = order.indexOf(b);
+    return (ai < 0 ? order.length : ai) - (bi < 0 ? order.length : bi);
+  });
+  let best: { levelId: string; ticks: number } | null = null;
+  for (const levelId of ranked) {
+    const ticks = profile.bestClearTicks[levelId]!;
+    if (!best || ticks < best.ticks) best = { levelId, ticks };
+  }
+  return best;
 }
 
 /** Hero ids that have completed a level, in the order their seals were earned. */

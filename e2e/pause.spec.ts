@@ -33,7 +33,7 @@ test('pause freezes the sim and abandon returns to the wheel without banking rew
     bank: 123,
     upgrades: { vitality: 1 },
     missionsCompleted: 0,
-    bestClearTicks: null,
+    bestClearTicks: {},
     unlockedHeroes: [],
     clearedLevels: [],
     weapons: {},

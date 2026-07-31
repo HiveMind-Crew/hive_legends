@@ -11,14 +11,17 @@ import {
   nextLevelId,
   nextTeaser,
   ownedWeapons,
+  recordClearTicks,
   saveProfile,
   upgradeCost,
   upgradeLevel,
   UPGRADES,
   weaponsForHero,
+  type ClearTimeResult,
   type Profile
 } from '../../meta/save';
 import { audio } from '../audio';
+import { clearTimeCopy, formatClearTime } from '../clearTimes';
 import { bindFullscreenToggle } from '../fullscreen';
 import { TEX } from '../textures';
 
@@ -64,13 +67,14 @@ export class ResultsScene extends Phaser.Scene {
     const bankedGold = data.gold + clearBonus;
     this.profile.bank += bankedGold;
     let newMastery = false;
+    let clearTime: ClearTimeResult | null = null;
     // XP banks whether or not the run was won — you keep what you fought for.
     this.profile.xp += Math.max(0, data.xpEarned ?? 0);
     if (data.victory) {
       this.profile.missionsCompleted += 1;
-      if (this.profile.bestClearTicks === null || data.ticks < this.profile.bestClearTicks) {
-        this.profile.bestClearTicks = data.ticks;
-      }
+      // Per-realm record (issue #100). Only a won run sets one — a death is not
+      // a clear time, however far the player got.
+      clearTime = recordClearTicks(this.profile, levelId, data.ticks);
       newMastery = markHeroMastery(this.profile, levelId, this.heroId);
       markLevelCleared(this.profile, levelId); // unlocks the next realm
     }
@@ -95,7 +99,7 @@ export class ResultsScene extends Phaser.Scene {
       .setTint(bannerColor)
       .setScale(10, 2)
       .setAlpha(0.2);
-    const seconds = (data.ticks / 60).toFixed(1);
+    const runTime = formatClearTime(data.ticks); // carries its own unit
     const banner = this.add
       .text(width / 2, 90, data.victory ? 'REALM CLEANSED' : 'THE HIVE PREVAILS', {
         fontFamily: 'monospace',
@@ -122,15 +126,32 @@ export class ResultsScene extends Phaser.Scene {
       .text(
         width / 2,
         165,
-        `Gold collected: ${data.gold}${clearBonus ? ` + ${clearBonus} first-clear bounty` : ''}    Kills: ${data.kills}    Time: ${seconds}s\n` +
+        `Gold collected: ${data.gold}${clearBonus ? ` + ${clearBonus} first-clear bounty` : ''}    Kills: ${data.kills}    Time: ${runTime}\n` +
           `XP earned: ${data.xpEarned ?? 0}    Hero level: ${data.heroLevel ?? 1}` +
           (data.victory ? `    ${newMastery ? 'NEW ' : ''}HERO MASTERY` : ''),
         { fontFamily: 'monospace', fontSize: '18px', color: '#f4e3b2', align: 'center' }
       )
       .setOrigin(0.5);
 
+    // The realm's record. A beaten one is the loudest thing on this screen
+    // after the banner — it is the only replay motivation the game offers.
+    if (clearTime) {
+      const record = this.add
+        .text(width / 2, 197, clearTimeCopy(clearTime), {
+          fontFamily: 'monospace',
+          fontSize: clearTime.improved ? '19px' : '15px',
+          color: clearTime.improved ? '#ffd75e' : '#a89bb8',
+          fontStyle: clearTime.improved ? 'bold' : 'normal'
+        })
+        .setOrigin(0.5);
+      if (clearTime.improved && !this.profile.reduceMotion) {
+        record.setScale(0.7).setAlpha(0);
+        this.tweens.add({ targets: record, scale: 1, alpha: 1, duration: 320, delay: 250, ease: 'Back.Out' });
+      }
+    }
+
     this.bankText = this.add
-      .text(width / 2, 205, '', { fontFamily: 'monospace', fontSize: '18px', color: '#ffd75e' })
+      .text(width / 2, 226, '', { fontFamily: 'monospace', fontSize: '18px', color: '#ffd75e' })
       .setOrigin(0.5);
 
     this.add

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { CONTENT, MISSION_ORDER, SPOKES, TEASER_SPOKES } from '../src/content';
 import {
+  bestClearTicks,
   buyHeroUnlock,
   buyWeapon,
   defaultProfile,
+  fastestClear,
+  recordClearTicks,
   equipWeapon,
   equippedAttack,
   equippedWeaponId,
@@ -242,6 +245,138 @@ describe('mission progression', () => {
     expect(markHeroMastery(profile, first, 'ranger')).toBe(true);
     expect(masteredHeroes(profile, first)).toEqual(['vanguard', 'ranger']);
     expect(masteredHeroes(profile, 'another-level')).toEqual([]);
+  });
+});
+
+/**
+ * Per-realm clear records (issue #100). The field was written and never read
+ * for four realms' worth of development, so the guarantees pinned here are the
+ * ones that make it a feature rather than a number in a file: it is keyed by
+ * level, it only ever falls, and a save written before this existed still
+ * loads.
+ */
+describe('clear-time records', () => {
+  const first = MISSION_ORDER[0]!;
+  const second = MISSION_ORDER[1] ?? 'another-level';
+
+  it('a fresh profile holds no records', () => {
+    const profile = defaultProfile();
+    expect(profile.bestClearTicks).toEqual({});
+    expect(bestClearTicks(profile, first)).toBeNull();
+    expect(fastestClear(profile)).toBeNull();
+  });
+
+  it('a first clear sets a record without claiming one was beaten', () => {
+    const profile = defaultProfile();
+    const result = recordClearTicks(profile, first, 1574);
+    expect(result).toEqual({ best: 1574, previous: null, improved: false });
+    expect(bestClearTicks(profile, first)).toBe(1574);
+  });
+
+  it('keeps the fastest run and reports a beaten record', () => {
+    const profile = defaultProfile();
+    recordClearTicks(profile, first, 1574);
+
+    const slower = recordClearTicks(profile, first, 2000);
+    expect(slower.improved).toBe(false);
+    expect(slower.best).toBe(1574);
+    expect(bestClearTicks(profile, first), 'a slow run never overwrites a record').toBe(1574);
+
+    const faster = recordClearTicks(profile, first, 1200);
+    expect(faster).toEqual({ best: 1200, previous: 1574, improved: true });
+    expect(bestClearTicks(profile, first)).toBe(1200);
+  });
+
+  it('records are per level, so realms never overwrite each other', () => {
+    const profile = defaultProfile();
+    recordClearTicks(profile, first, 1574);
+    recordClearTicks(profile, second, 900);
+    expect(bestClearTicks(profile, first)).toBe(1574);
+    expect(bestClearTicks(profile, second)).toBe(900);
+  });
+
+  it('ignores a nonsense duration rather than storing it', () => {
+    const profile = defaultProfile();
+    recordClearTicks(profile, first, 1574);
+    expect(recordClearTicks(profile, first, 0).best).toBe(1574);
+    expect(recordClearTicks(profile, first, Number.NaN).best).toBe(1574);
+    expect(bestClearTicks(profile, first)).toBe(1574);
+  });
+
+  it('fastestClear names the single quickest realm', () => {
+    const profile = defaultProfile();
+    recordClearTicks(profile, first, 1574);
+    recordClearTicks(profile, second, 900);
+    expect(fastestClear(profile)).toEqual({ levelId: second, ticks: 900 });
+  });
+
+  it('resolves a tie to wheel order so the headline does not flicker', () => {
+    const a = defaultProfile();
+    recordClearTicks(a, first, 1000);
+    recordClearTicks(a, second, 1000);
+    const b = defaultProfile();
+    recordClearTicks(b, second, 1000);
+    recordClearTicks(b, first, 1000);
+    expect(fastestClear(a)).toEqual(fastestClear(b));
+    expect(fastestClear(a)?.levelId).toBe(first);
+  });
+});
+
+/**
+ * The pre-#100 profile stored one global `bestClearTicks: number | null`. It
+ * names no level, so it cannot be migrated into the per-level map — but it must
+ * not survive as a bare number either, or every reader indexes a primitive.
+ */
+describe('clear-record migration from a pre-#100 save', () => {
+  const KEY = 'hive-legends-profile-v1';
+
+  function withStoredProfile<T>(stored: unknown, run: () => T): T {
+    const items = new Map<string, string>([[KEY, JSON.stringify(stored)]]);
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (k: string) => items.get(k) ?? null,
+        setItem: (k: string, v: string) => void items.set(k, v)
+      }
+    });
+    try {
+      return run();
+    } finally {
+      if (original) Object.defineProperty(globalThis, 'localStorage', original);
+      else delete (globalThis as { localStorage?: unknown }).localStorage;
+    }
+  }
+
+  it('drops a legacy global record and leaves the rest of the save intact', () => {
+    const loaded = withStoredProfile(
+      { ...defaultProfile(), bank: 340, clearedLevels: ['brood-warrens'], bestClearTicks: 1074 },
+      loadProfile
+    );
+    expect(loaded.bestClearTicks).toEqual({});
+    expect(loaded.bank, 'the rest of the profile is untouched').toBe(340);
+    expect(loaded.clearedLevels).toEqual(['brood-warrens']);
+    // And the migrated profile records normally from here on.
+    expect(recordClearTicks(loaded, 'brood-warrens', 1074)).toEqual({
+      best: 1074,
+      previous: null,
+      improved: false
+    });
+  });
+
+  it('tolerates the older null and a missing field alike', () => {
+    expect(withStoredProfile({ ...defaultProfile(), bestClearTicks: null }, loadProfile).bestClearTicks).toEqual({});
+    const withoutField: Partial<Profile> = defaultProfile();
+    delete withoutField.bestClearTicks;
+    expect(withStoredProfile(withoutField, loadProfile).bestClearTicks).toEqual({});
+  });
+
+  it('round-trips per-level records and discards corrupt entries', () => {
+    const loaded = withStoredProfile(
+      { ...defaultProfile(), bestClearTicks: { 'brood-warrens': 1074, 'resin-galleries': -5, 'cobalt-combs': 'fast' } },
+      loadProfile
+    );
+    expect(loaded.bestClearTicks).toEqual({ 'brood-warrens': 1074 });
   });
 });
 
