@@ -110,6 +110,12 @@ realm exists. `recordClearTicks` only ever lowers an entry, and distinguishes a
 **first** clear from a **beaten** one so the copy never celebrates a record
 that had nothing to beat.
 
+A run that bought a **continue** (issue #99) is a clear but not a time. The
+wheel is a progression gate and the record is a scoreboard: `clearedLevels`,
+`missionsCompleted` and the hero-mastery seal all count a continued clear
+exactly like any other, and `recordClearTicks` is simply not called for it.
+Results says so on the line that reports what the continues cost.
+
 This is the one field on `Profile` that carries a migration. Saves written
 before it held a single global `number | null`; that number names no level, so
 `loadProfile` drops it rather than mis-attributing it, and the player records
@@ -166,6 +172,38 @@ hand over. Enemy and boss numbers are tuned against base kits, so read this
 table as the top of the power band, not as the target the content is balanced
 for.
 
+## The arcade continue
+
+Death used to end a run outright, which meant dying two rooms from Mireveil
+after a five-minute fight cost the whole thing (issue #99). The genre answer is
+the continue, and it maps onto systems that already existed here: the bank is
+the currency, and the sim already knows how to put a hero back on their feet.
+
+What happens when the party falls:
+
+1. The run **freezes** — the sim is not stepped, so a fallen hero accrues no
+   mission time while the player reads a price.
+2. The prompt states the cost and counts down 10 seconds. It appears even when
+   the bank cannot cover it (on a shorter clock), because a player who dies
+   broke should learn what continues cost rather than being dropped on results.
+3. Taking it spends the gold, then `revivePlayer` stands the hero up **where
+   they fell** with half max HP, 2.5s of invulnerability, and a shove that
+   clears the ring of enemies standing over the body. It buys space, not a free
+   screen-clear.
+4. Declining, or letting the clock run out, routes to results exactly as it did
+   before the mechanic existed.
+
+Prices escalate within a run — 150g, then 300g, then 450g — so the first fall
+is recoverable and the fourth is a decision about whether to spend the gold on
+the upgrade that would have prevented it instead. Nothing about a continue is
+persisted: the count lives on the mission scene, and the only thing that
+outlives the run is the gold that left the bank.
+
+`revivePlayer` is a sim function, not scene code, because a continue has to
+keep the sim's guarantees: it is deterministic, it emits a `player-revived`
+event, and a run that used one still hashes identically on a replay of the same
+inputs (`tests/sim/revive.test.ts`). The sim knows nothing about the price.
+
 ## Where the data lives
 
 | Layer | File | Owns |
@@ -175,6 +213,7 @@ for.
 | Levels | `src/content/levels/` | The maps a spoke points at |
 | Unlock rules | `src/meta/save.ts` | `nodeLockState`, `isSpokeUnlocked`, `spokeProgress`, `suggestedNode`, `spokeForLevel`, `isWheelComplete`, `nextTeaser` |
 | Clear records | `src/meta/save.ts` | `bestClearTicks`, `recordClearTicks`, `fastestClear` |
+| Continues | `src/meta/save.ts` + `src/content/revive.ts` | `continueCost`/`buyContinue` price them; `ReviveDef` says what one restores |
 | Levelling curve | `src/content/progression.ts` | `xpToReach` (the cap is its length), per-level bonuses, the overflow rate |
 | XP banking | `src/meta/save.ts` | `bankXp`, `profileLevel`, `isMaxLevel`, `MAX_HERO_LEVEL`, `XP_CAP` |
 | Level copy | `src/game/xpCopy.ts` | `heroLevelCopy` and `xpResultCopy`, kept out of the scenes so they are testable |

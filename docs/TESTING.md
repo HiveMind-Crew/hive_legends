@@ -38,6 +38,7 @@ npm run build && npm run preview   # production build → http://localhost:4173
 | Static | `npm run lint && npm run typecheck` | Style + types, **and the sim-purity rules** (no Phaser/`Math.random`/`Date.now` inside `src/sim` or `src/content` — see ADR 0002) |
 | Unit (vitest) | `npm test` (watch: `npm run test:watch`) | The whole gameplay sim, headlessly: movement, combat, attack windups, generators and enrage, pickups and power-ups, keys/gates/secrets, the boss phase script, XP and levelling, and a determinism regression (same seed + inputs ⇒ byte-identical state) |
 | End-to-end (Playwright) | `npm run build && npm run test:e2e` | A bot plays the real production build through the browser keyboard path: BFS-pathfinds The Brood Warrens, destroys all three spawners, exits, banks gold and XP, buys an upgrade, and replays with both the upgrade and the earned level applied |
+| Continue (Playwright) | same command | A run stands still until the Warrens kill it, then buys a continue and is back on its feet at half HP with the gold gone; falling again and declining ends the run as before (`e2e/continue.spec.ts`, issue #99) |
 | Viewport (Playwright) | same command | The fixed 960×720 canvas fits, keeps its aspect ratio and stays centred in windows smaller and larger than native, and re-fits on a live window resize (`e2e/viewport.spec.ts`) |
 
 The full pre-commit gate (identical to CI, `.github/workflows/ci.yml`):
@@ -84,7 +85,9 @@ from inside the game loop, and the loop is suspended while a tab is hidden.
   `02c-pause-menu` → `03-horde-combat` →
   `03b-combat-juice` (moment of the first kill) →
   `03c-node-damaged` (generator damage tiers) → `04-results` →
-  `05-replay-upgraded`. CI uploads these as artifacts on every run.
+  `05-replay-upgraded`, plus the continue run's `11-continue-prompt` →
+  `12-continued-run` → `13-continue-declined-results`. CI uploads these as
+  artifacts on every run.
 - The bot reads game state through a read-only debug handle the game exposes
   on `globalThis`:
 

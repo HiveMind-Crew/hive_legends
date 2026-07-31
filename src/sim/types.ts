@@ -687,6 +687,26 @@ export interface EconomyDef {
   firstClearMissionBonus: number;
   /** One-time bounty for the first victory on a boss mission. */
   firstClearBossBonus: number;
+  /** Gold price of the first continue in a run (issue #99). */
+  continueBaseCost: number;
+  /** Added to the price for each continue already taken in the same run. */
+  continueCostStep: number;
+}
+
+/**
+ * The arcade continue (issue #99): what standing back up costs the *fight*,
+ * as opposed to what it costs the bank (`EconomyDef`). The sim reads only
+ * this half, so a revive stays a deterministic state transition.
+ */
+export interface ReviveDef {
+  /** Fraction of max HP the hero stands up with. */
+  hpFraction: number;
+  /** Invulnerable ticks granted, so the swarm cannot instantly re-kill. */
+  invulnTicks: number;
+  /** Enemies within this radius of the death spot are shoved back. */
+  clearRadius: number;
+  /** Impulse applied to those enemies, in px/s. */
+  knockback: number;
 }
 
 export interface ContentDb {
@@ -702,6 +722,8 @@ export interface ContentDb {
   pressure: PressureDef;
   combat: CombatDef;
   economy: EconomyDef;
+  /** What a continue restores when one is bought (issue #99). */
+  revive: ReviveDef;
   /** Mission-wheel branches, in wheel order (issue #53). */
   spokes: readonly SpokeDef[];
   /** Announced-but-unauthored branches, drawn as locked teasers (issue #63). */
@@ -965,6 +987,8 @@ export type SimEvent =
   | { type: 'pressure-rose'; stage: number }
   | { type: 'player-hit'; playerId: EntityId; damage: number; pos: Vec2 }
   | { type: 'player-died'; playerId: EntityId; pos: Vec2 }
+  /** A continue was bought and the hero stood back up (issue #99). */
+  | { type: 'player-revived'; playerId: EntityId; pos: Vec2; hp: number }
   | { type: 'exit-opened'; pos: Vec2 }
   | { type: 'mission-complete' }
   | { type: 'mission-failed' };

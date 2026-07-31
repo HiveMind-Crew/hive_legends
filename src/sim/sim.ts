@@ -235,6 +235,55 @@ export function simTick(sim: Sim, inputs: readonly InputCommand[]): SimEvent[] {
   return events;
 }
 
+/**
+ * The arcade continue (issue #99): stand a fallen hero back up where they
+ * fell, on `ContentDb.revive`'s terms.
+ *
+ * A sim function rather than scene code, and a pure state transition rather
+ * than a rebuilt sim, because a continue has to survive the same guarantees
+ * everything else does: it is deterministic, it emits events, and a run that
+ * used one still hashes identically on a replay of the same inputs. **What a
+ * continue costs is not the sim's business** — the gold is spent in
+ * `src/meta/save.ts` before this is called.
+ *
+ * Returns the events it produced, or an empty array when the id names nobody
+ * or names somebody already standing, so the caller can treat a double-press
+ * or a stale prompt as a no-op.
+ */
+export function revivePlayer(sim: Sim, playerId: EntityId): SimEvent[] {
+  const events: SimEvent[] = [];
+  const p = sim.state.players.find((x) => x.id === playerId);
+  if (!p || p.alive) return events;
+
+  const { revive } = sim.config.content;
+  p.alive = true;
+  p.hp = Math.max(1, Math.round(p.maxHp * revive.hpFraction));
+  p.invulnTicks = revive.invulnTicks;
+  // A committed swing or a running ability cooldown should not carry across
+  // death; the hero stands up ready, but with nothing already in flight.
+  p.attackCooldown = 0;
+  p.guardTicks = 0;
+
+  // Shove the ring of enemies standing over the body. No damage: the continue
+  // buys space, not a free screen-clear — that is what the potion is for.
+  for (const e of sim.state.enemies) {
+    const d = sub(e.pos, p.pos);
+    const dist = Math.hypot(d.x, d.y);
+    if (dist > revive.clearRadius) continue;
+    const dir = dist > 1e-6 ? { x: d.x / dist, y: d.y / dist } : { x: 0, y: -1 };
+    e.knockback.x += dir.x * revive.knockback;
+    e.knockback.y += dir.y * revive.knockback;
+    e.windupTicksLeft = 0; // a telegraph aimed at a corpse does not land
+  }
+
+  // The mission was over the moment the last hero fell; it is not any more.
+  // `updateObjective` re-derives exit-open from the world on the next tick, so
+  // returning to 'combat' cannot strand a party that had already cleared it.
+  if (sim.state.phase === 'failed') sim.state.phase = 'combat';
+  events.push({ type: 'player-revived', playerId: p.id, pos: { ...p.pos }, hp: p.hp });
+  return events;
+}
+
 // ---------------------------------------------------------------------------
 
 function updatePlayers(sim: Sim, inputs: readonly InputCommand[], events: SimEvent[]): void {

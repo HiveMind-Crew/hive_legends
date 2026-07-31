@@ -13,6 +13,7 @@ import { POWERUPS } from './powerups';
 import { PRESSURE } from './pressure';
 import { PROGRESSION } from './progression';
 import { PROPS } from './props';
+import { REVIVE } from './revive';
 import { SPOKES, TEASER_SPOKES } from './spokes';
 import { WEAPONS } from './weapons';
 
@@ -29,6 +30,7 @@ export const CONTENT: ContentDb = {
   pressure: PRESSURE,
   combat: COMBAT,
   economy: ECONOMY,
+  revive: REVIVE,
   spokes: SPOKES,
   teaserSpokes: TEASER_SPOKES
 };
