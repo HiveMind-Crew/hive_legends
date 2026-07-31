@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { BROOD_WARRENS, CONTENT, LEVELS } from '../../content';
-import { equippedAttack, loadProfile, profileModifiers } from '../../meta/save';
+import { buyContinue, continueCost, equippedAttack, loadProfile, profileModifiers, type Profile } from '../../meta/save';
 import { levelHeightPx, levelWidthPx } from '../../sim/level';
-import { createSim, simTick, type Sim } from '../../sim/sim';
+import { createSim, revivePlayer, simTick, type Sim } from '../../sim/sim';
 import {
   POWERUP_KINDS,
   TICK_DT,
@@ -13,6 +13,15 @@ import {
   type Vec2
 } from '../../sim/types';
 import { audio } from '../audio';
+import {
+  CONTINUE_SECONDS,
+  DECLINED_SECONDS,
+  canTakeOffer,
+  continueActionCopy,
+  continueOfferCopy,
+  continueTitleCopy,
+  type ContinueOffer
+} from '../continueCopy';
 import { enemyAttackCue, heroAttackCue } from '../attackCues';
 import { bindFullscreenToggle } from '../fullscreen';
 import { playerAccent } from '../colors';
@@ -145,6 +154,16 @@ export class MissionScene extends Phaser.Scene {
   private attackGuides = new Map<EntityId, Phaser.GameObjects.Rectangle>();
   private ended = false;
   private runPaused = false;
+  /**
+   * The arcade continue (issue #99). While an offer is on screen the sim is
+   * not stepped at all — a fallen run must not accrue ticks (and so mission
+   * time) while the player reads a price.
+   */
+  private continueOffer: ContinueOffer | null = null;
+  private continueEndsAt = 0;
+  private continuesUsed = 0;
+  private continueGoldSpent = 0;
+  private profile!: Profile;
   private reduceMotion = false;
   private hitStopMs = 0;
   private camFollow = { x: 0, y: 0 };
@@ -164,6 +183,7 @@ export class MissionScene extends Phaser.Scene {
 
   create(data?: { heroId?: string; levelId?: string }): void {
     const profile = loadProfile();
+    this.profile = profile;
     // Hero choice flows in from hero select (and results replay); anything
     // unknown falls back to the default hero so the e2e Enter-flow is safe.
     this.heroId = data?.heroId && CONTENT.heroes[data.heroId] ? data.heroId : 'vanguard';
@@ -189,6 +209,9 @@ export class MissionScene extends Phaser.Scene {
     this.accumulator = 0;
     this.ended = false;
     this.runPaused = false;
+    this.continueOffer = null;
+    this.continuesUsed = 0;
+    this.continueGoldSpent = 0;
     this.reduceMotion = profile.reduceMotion;
     this.sprites.clear();
     this.shadows.clear();
@@ -248,8 +271,15 @@ export class MissionScene extends Phaser.Scene {
     // resume the context and kick off the combat loop.
     audio.unlock();
     audio.startMusic();
+    this.input.keyboard?.on('keydown-ENTER', (event: KeyboardEvent) => {
+      if (!event.repeat && this.continueOffer) this.acceptContinue();
+    });
     this.input.keyboard?.on('keydown-ESC', (event: KeyboardEvent) => {
-      if (!event.repeat) this.toggleRunPause();
+      if (event.repeat) return;
+      // While a continue is offered, Esc answers *that* — pausing a run whose
+      // hero is face-down is not a state worth having.
+      if (this.continueOffer) this.declineContinue();
+      else this.toggleRunPause();
     });
     this.input.keyboard?.on('keydown-A', (event: KeyboardEvent) => {
       if (!event.repeat && this.runPaused) this.abandonRun();
@@ -258,13 +288,21 @@ export class MissionScene extends Phaser.Scene {
       if (event.repeat || !this.runPaused) return;
       this.openSettings();
     });
-    // The same three verbs on a pad (issue #98). START pauses and resumes; the
-    // pause menu's two exits are the pad's cancel and alt buttons, and neither
-    // does anything while the run is live.
+    // The same verbs on a pad (issue #98). START pauses and resumes; the pause
+    // menu's two exits are the pad's cancel and alt buttons, and neither does
+    // anything while the run is live. A continue offer (issue #99) takes
+    // priority over all of it: confirm stands up, cancel gives up, and pausing
+    // a run whose hero is face-down is not a state worth having.
     bindPadMenu(this, {
-      menu: () => this.toggleRunPause(),
+      menu: () => {
+        if (!this.continueOffer) this.toggleRunPause();
+      },
+      confirm: () => {
+        if (this.continueOffer) this.acceptContinue();
+      },
       cancel: () => {
-        if (this.runPaused) this.abandonRun();
+        if (this.continueOffer) this.declineContinue();
+        else if (this.runPaused) this.abandonRun();
       },
       alt: () => {
         if (this.runPaused) this.openSettings();
@@ -464,6 +502,13 @@ export class MissionScene extends Phaser.Scene {
   }
 
   override update(_time: number, delta: number): void {
+    // A fallen run waits on the player, and waits *frozen*: the sim is not
+    // stepped, so the mission clock does not run while the offer is up.
+    if (this.continueOffer) {
+      this.drawContinuePrompt();
+      if (this.time.now >= this.continueEndsAt) this.declineContinue();
+      return;
+    }
     if (this.ended || this.runPaused) return;
 
     // Hit-stop: freeze the world for a few frames on big hits. The sim is
@@ -484,6 +529,11 @@ export class MissionScene extends Phaser.Scene {
       this.handleEvents(events);
       this.accumulator -= TICK_DT;
       steps++;
+      // Stop the moment the run ends or falls: `simTick` still advances `tick`
+      // once the phase is terminal, so continuing to step this frame pads
+      // mission time — the clear-time record on a win, and the "frozen while
+      // the offer is up" guarantee on a death.
+      if (this.ended || this.continueOffer) break;
     }
     if (steps === MAX_STEPS_PER_FRAME) this.accumulator = 0; // avoid spiral of death
 
@@ -752,7 +802,7 @@ export class MissionScene extends Phaser.Scene {
           this.endMission(true);
           break;
         case 'mission-failed':
-          this.endMission(false);
+          this.offerContinue();
           break;
         default:
           break;
@@ -763,6 +813,76 @@ export class MissionScene extends Phaser.Scene {
   private spriteFor(ev: { enemyId?: EntityId; generatorId?: EntityId }): Phaser.GameObjects.Image | undefined {
     const id = ev.enemyId ?? ev.generatorId;
     return id === undefined ? undefined : this.sprites.get(id);
+  }
+
+  // --- the arcade continue (issue #99) --------------------------------------
+
+  /**
+   * The party has fallen. Offer a continue instead of ending the run outright.
+   *
+   * The offer is shown even when the bank cannot cover it — a player who dies
+   * broke should learn that continues exist and what they cost, rather than
+   * being dropped on the results screen wondering what happened. It just runs
+   * on a shorter clock, because there is nothing to decide.
+   */
+  private offerContinue(): void {
+    const offer: ContinueOffer = {
+      cost: continueCost(this.continuesUsed),
+      bank: this.profile.bank,
+      used: this.continuesUsed
+    };
+    const affordable = canTakeOffer(offer);
+    this.continueOffer = offer;
+    this.continueEndsAt = this.time.now + (affordable ? CONTINUE_SECONDS : DECLINED_SECONDS) * 1000;
+    (this.scene.get('hud') as HudScene).herald(
+      affordable ? 'STAND UP — THE HIVE IS NOT DONE' : 'THE PARTY HAS FALLEN',
+      affordable ? '#ffd75e' : '#ff5a4d'
+    );
+    this.drawContinuePrompt();
+  }
+
+  /** Pushes the current offer and countdown into the HUD overlay. */
+  private drawContinuePrompt(): void {
+    const offer = this.continueOffer;
+    if (!offer) return;
+    const secondsLeft = Math.max(0, (this.continueEndsAt - this.time.now) / 1000);
+    const total = canTakeOffer(offer) ? CONTINUE_SECONDS : DECLINED_SECONDS;
+    (this.scene.get('hud') as HudScene).showContinue(
+      continueTitleCopy(offer),
+      continueOfferCopy(offer),
+      continueActionCopy(offer, secondsLeft),
+      secondsLeft / total
+    );
+  }
+
+  /** Takes the offer: pay the bank, stand the hero up, resume the run. */
+  private acceptContinue(): void {
+    const offer = this.continueOffer;
+    if (!offer || this.ended) return;
+    if (!buyContinue(this.profile, offer.used)) {
+      audio.uiTick(200); // cannot pay — low buzz, the clock keeps running
+      return;
+    }
+    this.continuesUsed += 1;
+    this.continueGoldSpent += offer.cost;
+    this.continueOffer = null;
+    (this.scene.get('hud') as HudScene).hideContinue();
+
+    const player = this.sim.state.players[0]!;
+    this.handleEvents(revivePlayer(this.sim, player.id));
+    // Real time passed while the prompt was up; do not pay it back as a burst
+    // of catch-up ticks the moment the hero stands.
+    this.accumulator = 0;
+    audio.uiConfirm();
+    (this.scene.get('hud') as HudScene).herald('RISE', '#9fe06a');
+  }
+
+  /** Declines (or times out): the run ends exactly as it did before #99. */
+  private declineContinue(): void {
+    if (!this.continueOffer || this.ended) return;
+    this.continueOffer = null;
+    (this.scene.get('hud') as HudScene).hideContinue();
+    this.endMission(false);
   }
 
   private endMission(victory: boolean): void {
@@ -782,6 +902,8 @@ export class MissionScene extends Phaser.Scene {
         kills: p.kills,
         ticks: this.sim.state.tick,
         xpEarned: Math.max(0, p.xp - this.startXp),
+        continuesUsed: this.continuesUsed,
+        continueGold: this.continueGoldSpent,
         heroId: this.heroId,
         levelId: this.levelId
       });

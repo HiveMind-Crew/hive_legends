@@ -23,6 +23,7 @@ import {
 } from '../../meta/save';
 import { audio } from '../audio';
 import { clearTimeCopy, formatClearTime } from '../clearTimes';
+import { continuesSpentCopy } from '../continueCopy';
 import { bindFullscreenToggle } from '../fullscreen';
 import { bindPadMenu } from '../padMenu';
 import { TEX } from '../textures';
@@ -39,6 +40,9 @@ interface ResultsData {
    * instead (issue #103) and only `bankXp` knows the split.
    */
   xpEarned: number;
+  /** Continues bought this run, and what they cost the bank (issue #99). */
+  continuesUsed?: number;
+  continueGold?: number;
   /** Hero played this run; kept so replay and hero-select return to it. */
   heroId: string;
   /** Level played this run; kept so replay/next-mission target the right realm. */
@@ -79,11 +83,15 @@ export class ResultsScene extends Phaser.Scene {
     // total that no longer moves (issue #103), so it can add to the bank here.
     const xpEarned = Math.max(0, data.xpEarned ?? 0);
     const xpResult = bankXp(this.profile, xpEarned);
+    const continuesUsed = Math.max(0, data.continuesUsed ?? 0);
     if (data.victory) {
       this.profile.missionsCompleted += 1;
       // Per-realm record (issue #100). Only a won run sets one — a death is not
-      // a clear time, however far the player got.
-      clearTime = recordClearTicks(this.profile, levelId, data.ticks);
+      // a clear time, however far the player got. A run that bought its way
+      // back up is a clear but not a time (issue #99): the wheel is a
+      // progression gate, the record is a scoreboard, and only the scoreboard
+      // cares how many times you fell.
+      clearTime = continuesUsed > 0 ? null : recordClearTicks(this.profile, levelId, data.ticks);
       newMastery = markHeroMastery(this.profile, levelId, this.heroId);
       markLevelCleared(this.profile, levelId); // unlocks the next realm
     }
@@ -141,6 +149,19 @@ export class ResultsScene extends Phaser.Scene {
         { fontFamily: 'monospace', fontSize: '18px', color: '#f4e3b2', align: 'center' }
       )
       .setOrigin(0.5);
+
+    // What standing back up cost, when it happened. Stated plainly, including
+    // the record it forfeited, so the trade is visible after the fact.
+    const continuesLine = continuesSpentCopy(continuesUsed, Math.max(0, data.continueGold ?? 0));
+    if (continuesLine) {
+      this.add
+        .text(width / 2, 197, continuesLine, {
+          fontFamily: 'monospace',
+          fontSize: '15px',
+          color: '#ff9a86'
+        })
+        .setOrigin(0.5);
+    }
 
     // The realm's record. A beaten one is the loudest thing on this screen
     // after the banner — it is the only replay motivation the game offers.

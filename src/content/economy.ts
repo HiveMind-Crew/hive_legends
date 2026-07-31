@@ -10,7 +10,12 @@ import type { EconomyDef, LevelDef } from '../sim/types';
  */
 export const ECONOMY: EconomyDef = {
   firstClearMissionBonus: 150,
-  firstClearBossBonus: 250
+  firstClearBossBonus: 250,
+  // The arcade continue (issue #99). The first one costs about a third of a
+  // mission's modelled income and each further one in the same run costs that
+  // much again, so a bad patch is recoverable and a bad run is not free.
+  continueBaseCost: 150,
+  continueCostStep: 150
 };
 
 /** The one-time bounty for clearing an authored level for the first time. */

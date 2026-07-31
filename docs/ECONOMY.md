@@ -23,6 +23,13 @@ a complete build.
   income below is unaffected, because a first pass through the Azure Reach ends
   short of the cap. See `docs/PROGRESSION.md` for the cap itself.
 
+The **arcade continue** (issue #99) is the one gold sink that is spent *during*
+a run rather than between them: 150g for the first, +150g for each further one
+in the same mission. It is priced against a mission's modelled income (~450g),
+so one bad patch is recoverable and a run that keeps falling stops being worth
+paying for — and it competes directly with the upgrade that would have stopped
+the deaths, which is the decision the sink is there to create.
+
 This deliberately leaves some sink after a first Azure Reach clear. One hero
 can be completed in one pass; completing the entire roster takes exploration,
 mastery replays, or future spokes.

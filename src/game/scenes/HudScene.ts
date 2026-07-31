@@ -73,6 +73,13 @@ export class HudScene extends Phaser.Scene {
   private bossBar!: Phaser.GameObjects.Rectangle;
   private bossShown = 0; // eased bar fill, so chip damage reads as a drain
   private pauseLayer!: Phaser.GameObjects.Container;
+  /** Continue prompt (issue #99), shown only while a fallen run is deciding. */
+  private continueLayer!: Phaser.GameObjects.Container;
+  private continueTitle!: Phaser.GameObjects.Text;
+  private continueOffer!: Phaser.GameObjects.Text;
+  private continueAction!: Phaser.GameObjects.Text;
+  private continueBarBack!: Phaser.GameObjects.Rectangle;
+  private continueBar!: Phaser.GameObjects.Rectangle;
 
   constructor() {
     super('hud');
@@ -144,6 +151,7 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(1, 1);
 
     this.buildPauseLayer();
+    this.buildContinueLayer();
   }
 
   /** Shows or hides the screen-space pause menu owned by the parallel HUD. */
@@ -206,6 +214,70 @@ export class HudScene extends Phaser.Scene {
       .container(0, 0, [backdrop, panel, title, subtitle, resume, abandon, settings, note])
       .setDepth(10_000)
       .setVisible(false);
+  }
+
+  /**
+   * The continue prompt (issue #99). Drawn here rather than in MissionScene
+   * because the mission camera zooms and scrolls; the HUD scene is the one
+   * that renders in screen space.
+   */
+  private buildContinueLayer(): void {
+    const { width, height } = this.scale;
+    const backdrop = this.add.rectangle(0, 0, width, height, 0x120508, 0.84).setOrigin(0, 0);
+    const panel = this.add
+      .rectangle(width / 2, height / 2, 620, 250, 0x1c1018, 0.98)
+      .setStrokeStyle(3, 0xff5a4d, 0.9);
+    this.continueTitle = this.add
+      .text(width / 2, height / 2 - 74, '', {
+        fontFamily: 'monospace',
+        fontSize: '38px',
+        color: '#ffd75e',
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5);
+    this.continueOffer = this.add
+      .text(width / 2, height / 2 - 12, '', {
+        fontFamily: 'monospace',
+        fontSize: '18px',
+        color: '#f4e3b2'
+      })
+      .setOrigin(0.5);
+    this.continueAction = this.add
+      .text(width / 2, height / 2 + 46, '', {
+        fontFamily: 'monospace',
+        fontSize: '17px',
+        color: '#64e6ff'
+      })
+      .setOrigin(0.5);
+    // The countdown bar is the arcade tell: the decision is on a clock.
+    this.continueBarBack = this.add.rectangle(width / 2, height / 2 + 88, 460, 10, 0x2a2438);
+    this.continueBar = this.add.rectangle(width / 2 - 230, height / 2 + 88, 460, 10, 0xff7a70).setOrigin(0, 0.5);
+
+    this.continueLayer = this.add
+      .container(0, 0, [
+        backdrop,
+        panel,
+        this.continueTitle,
+        this.continueOffer,
+        this.continueAction,
+        this.continueBarBack,
+        this.continueBar
+      ])
+      .setDepth(10_001)
+      .setVisible(false);
+  }
+
+  /** Shows/updates the continue prompt. `fraction` is the countdown remaining. */
+  showContinue(title: string, offer: string, action: string, fraction: number): void {
+    this.continueTitle.setText(title);
+    this.continueOffer.setText(offer);
+    this.continueAction.setText(action);
+    this.continueBar.width = 460 * Math.max(0, Math.min(1, fraction));
+    this.continueLayer.setVisible(true);
+  }
+
+  hideContinue(): void {
+    this.continueLayer.setVisible(false);
   }
 
   /** Enqueue a Herald announcement; shown one at a time in arrival order. */

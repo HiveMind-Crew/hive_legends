@@ -1,3 +1,4 @@
+import { ECONOMY } from '../content/economy';
 import { PROGRESSION } from '../content/progression';
 import { SPOKES, TEASER_SPOKES } from '../content/spokes';
 import { WEAPONS } from '../content/weapons';
@@ -165,6 +166,36 @@ export function buyUpgrade(profile: Profile, upgradeId: string): boolean {
   if (cost === null || profile.bank < cost) return false;
   profile.bank -= cost;
   profile.upgrades[upgradeId] = upgradeLevel(profile, upgradeId) + 1;
+  saveProfile(profile);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// The arcade continue (issue #99)
+// ---------------------------------------------------------------------------
+
+/**
+ * What the next continue costs, given how many this run has already used.
+ *
+ * Escalating rather than flat, which is the arcade convention and the honest
+ * one: the first continue rescues a run that went wrong once, and the fourth
+ * costs enough that grinding a realm you cannot survive is worse value than
+ * going back and buying an upgrade.
+ */
+export function continueCost(continuesUsed: number): number {
+  const used = Math.max(0, Math.floor(continuesUsed));
+  return ECONOMY.continueBaseCost + ECONOMY.continueCostStep * used;
+}
+
+/**
+ * Spends the bank on a continue, returning false (and charging nothing) when
+ * it cannot be paid for. The sim-side revive is `revivePlayer`; this is only
+ * the price.
+ */
+export function buyContinue(profile: Profile, continuesUsed: number): boolean {
+  const cost = continueCost(continuesUsed);
+  if (profile.bank < cost) return false;
+  profile.bank -= cost;
   saveProfile(profile);
   return true;
 }

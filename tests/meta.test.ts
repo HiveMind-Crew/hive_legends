@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { CONTENT, MISSION_ORDER, SPOKES, TEASER_SPOKES } from '../src/content';
 import {
   bestClearTicks,
+  buyContinue,
   buyHeroUnlock,
+  continueCost,
   buyWeapon,
   defaultProfile,
   fastestClear,
@@ -482,6 +484,46 @@ describe('the hero level cap', () => {
     const curve = CONTENT.progression.xpToReach;
     expect(MAX_HERO_LEVEL).toBe(curve.length);
     expect(XP_CAP).toBe(curve[curve.length - 1]);
+  });
+});
+
+/**
+ * The arcade continue (issue #99). The price escalates within a run, so the
+ * first fall is recoverable and the fourth is a decision.
+ */
+describe('continues', () => {
+  const base = CONTENT.economy.continueBaseCost;
+  const step = CONTENT.economy.continueCostStep;
+
+  it('prices the first continue at the authored base and escalates from there', () => {
+    expect(continueCost(0)).toBe(base);
+    expect(continueCost(1)).toBe(base + step);
+    expect(continueCost(3)).toBe(base + step * 3);
+  });
+
+  it('treats nonsense counts as a first continue rather than a discount', () => {
+    expect(continueCost(-5)).toBe(base);
+    expect(continueCost(0.9)).toBe(base);
+  });
+
+  it('spends the bank, and only when the bank covers it', () => {
+    const profile = defaultProfile();
+    profile.bank = base;
+    expect(buyContinue(profile, 0)).toBe(true);
+    expect(profile.bank).toBe(0);
+
+    // The second one costs more, and the empty bank cannot pay for it.
+    expect(buyContinue(profile, 1)).toBe(false);
+    expect(profile.bank).toBe(0); // a refused continue charges nothing
+  });
+
+  it('charges the escalated price on a later continue', () => {
+    const profile = defaultProfile();
+    profile.bank = 10_000;
+    buyContinue(profile, 0);
+    buyContinue(profile, 1);
+    buyContinue(profile, 2);
+    expect(profile.bank).toBe(10_000 - (base + (base + step) + (base + step * 2)));
   });
 });
 
