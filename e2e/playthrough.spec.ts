@@ -294,6 +294,10 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   expect(profile.bank).toBeGreaterThan(0);
   // The run's kills and destroyed spawners banked XP too (issue #46).
   expect(profile.xp).toBeGreaterThan(0);
+  // The clear time is recorded against the realm it was set on, not globally
+  // (issue #100) — the seeded profile started with no records at all.
+  expect(profile.bestClearTicks['brood-warrens']).toBeGreaterThan(0);
+  expect(Object.keys(profile.bestClearTicks)).toEqual(['brood-warrens']);
 
   // Buy a persistent upgrade in the results shop (Hearthstone Vigor, 80g).
   const bank: number = profile.bank;
@@ -322,6 +326,16 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   expect(replayState.players[0]!.maxHp).toBe(120 + 20 * vitality + levelHp);
   await page.screenshot({ path: 'test-results/05-replay-upgraded.png' });
 
+  // Abandon back to the wheel, which must now show the record the earlier clear
+  // set. The dead-field half of issue #100 was that nothing ever displayed it,
+  // so the display is worth a shot of the real screen.
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(100);
+  await page.keyboard.press('a');
+  await expect.poll(async () => getState(page), { timeout: 10_000 }).toBeNull();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'test-results/06-wheel-record.png' });
+
   const fatal = consoleErrors.filter((e) => !e.includes('favicon'));
   expect(fatal).toEqual([]);
 });
@@ -340,7 +354,7 @@ test('The Resin Galleries loads its dedicated amber-resin environment pack', asy
         bank: 0,
         upgrades: {},
         missionsCompleted: 1,
-        bestClearTicks: null,
+        bestClearTicks: {},
         unlockedHeroes: [],
         clearedLevels: ['brood-warrens'],
         weapons: {},

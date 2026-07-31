@@ -95,6 +95,27 @@ line for each, because they ask the player to do three different things:
 `cleared` is reported separately from `available` rather than folded in,
 because a finished level stays enterable — Results offers a replay.
 
+### Clear records are per realm
+
+`Profile.bestClearTicks` is a `Record<levelId, ticks>` holding the fastest win
+on each node. It is the one thing besides mastery seals that a replay of a
+cleared realm can still move, so it is the game's replay motivation and it is
+shown in all three places a player could look for it: the wheel footer beside
+the realm name, the results screen (loudly, when a record falls), and the
+hero-select summary as a single fastest-clear headline.
+
+Per level, not global. A single number is owned forever by whichever realm is
+shortest — the first one — so it stops meaning anything the moment a second
+realm exists. `recordClearTicks` only ever lowers an entry, and distinguishes a
+**first** clear from a **beaten** one so the copy never celebrates a record
+that had nothing to beat.
+
+This is the one field on `Profile` that carries a migration. Saves written
+before it held a single global `number | null`; that number names no level, so
+`loadProfile` drops it rather than mis-attributing it, and the player records
+per-realm bests from their next clear. Adding a realm still needs no migration
+— an unrecorded level is simply an absent key.
+
 ## Where the data lives
 
 | Layer | File | Owns |
@@ -103,8 +124,10 @@ because a finished level stays enterable — Results offers a replay.
 | Shapes | `src/sim/types.ts` | `SpokeDef`, `TeaserSpokeDef` |
 | Levels | `src/content/levels/` | The maps a spoke points at |
 | Unlock rules | `src/meta/save.ts` | `nodeLockState`, `isSpokeUnlocked`, `spokeProgress`, `suggestedNode`, `spokeForLevel`, `isWheelComplete`, `nextTeaser` |
+| Clear records | `src/meta/save.ts` | `bestClearTicks`, `recordClearTicks`, `fastestClear` |
 | Rendering | `src/game/scenes/MissionHubScene.ts` | Drawing only — no progression logic |
 | Hub copy | `src/game/hubCopy.ts` | `statusCopy` and `endOfContentCopy`, kept out of the scene so they are testable |
+| Record copy | `src/game/clearTimes.ts` | Tick→time formatting and record wording, shared by the wheel, results and hero select |
 
 `MissionHubScene` reads positions from each spoke's `angleDeg`, states from
 `nodeLockState`, its cursor default from `suggestedNode`, and its teaser arms

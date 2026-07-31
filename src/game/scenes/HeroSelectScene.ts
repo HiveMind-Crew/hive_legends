@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
-import { CONTENT } from '../../content';
+import { CONTENT, LEVELS } from '../../content';
 import {
   buyHeroUnlock,
   equippedWeapon,
+  fastestClear,
   heroLockState,
   loadProfile,
   profileModifiers,
@@ -13,6 +14,7 @@ import {
 } from '../../meta/save';
 import type { HeroDef, HeroModifiers } from '../../sim/types';
 import { audio } from '../audio';
+import { formatClearTime } from '../clearTimes';
 import { FULLSCREEN_HINT, bindFullscreenToggle } from '../fullscreen';
 import { TEX, enemyFrame, heroFrame } from '../textures';
 
@@ -78,12 +80,19 @@ export class HeroSelectScene extends Phaser.Scene {
       .filter((u) => u.level > 0)
       .map((u) => `${UPGRADES[u.id]!.name} ${u.level}`)
       .join(', ');
+    // The standing record across every realm (issue #100). No level is in hand
+    // on this screen, so the summary carries the headline rather than a table.
+    const fastest = fastestClear(profile);
+    const fastestLine = fastest
+      ? `\nFastest clear: ${LEVELS[fastest.levelId]?.name ?? fastest.levelId} in ${formatClearTime(fastest.ticks)}`
+      : '';
     this.add
       .text(
         width / 2,
         524,
         `Bank: ${profile.bank} gold   Missions cleared: ${profile.missionsCompleted}` +
-          (upgradesOwned ? `\nUpgrades: ${upgradesOwned}` : ''),
+          (upgradesOwned ? `\nUpgrades: ${upgradesOwned}` : '') +
+          fastestLine,
         { fontFamily: 'monospace', fontSize: '15px', color: '#ffd75e', align: 'center' }
       )
       .setOrigin(0.5);

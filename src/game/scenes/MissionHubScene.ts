@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CONTENT, LEVELS } from '../../content';
 import {
+  bestClearTicks,
   loadProfile,
   masteredHeroes,
   nodeLockState,
@@ -8,6 +9,7 @@ import {
   suggestedNode,
   type Profile
 } from '../../meta/save';
+import { bestClearCopy } from '../clearTimes';
 import { endOfContentCopy, statusCopy } from '../hubCopy';
 import { audio } from '../audio';
 import { FULLSCREEN_HINT, bindFullscreenToggle } from '../fullscreen';
@@ -251,7 +253,10 @@ export class MissionHubScene extends Phaser.Scene {
     const mastery = masteredHeroes(this.profile, node.levelId).length;
     const masteryTotal = Object.keys(CONTENT.heroes).length;
     const label = LEVELS[node.levelId]?.name ?? node.levelId;
-    this.infoName.setText(`${node.isBoss ? '☠ ' : ''}${label}`);
+    // The realm's record sits on the name line, next to the realm it belongs
+    // to, so the footer's second line stays the node's *state* (issue #100).
+    const best = bestClearCopy(bestClearTicks(this.profile, node.levelId));
+    this.infoName.setText(`${node.isBoss ? '☠ ' : ''}${label}${best ? `   ${best}` : ''}`);
     this.infoStatus
       .setText(
         `${node.spokeName}   ${progress.cleared}/${progress.total} cleared   Mastery ${mastery}/${masteryTotal}   ${statusCopy(lock)}`
