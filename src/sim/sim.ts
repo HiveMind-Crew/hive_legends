@@ -1,4 +1,5 @@
-import { moveCircle, circleHitsWall, tileCenter, type Blockage } from './level';
+import { moveCircle, circleHitsWall, segmentHitsWall, tileCenter, type Blockage } from './level';
+import { buildFlowField, buildPassable, flowStep, tileAt, type FlowField, type TileCoord } from './flowField';
 import { rngIntRange, rngNext, rngSeed } from './rng';
 import {
   EMPTY_INPUT,
@@ -46,9 +47,33 @@ const PICKUP_RADIUS = 14;
 const SECRET_WALL_HP = 60;
 const SECRET_RADIUS = 15; // secret walls fill roughly a tile for attack collision
 
+/**
+ * Grid pathfinding scratch (issue #107), rebuilt from `state` whenever its
+ * inputs change.
+ *
+ * Deliberately **not** on `SimState`. `hashState` is `JSON.stringify(state)`,
+ * so a derived cache living there would bloat every determinism hash with a
+ * thousand-entry array and fold a pure optimisation into the desync surface.
+ * Keeping it beside the state instead means the field can never disagree with
+ * the state it was built from — it is thrown away and rebuilt the moment that
+ * state moves.
+ */
+interface FlowCache {
+  /** Blockage signature the passability grids were built against. */
+  blockKey: string;
+  /** Player-tile signature the distance fields were built against. */
+  sourceKey: string;
+  /** Standable tiles per enemy radius; survives a player moving. */
+  passable: Map<number, Uint8Array>;
+  /** Distances per enemy radius; discarded when a player crosses a tile. */
+  fields: Map<number, FlowField>;
+}
+
 export interface Sim {
   state: SimState;
   config: SimConfig;
+  /** Derived pathfinding cache; see `FlowCache`. Never part of the hash. */
+  flow?: FlowCache;
 }
 
 export function createSim(config: SimConfig): Sim {
@@ -973,10 +998,107 @@ function damageProp(sim: Sim, pr: PropState, damage: number, events: SimEvent[])
 
 // ---------------------------------------------------------------------------
 
+// --- Horde pathfinding (issue #107) -----------------------------------------
+
+/**
+ * How long an enemy commits to a route before re-testing whether it can simply
+ * charge again. Long enough to clear a corner (0.2s of travel), short enough
+ * that it snaps back to straight-line pressure the moment the way is open —
+ * and it keeps the line-of-sight probe off the per-tick path.
+ */
+const PATH_RECHECK_TICKS = 12;
+
+/**
+ * Fraction of an intended step an enemy must actually cover to count as making
+ * headway. Sliding along a wall at a shallow angle still covers most of it;
+ * pressing into one covers almost none. Below this, the straight line has
+ * failed and the enemy needs a route.
+ */
+const PATH_STUCK_FRACTION = 0.5;
+
+/**
+ * Validates the pathfinding cache against this tick's state, once, before the
+ * enemy loop. Returns the attractor tiles, or null when nobody is left to
+ * chase.
+ *
+ * Two independent invalidations, because the two inputs change at wildly
+ * different rates: passability only when a gate opens or a secret crumbles,
+ * distances every time a player crosses a tile. Hoisting this out of the loop
+ * keeps the key-building off the per-enemy path — the fields themselves are
+ * shared by every enemy of the same size.
+ */
+function refreshFlowCache(sim: Sim, blk: Blockage): TileCoord[] | null {
+  const { level } = sim.config;
+  const sources: TileCoord[] = [];
+  for (const p of sim.state.players) if (p.alive) sources.push(tileAt(level, p.pos));
+  if (sources.length === 0) return null;
+
+  const blockKey = blk.blockedTiles.join(',');
+  const sourceKey = sources.map((s) => `${s.tx},${s.ty}`).join(';');
+
+  let cache = sim.flow;
+  if (!cache || cache.blockKey !== blockKey) {
+    // A gate opened or a secret fell: every tile's standability may have
+    // changed, so the whole cache goes.
+    cache = { blockKey, sourceKey: '', passable: new Map(), fields: new Map() };
+    sim.flow = cache;
+  }
+  if (cache.sourceKey !== sourceKey) {
+    cache.fields.clear();
+    cache.sourceKey = sourceKey;
+  }
+  return sources;
+}
+
+/** The field for one body size, built on first use this tick and then shared. */
+function flowFor(sim: Sim, blk: Blockage, sources: readonly TileCoord[], radius: number): {
+  field: FlowField;
+  passable: Uint8Array;
+} {
+  const { level } = sim.config;
+  const cache = sim.flow!;
+  let passable = cache.passable.get(radius);
+  if (!passable) {
+    passable = buildPassable(level, blk, radius);
+    cache.passable.set(radius, passable);
+  }
+  let field = cache.fields.get(radius);
+  if (!field) {
+    field = buildFlowField(level, passable, sources);
+    cache.fields.set(radius, field);
+  }
+  return { field, passable };
+}
+
+/**
+ * The direction a routing enemy should travel: toward the centre of the next
+ * tile on the flow field, or null when the field has nothing to offer (the
+ * enemy shares a tile with a player, or is sealed off behind a locked gate —
+ * in which case massing at the barrier is the correct behaviour and the
+ * caller keeps its straight line).
+ */
+function routedDir(
+  sim: Sim,
+  pos: Vec2,
+  radius: number,
+  blk: Blockage,
+  sources: readonly TileCoord[] | null
+): Vec2 | null {
+  if (!sources) return null;
+  const flow = flowFor(sim, blk, sources, radius);
+  const next = flowStep(flow.field, flow.passable, tileAt(sim.config.level, pos));
+  if (!next) return null;
+  const aim = tileCenter(sim.config.level, next.tx, next.ty);
+  const v = sub(aim, pos);
+  const m = Math.hypot(v.x, v.y);
+  return m > 1e-6 ? { x: v.x / m, y: v.y / m } : null;
+}
+
 function updateEnemies(sim: Sim, events: SimEvent[]): void {
   const s = sim.state;
   const { level, content } = sim.config;
   const blk = blockOf(sim, true);
+  const flowSources = refreshFlowCache(sim, blk);
 
   for (const e of s.enemies) {
     const def = content.enemies[e.typeId];
@@ -1028,7 +1150,30 @@ function updateEnemies(sim: Sim, events: SimEvent[]): void {
     const step =
       def.moveSpeed * pressureSpeedMult(sim, sim.config.content.pressure) * (e.slowTicks > 0 ? e.slowMult : 1) * TICK_DT;
     if (dist > attack.range) {
-      moveCircle(level, e.pos, def.radius, (d.x / dist) * step, (d.y / dist) * step, blk);
+      // Straight at the target unless that has stopped working. An enemy only
+      // routes once a chase has actually failed against geometry, so in the
+      // open — which is most of every map, and every fight the combat numbers
+      // were tuned against — the movement below is bit-for-bit what it always
+      // was. Pathfinding asserts itself exactly where the straight line wedges.
+      const straight = { x: d.x / dist, y: d.y / dist };
+      const routing = (e.pathTicks ?? 0) > 0;
+      const dir = (routing ? routedDir(sim, e.pos, def.radius, blk, flowSources) : null) ?? straight;
+
+      const fromX = e.pos.x;
+      const fromY = e.pos.y;
+      moveCircle(level, e.pos, def.radius, dir.x * step, dir.y * step, blk);
+      const covered = Math.hypot(e.pos.x - fromX, e.pos.y - fromY);
+
+      if (routing) {
+        e.pathTicks = (e.pathTicks ?? 0) - 1;
+        // Commitment spent: keep routing only while the target is still walled
+        // off. Holding the probe to this moment keeps it off the hot path.
+        if (e.pathTicks === 0 && segmentHitsWall(level, e.pos, target.pos, def.radius, blk)) {
+          e.pathTicks = PATH_RECHECK_TICKS;
+        }
+      }
+      // Wedged — against a wall now, or a route that ran into one.
+      if (covered < step * PATH_STUCK_FRACTION) e.pathTicks = PATH_RECHECK_TICKS;
     } else if (dist < keepDistance && dist > 1e-6) {
       moveCircle(level, e.pos, def.radius, (-d.x / dist) * step, (-d.y / dist) * step, blk);
     }

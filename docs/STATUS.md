@@ -213,8 +213,10 @@ on any future failure.
 - Future content can still fall back to generated programmer art; the current
   character, Realm 1 and amber-resin environment, object, interaction, and UI
   packs are drawn.
-- Enemy pathing is straight-line steering; enemies can snag on walls in
-  concave layouts (acceptable in current map; needs flow-field or A* later).
+- Enemy pathing routes around geometry (#107). Chasers still steer straight
+  while that works — the field only engages once a chase fails to make headway
+  — so the tuned approach behaviour is unchanged in the open. The boss keeps
+  its own straight-line and charge movement; its arena is a single open room.
 - Phaser bundle is ~1.5 MB (348 kB gzip); fine for now, consider code-splitting
   at content growth.
 
