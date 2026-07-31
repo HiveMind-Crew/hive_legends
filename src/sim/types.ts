@@ -624,6 +624,12 @@ export interface ProgressionDef {
   xpToReach: readonly number[];
   maxHpPerLevel: number;
   damagePerLevel: number;
+  /**
+   * Gold minted per point of XP earned past the cap — the veteran's dividend
+   * (issue #103). The sim never reads this: levelling stops at the cap, and the
+   * conversion happens once per run when `bankXp` writes the profile.
+   */
+  capOverflowGoldPerXp: number;
 }
 
 /**

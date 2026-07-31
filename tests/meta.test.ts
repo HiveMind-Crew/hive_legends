@@ -13,6 +13,9 @@ import {
   heroLockState,
   isHeroUnlocked,
   isLevelCleared,
+  isMaxLevel,
+  MAX_HERO_LEVEL,
+  XP_CAP,
   isLevelUnlocked,
   isSpokeUnlocked,
   isWheelComplete,
@@ -407,6 +410,78 @@ describe('banked XP and hero level', () => {
 
   it('loadProfile backfills xp for older saves', () => {
     expect(loadProfile().xp).toBe(0);
+  });
+});
+
+/**
+ * The level cap (issue #103). XP past level 10 used to accumulate forever with
+ * nothing to show for it; it now converts to gold and the profile stops
+ * growing, which is what makes repeated banking idempotent.
+ */
+describe('the hero level cap', () => {
+  const rate = CONTENT.progression.capOverflowGoldPerXp;
+
+  it('caps the level and the stored XP at the top of the curve', () => {
+    const profile = defaultProfile();
+    const result = bankXp(profile, XP_CAP + 1000);
+    expect(profile.xp).toBe(XP_CAP);
+    expect(profileLevel(profile)).toBe(MAX_HERO_LEVEL);
+    expect(isMaxLevel(profile)).toBe(true);
+    expect(result.level).toBe(MAX_HERO_LEVEL);
+    expect(result.atCap).toBe(true);
+  });
+
+  it('splits a run that crosses the cap into levelling XP and gold', () => {
+    const profile = defaultProfile();
+    bankXp(profile, XP_CAP - 100);
+    const bank = profile.bank;
+
+    const result = bankXp(profile, 300);
+    expect(result.applied).toBe(100); // the last 100 XP the curve could sell
+    expect(result.overflow).toBe(200);
+    expect(result.gold).toBe(Math.floor(200 * rate));
+    expect(profile.bank).toBe(bank + result.gold);
+    expect(profile.xp).toBe(XP_CAP);
+  });
+
+  it('pays a capped hero entirely in gold, run after run', () => {
+    const profile = defaultProfile();
+    bankXp(profile, XP_CAP);
+    expect(profile.bank).toBe(0);
+
+    const first = bankXp(profile, 286); // a bot clear of the Warrens
+    const second = bankXp(profile, 286);
+    expect(first).toEqual(second); // no drift: the cap is a steady state
+    expect(first.applied).toBe(0);
+    expect(first.gold).toBe(Math.floor(286 * rate));
+    expect(profile.bank).toBe(first.gold * 2);
+    expect(profile.xp).toBe(XP_CAP);
+  });
+
+  it('pays out XP a pre-cap save had already banked past the curve', () => {
+    // A profile written before this change: dead XP sitting above the cap.
+    const profile: Profile = { ...defaultProfile(), xp: XP_CAP + 400 };
+    const result = bankXp(profile, 0);
+    expect(result.overflow).toBe(400);
+    expect(result.gold).toBe(Math.floor(400 * rate));
+    expect(profile.xp).toBe(XP_CAP);
+    expect(profile.bank).toBe(result.gold);
+
+    // And it is paid exactly once.
+    expect(bankXp(profile, 0)).toEqual({ applied: 0, overflow: 0, gold: 0, level: MAX_HERO_LEVEL, atCap: true });
+  });
+
+  it('leaves a hero below the cap untouched by the dividend', () => {
+    const profile = defaultProfile();
+    const result = bankXp(profile, 100);
+    expect(result).toEqual({ applied: 100, overflow: 0, gold: 0, level: profileLevel(profile), atCap: false });
+    expect(profile.bank).toBe(0);
+  });
+
+  it('the cap constants agree with the authored curve', () => {
+    const curve = CONTENT.progression.xpToReach;
+    expect(MAX_HERO_LEVEL).toBe(curve.length);
+    expect(XP_CAP).toBe(curve[curve.length - 1]);
   });
 });
 

@@ -116,6 +116,56 @@ before it held a single global `number | null`; that number names no level, so
 per-realm bests from their next clear. Adding a realm still needs no migration
 — an unrecorded level is simply an absent key.
 
+## Hero levelling and the power ceiling
+
+XP is the *earned* half of progression; gold upgrades and weapon tiers are the
+*bought* half. Both stack, and both stop.
+
+The curve in `src/content/progression.ts` runs **levels 1–10, capping at 3,660
+total XP**, and each level grants +8 max HP (healed on the spot) and +2 damage.
+A Warrens clear pays about 286 XP and Mireveil is worth 600, so a player reaches
+the cap inside roughly a dozen missions — well inside the replay count the
+roster sink invites.
+
+**The cap stays at 10.** `docs/COMBAT.md` tunes every archetype against base
+kits, and a curve that keeps paying max HP and damage forever eventually
+flattens the differences it protects. What the cap does *not* do any more is
+eat the XP that arrives after it (issue #103):
+
+- `bankXp` converts overflow XP to gold at `capOverflowGoldPerXp` (0.25 g/XP,
+  so a Warrens replay pays ~71g) and clamps `Profile.xp` to the cap, so the
+  stored total stops climbing behind a level that cannot move.
+- The HUD chip reads `Lv 10 MAX` in the level-up green, not `Lv 10` beside a
+  full bar that looks like it is nearly there.
+- Results names the dividend: `XP earned: 286 → 71g veteran's dividend`.
+- A save written before this holds XP above the cap. That surplus is paid out
+  as the same dividend on the next bank — once, because the clamp makes
+  banking idempotent from then on.
+
+This is deliberately a smaller faucet than a fresh realm's 150g first-clear
+bounty: a capped hero's replay should still pay into the roster without
+competing with new content.
+
+### The combined ceiling
+
+A fully-levelled, fully-upgraded, tier-3 hero — the most the game can currently
+sell one character — taking the Vanguard as the worked example:
+
+| Source | Max HP | Damage per hit |
+| --- | --- | --- |
+| Base kit (Korrin Vale, Wardpike) | 120 | 28 |
+| Levels 2–10 (9 × +8 HP / +2 dmg) | +72 | +18 |
+| Hearthstone Vigor 5 (+20 HP/rank) | +100 | — |
+| Sharpened Edge 5 (+4 dmg/rank) | — | +20 |
+| Sunreaver Pike (tier 3 replaces the tier-1 damage) | — | 44 base |
+| **Ceiling** | **292** (2.4× base) | **82** (2.9× base) |
+
+Levels are the *smallest* of the three tracks on both axes, which is the point:
+they are the one that cannot be bought, so they lead the early game and then
+hand over. Enemy and boss numbers are tuned against base kits, so read this
+table as the top of the power band, not as the target the content is balanced
+for.
+
 ## Where the data lives
 
 | Layer | File | Owns |
@@ -125,6 +175,9 @@ per-realm bests from their next clear. Adding a realm still needs no migration
 | Levels | `src/content/levels/` | The maps a spoke points at |
 | Unlock rules | `src/meta/save.ts` | `nodeLockState`, `isSpokeUnlocked`, `spokeProgress`, `suggestedNode`, `spokeForLevel`, `isWheelComplete`, `nextTeaser` |
 | Clear records | `src/meta/save.ts` | `bestClearTicks`, `recordClearTicks`, `fastestClear` |
+| Levelling curve | `src/content/progression.ts` | `xpToReach` (the cap is its length), per-level bonuses, the overflow rate |
+| XP banking | `src/meta/save.ts` | `bankXp`, `profileLevel`, `isMaxLevel`, `MAX_HERO_LEVEL`, `XP_CAP` |
+| Level copy | `src/game/xpCopy.ts` | `heroLevelCopy` and `xpResultCopy`, kept out of the scenes so they are testable |
 | Rendering | `src/game/scenes/MissionHubScene.ts` | Drawing only — no progression logic |
 | Hub copy | `src/game/hubCopy.ts` | `statusCopy` and `endOfContentCopy`, kept out of the scene so they are testable |
 | Record copy | `src/game/clearTimes.ts` | Tick→time formatting and record wording, shared by the wheel, results and hero select |

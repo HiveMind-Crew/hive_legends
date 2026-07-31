@@ -582,16 +582,60 @@ export function saveReduceMotion(reduceMotion: boolean): void {
 // Hero levelling (issue #46)
 // ---------------------------------------------------------------------------
 
+/** The highest level the authored curve grants. */
+export const MAX_HERO_LEVEL = PROGRESSION.xpToReach.length;
+
+/** Total XP at the top of the curve; everything past it is overflow. */
+export const XP_CAP = PROGRESSION.xpToReach[MAX_HERO_LEVEL - 1] ?? 0;
+
 /** The hero level the banked XP currently buys. */
 export function profileLevel(profile: Profile): number {
   return levelForXp(PROGRESSION, profile.xp);
 }
 
-/** Banks XP earned in a mission (idempotent per call) and persists. */
-export function bankXp(profile: Profile, earned: number): void {
-  if (earned <= 0) return;
-  profile.xp += earned;
-  saveProfile(profile);
+/** True once the banked XP has bought every level the curve offers. */
+export function isMaxLevel(profile: Profile): boolean {
+  return profile.xp >= XP_CAP;
+}
+
+/** What a run's XP actually bought, once the cap is taken into account. */
+export interface XpBankResult {
+  /** XP that went into the levelling curve. */
+  applied: number;
+  /** XP that arrived past the cap, including any a pre-#103 save had stored. */
+  overflow: number;
+  /** Gold minted from that overflow — the veteran's dividend. */
+  gold: number;
+  /** Hero level after banking. */
+  level: number;
+  /** True when the hero is at the curve's cap. */
+  atCap: boolean;
+}
+
+/**
+ * Banks XP earned in a mission and persists.
+ *
+ * Past level 10 the curve has nothing left to sell, so overflow XP is converted
+ * to gold rather than added to a total that no longer moves (issue #103):
+ * before this, `Profile.xp` grew forever while `levelForXp` ignored everything
+ * above the last threshold, and nothing on screen said so.
+ *
+ * `Profile.xp` is therefore clamped to `XP_CAP`. A save written before this
+ * change may already hold more than that; the surplus is paid out as the same
+ * dividend on the next bank, which is also what makes this idempotent.
+ */
+export function bankXp(profile: Profile, earned: number): XpBankResult {
+  const amount = Math.max(0, earned);
+  const total = profile.xp + amount;
+  const overflow = Math.max(0, total - XP_CAP);
+  const gold = Math.floor(overflow * PROGRESSION.capOverflowGoldPerXp);
+  const applied = amount - Math.min(amount, overflow);
+
+  profile.xp = Math.min(total, XP_CAP);
+  profile.bank += gold;
+  if (amount > 0 || overflow > 0) saveProfile(profile);
+
+  return { applied, overflow, gold, level: profileLevel(profile), atCap: isMaxLevel(profile) };
 }
 
 /** Translates purchased upgrades into sim hero modifiers. */
