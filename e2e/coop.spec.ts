@@ -180,9 +180,18 @@ test('two independent gamepads join and clear The Brood Warrens once', async ({ 
   expect(terminal!.players.reduce((sum, player) => sum + player.gold, 0)).toBe(terminal!.rewards.gold);
   expect(terminal!.players.reduce((sum, player) => sum + player.xpEarned, 0)).toBe(terminal!.rewards.xp);
 
+  // Contextual lessons may create the profile during combat (#97), so wait
+  // for ResultsScene's actual progression bank rather than storage presence.
   await expect
-    .poll(() => page.evaluate(() => localStorage.getItem('hive-legends-profile-v1')), { timeout: 10_000 })
-    .not.toBeNull();
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const raw = localStorage.getItem('hive-legends-profile-v1');
+          return raw ? (JSON.parse(raw).missionsCompleted ?? 0) : 0;
+        }),
+      { timeout: 10_000 }
+    )
+    .toBe(1);
   const profile = await page.evaluate(() => JSON.parse(localStorage.getItem('hive-legends-profile-v1') ?? 'null'));
   expect(profile.missionsCompleted).toBe(1);
   expect(profile.bank).toBe(terminal!.rewards.gold + firstClearBonus(BROOD_WARRENS));
