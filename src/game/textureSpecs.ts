@@ -57,6 +57,10 @@ function buildSpecs(): Record<string, TextureSpec> {
   add('tile-amber-resin-wall-inner', 32, 32);
   add('tile-amber-resin-wall-face', 32, 16);
   for (let v = 0; v < 4; v++) add(`tile-amber-resin-floor-${v}`, 32, 32);
+  add('tile-hollow-throne-wall', 32, 32);
+  add('tile-hollow-throne-wall-inner', 32, 32);
+  add('tile-hollow-throne-wall-face', 32, 16);
+  for (let v = 0; v < 4; v++) add(`tile-hollow-throne-floor-${v}`, 32, 32);
 
   // Hero frames: roster x 8 directions x poses, plus the portrait alias.
   for (const heroId of ['vanguard', 'arcanist', 'ranger', 'sentinel']) {
@@ -98,6 +102,10 @@ function buildSpecs(): Record<string, TextureSpec> {
   add('decor-egg-cluster', 24, 20);
   add('decor-resin-web', 28, 28);
   add('decor-spore-patch', 24, 18);
+  add('decor-throne-dais', 96, 64);
+  add('decor-throne-pillar', 64, 64);
+  add('decor-spent-casings', 24, 18);
+  add('decor-hanging-sacs', 28, 36);
 
   // UI art: compact HUD glyphs/chips and independently animated title layers.
   add('ui-icon-gold', 12, 12);

@@ -175,5 +175,16 @@
   "generator-husk-mound-2",
   "generator-spitter-nest-0",
   "generator-spitter-nest-1",
-  "generator-spitter-nest-2"
+  "generator-spitter-nest-2",
+  "tile-hollow-throne-wall",
+  "tile-hollow-throne-wall-inner",
+  "tile-hollow-throne-wall-face",
+  "tile-hollow-throne-floor-0",
+  "tile-hollow-throne-floor-1",
+  "tile-hollow-throne-floor-2",
+  "tile-hollow-throne-floor-3",
+  "decor-throne-dais",
+  "decor-throne-pillar",
+  "decor-spent-casings",
+  "decor-hanging-sacs"
 ]

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BROOD_WARRENS, CONTENT, LEVELS, MISSION_ORDER, SPOKES, TEASER_SPOKES } from '../src/content';
+import { BROOD_WARRENS, CONTENT, HOLLOW_THRONE, LEVELS, MISSION_ORDER, SPOKES, TEASER_SPOKES } from '../src/content';
 import { TEXTURE_SPECS } from '../src/game/textureSpecs';
 import { DECOR_KINDS, ENEMY_FAMILIES, ENEMY_TIERS } from '../src/sim/types';
 
@@ -76,6 +76,25 @@ describe('content validity', () => {
         expect(TEXTURE_SPECS[`tile-${tileSet}-floor-${variant}`], `${level.id}/floor-${variant}`).toBeDefined();
       }
     }
+  });
+
+  it('dresses the Hollow Throne with its namespaced art and generic decor keys', () => {
+    expect(HOLLOW_THRONE.theme?.tileSet).toBe('hollow-throne');
+    const kinds = HOLLOW_THRONE.decor?.map((d) => d.kind) ?? [];
+    expect(kinds).toContain('throne-dais');
+    expect(kinds.filter((kind) => kind === 'throne-pillar')).toHaveLength(4);
+    expect(HOLLOW_THRONE.decor?.filter((d) => d.kind === 'throne-pillar').every((d) => d.surface === 'wall')).toBe(true);
+    expect(kinds).toContain('spent-casings');
+    expect(kinds).toContain('hanging-sacs');
+    for (const kind of new Set(kinds)) {
+      expect(DECOR_KINDS, `${kind} is a generic decor kind`).toContain(kind);
+      expect(TEXTURE_SPECS[`decor-${kind}`], `${kind} has a texture contract`).toBeDefined();
+    }
+    // The finale no longer inherits any of the three Realm 1-only dressing
+    // kinds; all visual identity comes from its own generic keys.
+    expect(kinds).not.toContain('egg-cluster');
+    expect(kinds).not.toContain('resin-web');
+    expect(kinds).not.toContain('spore-patch');
   });
 
   it('every weapon references a real hero and is well-formed', () => {
