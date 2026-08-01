@@ -7,6 +7,7 @@ import {
   POWERUP_KINDS,
   TICK_DT,
   type AttackDef,
+  type AbilityDef,
   type PowerUpKind,
   type BlastAbilityDef,
   type DashVolleyAbilityDef,
@@ -27,6 +28,7 @@ import {
   type InputCommand,
   type HostileProjectileDef,
   type PickupState,
+  type PendingBlastState,
   type PlayerState,
   type ProjectileAttackDef,
   type PressureDef,
@@ -83,6 +85,9 @@ export function createSim(config: SimConfig): Sim {
   const players: PlayerState[] = config.players.map((pc, i) => {
     const hero = content.heroes[pc.heroId];
     if (!hero) throw new Error(`unknown hero: ${pc.heroId}`);
+    if (pc.ability && pc.ability.kind !== hero.ability.kind) {
+      throw new Error(`ability specialization for ${pc.heroId} must stay ${hero.ability.kind}`);
+    }
     const mods = pc.modifiers ?? NO_MODIFIERS;
     const spawn = level.playerSpawns[i % level.playerSpawns.length] ?? level.playerSpawns[0];
     if (!spawn) throw new Error('level has no player spawns');
@@ -205,6 +210,7 @@ export function createSim(config: SimConfig): Sim {
       gates,
       secrets,
       projectiles: [],
+      pendingBlasts: [],
       boss,
       pressureStage: 0,
       exitPos: tileCenter(level, level.exit.tx, level.exit.ty)
@@ -220,6 +226,7 @@ export function simTick(sim: Sim, inputs: readonly InputCommand[]): SimEvent[] {
     s.tick++;
     return events;
   }
+  updatePendingBlasts(sim, events);
   updatePlayers(sim, inputs, events);
   updateProjectiles(sim, events);
   updateEnemies(sim, events);
@@ -311,7 +318,8 @@ function updatePlayers(sim: Sim, inputs: readonly InputCommand[], events: SimEve
       mx /= Math.max(1, mag);
       my /= Math.max(1, mag);
       p.facing = norm({ x: mx, y: my });
-      const guard = hero.ability.kind === 'guard' && p.guardTicks > 0 ? hero.ability : null;
+      const ability = playerAbility(sim, p);
+      const guard = ability.kind === 'guard' && p.guardTicks > 0 ? ability : null;
       const moveMult = (guard ? guard.moveMult : 1) * powerMult(sim, p, 'speedMult');
       const step = hero.moveSpeed * moveMult * TICK_DT;
       moveCircle(level, p.pos, hero.radius, mx * step, my * step, blockOf(sim, true));
@@ -326,7 +334,7 @@ function updatePlayers(sim: Sim, inputs: readonly InputCommand[], events: SimEve
     }
 
     if (input.ability && p.abilityCooldown === 0) {
-      p.abilityCooldown = hero.ability.cooldownTicks;
+      p.abilityCooldown = playerAbility(sim, p).cooldownTicks;
       performAbility(sim, p, events);
     }
 
@@ -405,11 +413,10 @@ function performMeleeAttack(sim: Sim, p: PlayerState, atk: AttackDef, events: Si
 }
 
 function performAbility(sim: Sim, p: PlayerState, events: SimEvent[]): void {
-  const hero = sim.config.content.heroes[p.heroId];
-  if (!hero) return;
-  if (hero.ability.kind === 'dash-volley') performDashVolley(sim, p, hero.ability, events);
-  else if (hero.ability.kind === 'guard') performGuard(p, hero.ability, events);
-  else performBlast(sim, p, hero.ability, events);
+  const ability = playerAbility(sim, p);
+  if (ability.kind === 'dash-volley') performDashVolley(sim, p, ability, events);
+  else if (ability.kind === 'guard') performGuard(p, ability, events);
+  else performBlast(sim, p, ability, events);
 }
 
 /** Bastion Wall: raise the guard stance. Its effects live on p.guardTicks. */
@@ -449,53 +456,159 @@ function performDashVolley(sim: Sim, p: PlayerState, ab: DashVolleyAbilityDef, e
 }
 
 function performBlast(sim: Sim, p: PlayerState, ab: BlastAbilityDef, events: SimEvent[]): void {
-  const { content } = sim.config;
   const damage = heroDamage(sim, p, ab.damage);
   // Cast center: at the player, or projected along the facing (Resin Cage).
   const offset = ab.offsetPx ?? 0;
   const center = { x: p.pos.x + p.facing.x * offset, y: p.pos.y + p.facing.y * offset };
-  events.push({ type: 'ability', playerId: p.id, pos: { ...center }, radius: ab.radius });
+  if (ab.shape?.kind === 'faultline') {
+    performFaultlineBlast(sim, p, ab, ab.shape, damage, events);
+  } else {
+    performCircularBlast(sim, p, center, ab.radius, damage, ab.knockback, events, {
+      effect: ab.slowTicks ? 'slow' : 'impact',
+      slowTicks: ab.slowTicks,
+      slowMult: ab.slowMult
+    });
+  }
 
-  for (const e of sim.state.enemies) {
+  if (ab.aftershock) {
+    sim.state.pendingBlasts.push({
+      playerId: p.id,
+      ticksLeft: ab.aftershock.delayTicks,
+      pos: { ...center },
+      damage: heroDamage(sim, p, ab.aftershock.damage),
+      radius: ab.aftershock.radius,
+      knockback: ab.aftershock.knockback
+    });
+  }
+}
+
+interface CircularBlastEffect {
+  effect: 'impact' | 'slow' | 'aftershock';
+  slowTicks?: number;
+  slowMult?: number;
+}
+
+function performCircularBlast(
+  sim: Sim,
+  p: PlayerState,
+  center: Vec2,
+  radius: number,
+  damage: number,
+  knockback: number,
+  events: SimEvent[],
+  effect: CircularBlastEffect
+): void {
+  const { content } = sim.config;
+  events.push({ type: 'ability', playerId: p.id, pos: { ...center }, radius, effect: effect.effect });
+
+  for (const e of [...sim.state.enemies]) {
     if (e.hp <= 0) continue;
     const def = content.enemies[e.typeId];
     if (!def) continue;
     const d = sub(e.pos, center);
     const dist = Math.hypot(d.x, d.y);
-    if (dist > ab.radius + def.radius) continue;
-    if (ab.slowTicks && ab.slowTicks > 0) {
-      e.slowTicks = Math.max(e.slowTicks, ab.slowTicks);
-      e.slowMult = ab.slowMult ?? 0.5;
+    if (dist > radius + def.radius) continue;
+    if (effect.slowTicks && effect.slowTicks > 0) {
+      e.slowTicks = Math.max(e.slowTicks, effect.slowTicks);
+      e.slowMult = effect.slowMult ?? 0.5;
     }
     const dir = dist > 1e-6 ? { x: d.x / dist, y: d.y / dist } : { x: 0, y: -1 };
-    damageEnemy(sim, e, damage, dir, ab.knockback, p.id, events);
+    damageEnemy(sim, e, damage, dir, knockback, p.id, events);
   }
-  for (const g of sim.state.generators) {
+  for (const g of [...sim.state.generators]) {
     if (g.hp <= 0) continue;
     const gdef = content.generators[g.typeId];
     if (!gdef) continue;
     const dist = Math.hypot(g.pos.x - center.x, g.pos.y - center.y);
-    if (dist > ab.radius + gdef.radius) continue;
+    if (dist > radius + gdef.radius) continue;
     damageGenerator(sim, g, damage, events);
   }
-  for (const pr of sim.state.props) {
+  for (const pr of [...sim.state.props]) {
     const pdef = content.props[pr.typeId];
     if (!pdef) continue;
     const dist = Math.hypot(pr.pos.x - center.x, pr.pos.y - center.y);
-    if (dist > ab.radius + pdef.radius) continue;
+    if (dist > radius + pdef.radius) continue;
     damageProp(sim, pr, damage, events);
   }
-  for (const sw of sim.state.secrets) {
+  for (const sw of [...sim.state.secrets]) {
     const dist = Math.hypot(sw.pos.x - center.x, sw.pos.y - center.y);
-    if (dist > ab.radius + SECRET_RADIUS) continue;
+    if (dist > radius + SECRET_RADIUS) continue;
     damageSecret(sim, sw, damage, events);
   }
   const boss = livingBoss(sim);
   if (boss) {
     const bdef = content.bosses[boss.typeId];
-    if (bdef && Math.hypot(boss.pos.x - center.x, boss.pos.y - center.y) <= ab.radius + bdef.radius) {
+    if (bdef && Math.hypot(boss.pos.x - center.x, boss.pos.y - center.y) <= radius + bdef.radius) {
       damageBoss(sim, boss, damage, events);
     }
+  }
+}
+
+/** Faultline Drive: one forward capsule, never a Sentinel-style broad sweep. */
+function performFaultlineBlast(
+  sim: Sim,
+  p: PlayerState,
+  ab: BlastAbilityDef,
+  shape: { kind: 'faultline'; length: number; width: number },
+  damage: number,
+  events: SimEvent[]
+): void {
+  const { content } = sim.config;
+  const from = { ...p.pos };
+  const to = {
+    x: from.x + p.facing.x * shape.length,
+    y: from.y + p.facing.y * shape.length
+  };
+  const hits = (pos: Vec2, radius: number): boolean =>
+    capsuleContains(pos, radius, from, to, shape.width);
+  events.push({ type: 'ability-line', playerId: p.id, from, to, width: shape.width });
+
+  for (const e of [...sim.state.enemies]) {
+    const def = content.enemies[e.typeId];
+    if (!def || e.hp <= 0 || !hits(e.pos, def.radius)) continue;
+    damageEnemy(sim, e, damage, { ...p.facing }, ab.knockback, p.id, events);
+  }
+  for (const g of [...sim.state.generators]) {
+    const def = content.generators[g.typeId];
+    if (!def || g.hp <= 0 || !hits(g.pos, def.radius)) continue;
+    damageGenerator(sim, g, damage, events);
+  }
+  for (const pr of [...sim.state.props]) {
+    const def = content.props[pr.typeId];
+    if (def && hits(pr.pos, def.radius)) damageProp(sim, pr, damage, events);
+  }
+  for (const sw of [...sim.state.secrets]) {
+    if (hits(sw.pos, SECRET_RADIUS)) damageSecret(sim, sw, damage, events);
+  }
+  const boss = livingBoss(sim);
+  const bossDef = boss ? content.bosses[boss.typeId] : undefined;
+  if (boss && bossDef && hits(boss.pos, bossDef.radius)) damageBoss(sim, boss, damage, events);
+}
+
+function capsuleContains(point: Vec2, radius: number, from: Vec2, to: Vec2, width: number): boolean {
+  const segment = sub(to, from);
+  const lengthSq = segment.x * segment.x + segment.y * segment.y;
+  const rel = sub(point, from);
+  const t = lengthSq > 1e-6 ? Math.max(0, Math.min(1, (rel.x * segment.x + rel.y * segment.y) / lengthSq)) : 0;
+  const closest = { x: from.x + segment.x * t, y: from.y + segment.y * t };
+  return Math.hypot(point.x - closest.x, point.y - closest.y) <= width / 2 + radius;
+}
+
+/** Ticks specialization-authored delayed impacts at their fixed cast points. */
+function updatePendingBlasts(sim: Sim, events: SimEvent[]): void {
+  const ready: PendingBlastState[] = [];
+  for (const blast of sim.state.pendingBlasts) {
+    blast.ticksLeft--;
+    if (blast.ticksLeft <= 0) ready.push(blast);
+  }
+  if (ready.length === 0) return;
+  sim.state.pendingBlasts = sim.state.pendingBlasts.filter((blast) => blast.ticksLeft > 0);
+  for (const blast of ready) {
+    const p = sim.state.players.find((candidate) => candidate.id === blast.playerId);
+    if (!p) continue;
+    performCircularBlast(sim, p, blast.pos, blast.radius, blast.damage, blast.knockback, events, {
+      effect: 'aftershock'
+    });
   }
 }
 
@@ -628,10 +741,16 @@ function playerAttack(sim: Sim, p: PlayerState): AttackDef {
   return sim.config.content.heroes[p.heroId]!.attack;
 }
 
+/** Resolved config ability, with the base hero kit as the backward-compatible default. */
+function playerAbility(sim: Sim, p: PlayerState): AbilityDef {
+  const idx = sim.state.players.indexOf(p);
+  return sim.config.players[idx]?.ability ?? sim.config.content.heroes[p.heroId]!.ability;
+}
+
 /** The active guard-stance def for a player, or null when not guarding. */
 function guardDefFor(sim: Sim, p: PlayerState): GuardAbilityDef | null {
   if (p.guardTicks <= 0) return null;
-  const ability = sim.config.content.heroes[p.heroId]?.ability;
+  const ability = playerAbility(sim, p);
   return ability?.kind === 'guard' ? ability : null;
 }
 

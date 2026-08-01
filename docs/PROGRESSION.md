@@ -125,8 +125,9 @@ per-realm bests from their next clear. Adding a realm still needs no migration
 
 ## Hero levelling and the power ceiling
 
-XP is the *earned* half of progression; gold upgrades and weapon tiers are the
-*bought* half. Both stack, and both stop.
+XP is the *earned* half of progression; gold upgrades, weapon tiers, and the
+ability-specialization fork are the *bought* half. The linear tracks stack and
+stop; the specialization is a permanent either/or choice.
 
 The curve in `src/content/progression.ts` runs **levels 1–10, capping at 3,660
 total XP**, and each level grants +8 max HP (healed on the spot) and +2 damage.
@@ -155,8 +156,8 @@ competing with new content.
 
 ### The combined ceiling
 
-A fully-levelled, fully-upgraded, tier-3 hero — the most the game can currently
-sell one character — taking the Vanguard as the worked example:
+A fully-levelled, fully-upgraded, tier-3 hero — the top of the linear health
+and basic-attack tracks — taking the Vanguard as the worked example:
 
 | Source | Max HP | Damage per hit |
 | --- | --- | --- |
@@ -167,11 +168,63 @@ sell one character — taking the Vanguard as the worked example:
 | Sunreaver Pike (tier 3 replaces the tier-1 damage) | — | 44 base |
 | **Ceiling** | **292** (2.4× base) | **82** (2.9× base) |
 
+Ability specialization is absent from this axis table on purpose: it changes
+where or when Sunder Slam lands rather than adding another permanent max-HP or
+basic-hit rank. Its behavior budget is documented below.
+
 Levels are the *smallest* of the three tracks on both axes, which is the point:
 they are the one that cannot be bought, so they lead the early game and then
 hand over. Enemy and boss numbers are tuned against base kits, so read this
 table as the top of the power band, not as the target the content is balanced
 for.
+
+## Ability specialization: a permanent fork
+
+Issue #108 adds the first non-linear build decision. A hero may have one
+authored ability-specialization group with two branches. Buying either branch
+is permanent for that profile: it records the stable specialization id under
+the group's stable id, and the sibling becomes locked. Repeated input cannot
+repurchase the chosen branch or spend gold again.
+
+The first complete slice belongs to the Vanguard's Sunder Slam:
+
+| Branch | Cost | Behavior |
+| --- | ---: | --- |
+| Faultline Drive | 180g | Replaces the surrounding burst with a narrow rupture reaching far along the facing direction |
+| Echoing Crater | 180g | Keeps the close blast and leaves a fixed cast point that erupts again 36 ticks later |
+
+These are spatial and timing changes, not another linear damage rank. Both
+remain offensive front-line impacts: neither grants a guard stance, healing,
+mobility, ranged projectiles, or the Sentinel's broad weapon sweep. Profiles
+without a choice—including every save written before this feature—continue to
+use the unchanged base Sunder Slam.
+
+### Boundary and extension contract
+
+Definitions live in `src/content/abilitySpecializations.ts`. Each definition
+has a stable id, hero id, stable exclusivity group, player-facing name and
+description, gold cost, and a complete resolved `AbilityDef`. Results shows a
+specialization shop only for heroes with an authored pair; unsupported heroes
+get no locked placeholder or dead input.
+
+The profile stores ids and prices purchases, but the sim never reads it.
+`MissionScene` resolves the chosen definition once and passes only its
+`AbilityDef` through `SimPlayerConfig.ability` to `createSim`, exactly beside
+the existing weapon and upgrade handoffs. The sim rejects an override whose
+ability kind differs from the hero's base kind, preserving the hero archetype
+at the boundary.
+
+To extend the roster:
+
+1. Author exactly two definitions for a hero under one new stable group id.
+2. Keep both resolved abilities the same discriminated `kind` as the base
+   hero ability. Add a typed behavior field and deterministic execution branch
+   when a new behavior cannot be expressed by the existing ability union.
+3. Preserve the role invariants in `docs/COMBAT.md`; specialization is not a
+   license to borrow another hero's defining guard, sweep, range, or mobility.
+4. Add content validation, two same-hero sim outcomes, per-branch determinism,
+   and Results-copy coverage. Do not expose the group until both branches are
+   playable and described.
 
 ## The arcade continue
 
@@ -215,6 +268,7 @@ inputs (`tests/sim/revive.test.ts`). The sim knows nothing about the price.
 | Unlock rules | `src/meta/save.ts` | `nodeLockState`, `isSpokeUnlocked`, `spokeProgress`, `suggestedNode`, `spokeForLevel`, `isWheelComplete`, `nextTeaser` |
 | Clear records | `src/meta/save.ts` | `bestClearTicks`, `recordClearTicks`, `fastestClear` |
 | Continues | `src/meta/save.ts` + `src/content/revive.ts` | `continueCost`/`buyContinue` price them; `ReviveDef` says what one restores |
+| Ability specialization | `src/content/abilitySpecializations.ts` + `src/meta/save.ts` | Authored mutually exclusive branches, persistent choice, and `SimPlayerConfig.ability` resolution |
 | Levelling curve | `src/content/progression.ts` | `xpToReach` (the cap is its length), per-level bonuses, the overflow rate |
 | XP banking | `src/meta/save.ts` | `bankXp`, `profileLevel`, `isMaxLevel`, `MAX_HERO_LEVEL`, `XP_CAP` |
 | Level copy | `src/game/xpCopy.ts` | `heroLevelCopy` and `xpResultCopy`, kept out of the scenes so they are testable |

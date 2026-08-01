@@ -1,6 +1,14 @@
 import Phaser from 'phaser';
 import { BROOD_WARRENS, CONTENT, LEVELS } from '../../content';
-import { buyContinue, continueCost, equippedAttack, loadProfile, profileModifiers, type Profile } from '../../meta/save';
+import {
+  buyContinue,
+  continueCost,
+  equippedAttack,
+  loadProfile,
+  profileModifiers,
+  specializedAbility,
+  type Profile
+} from '../../meta/save';
 import { levelHeightPx, levelWidthPx } from '../../sim/level';
 import { createSim, revivePlayer, simTick, type Sim } from '../../sim/sim';
 import {
@@ -203,6 +211,7 @@ export class MissionScene extends Phaser.Scene {
           heroId: this.heroId,
           modifiers: profileModifiers(profile),
           attack: equippedAttack(profile, hero),
+          ability: specializedAbility(profile, hero),
           startXp: profile.xp
         }
       ],
@@ -457,8 +466,9 @@ export class MissionScene extends Phaser.Scene {
     if (!this.sim) return null;
     const s = this.sim.state;
     return {
-      players: s.players.map((p) => {
+      players: s.players.map((p, i) => {
         const hero = CONTENT.heroes[p.heroId];
+        const ability = this.sim.config.players[i]?.ability ?? hero?.ability;
         return {
           heroId: p.heroId,
           heroName: hero?.name ?? p.heroId,
@@ -467,9 +477,9 @@ export class MissionScene extends Phaser.Scene {
           gold: p.gold,
           kills: p.kills,
           abilityCooldown: p.abilityCooldown,
-          abilityMax: hero?.ability.cooldownTicks ?? 1,
+          abilityMax: ability?.cooldownTicks ?? 1,
           guardTicks: p.guardTicks,
-          guardMax: hero?.ability.kind === 'guard' ? hero.ability.durationTicks : 0,
+          guardMax: ability?.kind === 'guard' ? ability.durationTicks : 0,
           keys: p.keys,
           potions: p.potions,
           power: { ...p.power },
@@ -589,13 +599,15 @@ export class MissionScene extends Phaser.Scene {
           this.heroMeleeRelease(ev);
           break;
         case 'ability': {
-          // Slowing abilities read as a resin cage, impact abilities as a slam.
-          const caster = this.sim.state.players.find((pl) => pl.id === ev.playerId);
-          const ab = caster ? CONTENT.heroes[caster.heroId]?.ability : undefined;
-          if (ab?.kind === 'blast' && ab.slowTicks) this.resinCage(ev.pos, ev.radius);
+          // The sim event carries the resolved behavior, so presentation does
+          // not need to know which persistent branch produced the impact.
+          if (ev.effect === 'slow') this.resinCage(ev.pos, ev.radius);
           else this.shockwave(ev.pos, ev.radius);
           break;
         }
+        case 'ability-line':
+          this.faultline(ev.from, ev.to, ev.width);
+          break;
         case 'ability-dash':
           this.dashTrail(ev.playerId, ev.from, ev.to);
           break;
@@ -1432,6 +1444,24 @@ export class MissionScene extends Phaser.Scene {
     const scorch = this.add.circle(pos.x, pos.y, radius * 0.55, 0x000000, 0.18).setDepth(DEPTH_DECAL + 1);
     this.tweens.add({ targets: scorch, alpha: 0, duration: 1200, onComplete: () => scorch.destroy() });
     this.burst(this.dustFx, 12, pos);
+  }
+
+  /** Faultline Drive presentation: a bright directional crack and dust wake. */
+  private faultline(from: Vec2, to: Vec2, width: number): void {
+    const length = Math.hypot(to.x - from.x, to.y - from.y);
+    const angle = Math.atan2(to.y - from.y, to.x - from.x);
+    const crack = this.add
+      .rectangle((from.x + to.x) / 2, (from.y + to.y) / 2, length, Math.max(8, width * 0.35), 0xd9a441, 0.7)
+      .setRotation(angle)
+      .setDepth(DEPTH_FX);
+    this.tweens.add({ targets: crack, alpha: 0, scaleY: 0.2, duration: 420, onComplete: () => crack.destroy() });
+    for (let i = 1; i <= 3; i++) {
+      const t = i / 3;
+      this.flashRing({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t }, width / 2, 0xf4e3b2);
+    }
+    this.cameraFlash(60, 244, 227, 178);
+    this.cameraShake(170, 0.013);
+    this.burst(this.dustFx, 14, to);
   }
 
   /** Weapon-aware melee release: narrow pike thrust versus broad maul sweep. */

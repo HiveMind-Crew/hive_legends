@@ -1,4 +1,5 @@
 import type { ContentDb, LevelDef } from '../sim/types';
+import { ABILITY_SPECIALIZATIONS } from './abilitySpecializations';
 import { BOSSES } from './bosses';
 import { COMBAT } from './combat';
 import { ENEMIES, GENERATORS } from './enemies';
@@ -19,6 +20,7 @@ import { WEAPONS } from './weapons';
 
 export const CONTENT: ContentDb = {
   heroes: HEROES,
+  abilitySpecializations: ABILITY_SPECIALIZATIONS,
   enemies: ENEMIES,
   generators: GENERATORS,
   props: PROPS,
@@ -62,3 +64,4 @@ export { RESIN_GALLERIES } from './levels/resinGalleries';
 export { COBALT_COMBS } from './levels/cobaltCombs';
 export { HOLLOW_THRONE } from './levels/hollowThrone';
 export { ECONOMY, firstClearBonus } from './economy';
+export { ABILITY_SPECIALIZATIONS } from './abilitySpecializations';
