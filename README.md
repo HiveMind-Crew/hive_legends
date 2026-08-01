@@ -23,16 +23,23 @@ npm run dev        # http://localhost:5173
 ```
 
 Controls: **WASD/Arrows** move · **Space/J** attack · **Shift/K** hero ability ·
-**Q** quaff a potion · **Enter** confirm · **Esc** pause · **F** fullscreen.
+**Q** quaff a potion · hold **E** near a downed teammate to revive ·
+**Enter** confirm · **Esc** pause · **F** fullscreen.
 Gamepad (any standard-mapping pad, hot-pluggable): **left stick / d-pad** move ·
 **(A)** attack and confirm · **(X)** ability · **(Y)** potion · **(B)** back ·
-**START** pause and settings · **LB/RB** buy upgrades in the results shop.
+hold **(B)** near a downed teammate to revive · **START** pauses for P1 and
+joins P2–P4 during a mission · **BACK** deliberately drops that extra slot out ·
+**LB/RB** buy upgrades in the results shop. A lost wireless connection leaves
+an idle active hero; it never silently changes the deterministic party state.
 Missions are chosen on the wheel: **↑↓** node · **←→** realm · **Enter** deploy.
 Open settings with **S** from hero select or pause (**O** on the wheel/results);
 there, **←→** adjusts volume and **M** toggles mute.
 
-The game is authored at a fixed 960×720 and letterboxed to fit whatever window
-it is given, so it is playable at any size.
+All local players use the hero and persistent kit selected by the shared local
+profile. Gold and XP sources bank once per party, while results show who
+collected or secured each contribution. The game is authored at a fixed
+960×720 and letterboxed to fit whatever window it is given, so it is playable
+at any size.
 
 ## Development
 

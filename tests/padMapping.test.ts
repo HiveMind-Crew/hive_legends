@@ -73,6 +73,14 @@ describe('pad → InputCommand', () => {
     expect(padCommand(held, held).usePotion).toBe(false); // still held
   });
 
+  it('uses explicit edges for join/drop-out and holds B for teammate revive', () => {
+    const resting = pad();
+    expect(padCommand(pad({ press: ['start'] }), resting).join).toBe(true);
+    expect(padCommand(pad({ press: ['back'] }), resting).leave).toBe(true);
+    expect(padCommand(pad({ press: ['b'] }), resting).interact).toBe(true);
+    expect(padCommand(pad({ press: ['start', 'back'] }), null)).toMatchObject({ join: false, leave: false });
+  });
+
   it('ignores a button already down when sampling starts', () => {
     // No previous frame: the press belongs to whatever screen came before.
     expect(padCommand(pad({ press: ['y'] }), null).usePotion).toBe(false);
@@ -88,7 +96,10 @@ describe('merging devices', () => {
       moveY: -1,
       attack: true,
       ability: false,
-      usePotion: true
+      usePotion: true,
+      join: false,
+      leave: false,
+      interact: false
     });
   });
 

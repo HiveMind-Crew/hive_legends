@@ -30,19 +30,14 @@ import { bindFullscreenToggle } from '../fullscreen';
 import { bindPadMenu } from '../padMenu';
 import { TEX } from '../textures';
 import { specializationShopRows } from '../specializationCopy';
+import { partyResultLines, partyResultTotals, type PartyResultPlayer } from '../partyResults';
 import { xpResultCopy } from '../xpCopy';
 
 interface ResultsData {
   victory: boolean;
-  gold: number;
-  kills: number;
+  /** Joined-ever slots. Contributions are unique and survive drop-out. */
+  players: PartyResultPlayer[];
   ticks: number;
-  /**
-   * XP earned this run (issue #46). The level it bought is *not* passed: the
-   * banked profile decides that, because past the cap the run's XP buys gold
-   * instead (issue #103) and only `bankXp` knows the split.
-   */
-  xpEarned: number;
   /** Continues bought this run, and what they cost the bank (issue #99). */
   continuesUsed?: number;
   continueGold?: number;
@@ -67,7 +62,9 @@ export class ResultsScene extends Phaser.Scene {
 
   create(data: ResultsData): void {
     const { width, height } = this.scale;
-    this.heroId = CONTENT.heroes[data.heroId] ? data.heroId : 'vanguard';
+    const players = [...(data.players ?? [])].sort((a, b) => a.slot - b.slot);
+    const totals = partyResultTotals(players);
+    this.heroId = CONTENT.heroes[players[0]?.heroId ?? data.heroId] ? (players[0]?.heroId ?? data.heroId) : 'vanguard';
     const levelId = LEVELS[data.levelId] ? data.levelId : MISSION_ORDER[0]!;
     const realmName = LEVELS[levelId]?.name ?? 'The Brood Warrens';
 
@@ -77,14 +74,14 @@ export class ResultsScene extends Phaser.Scene {
     this.profile = loadProfile();
     const wasCleared = this.profile.clearedLevels.includes(levelId);
     const clearBonus = data.victory && !wasCleared ? firstClearBonus(LEVELS[levelId]!) : 0;
-    const bankedGold = data.gold + clearBonus;
+    const bankedGold = totals.gold + clearBonus;
     this.profile.bank += bankedGold;
     let newMastery = false;
     let clearTime: ClearTimeResult | null = null;
     // XP banks whether or not the run was won — you keep what you fought for.
     // Past the level cap `bankXp` pays it out as gold instead of adding to a
     // total that no longer moves (issue #103), so it can add to the bank here.
-    const xpEarned = Math.max(0, data.xpEarned ?? 0);
+    const xpEarned = totals.xp;
     const xpResult = bankXp(this.profile, xpEarned);
     const continuesUsed = Math.max(0, data.continuesUsed ?? 0);
     if (data.victory) {
@@ -95,7 +92,9 @@ export class ResultsScene extends Phaser.Scene {
       // progression gate, the record is a scoreboard, and only the scoreboard
       // cares how many times you fell.
       clearTime = continuesUsed > 0 ? null : recordClearTicks(this.profile, levelId, data.ticks);
-      newMastery = markHeroMastery(this.profile, levelId, this.heroId);
+      for (const heroId of new Set(players.map((player) => player.heroId))) {
+        newMastery = markHeroMastery(this.profile, levelId, heroId) || newMastery;
+      }
       markLevelCleared(this.profile, levelId); // unlocks the next realm
     }
     saveProfile(this.profile);
@@ -146,19 +145,32 @@ export class ResultsScene extends Phaser.Scene {
       .text(
         width / 2,
         165,
-        `Gold collected: ${data.gold}${clearBonus ? ` + ${clearBonus} first-clear bounty` : ''}    Kills: ${data.kills}    Time: ${runTime}\n` +
+        `Gold collected: ${totals.gold}${clearBonus ? ` + ${clearBonus} first-clear bounty` : ''}    Kills: ${totals.kills}    Time: ${runTime}\n` +
           xpResultCopy(xpEarned, xpResult) +
           (data.victory ? `    ${newMastery ? 'NEW ' : ''}HERO MASTERY` : ''),
         { fontFamily: 'monospace', fontSize: '18px', color: '#f4e3b2', align: 'center' }
       )
       .setOrigin(0.5);
 
+    const coOp = players.length > 1;
+    if (coOp) {
+      this.add
+        .text(width / 2, 201, partyResultLines(players).join('\n'), {
+          fontFamily: 'monospace',
+          fontSize: '13px',
+          color: '#cfc4de',
+          align: 'center',
+          lineSpacing: 5
+        })
+        .setOrigin(0.5);
+    }
+
     // What standing back up cost, when it happened. Stated plainly, including
     // the record it forfeited, so the trade is visible after the fact.
     const continuesLine = continuesSpentCopy(continuesUsed, Math.max(0, data.continueGold ?? 0));
     if (continuesLine) {
       this.add
-        .text(width / 2, 197, continuesLine, {
+        .text(width / 2, coOp ? 231 : 197, continuesLine, {
           fontFamily: 'monospace',
           fontSize: '15px',
           color: '#ff9a86'
@@ -170,7 +182,7 @@ export class ResultsScene extends Phaser.Scene {
     // after the banner — it is the only replay motivation the game offers.
     if (clearTime) {
       const record = this.add
-        .text(width / 2, 197, clearTimeCopy(clearTime), {
+        .text(width / 2, coOp ? 231 : 197, clearTimeCopy(clearTime), {
           fontFamily: 'monospace',
           fontSize: clearTime.improved ? '19px' : '15px',
           color: clearTime.improved ? '#ffd75e' : '#a89bb8',
@@ -184,11 +196,11 @@ export class ResultsScene extends Phaser.Scene {
     }
 
     this.bankText = this.add
-      .text(width / 2, 226, '', { fontFamily: 'monospace', fontSize: '18px', color: '#ffd75e' })
+      .text(width / 2, coOp ? 258 : 226, '', { fontFamily: 'monospace', fontSize: '18px', color: '#ffd75e' })
       .setOrigin(0.5);
 
     this.add
-      .text(width / 2, 265, '— SPEND YOUR SPOILS —', {
+      .text(width / 2, coOp ? 292 : 265, '— SPEND YOUR SPOILS —', {
         fontFamily: 'monospace',
         fontSize: '16px',
         color: '#a89bb8'
@@ -196,7 +208,7 @@ export class ResultsScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.shopText = this.add
-      .text(width / 2, 370, '', {
+      .text(width / 2, coOp ? 402 : 370, '', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#f4e3b2',

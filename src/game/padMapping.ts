@@ -61,6 +61,10 @@ function held(pad: PadSnapshot, index: number): boolean {
   return pad.buttons[index] === true;
 }
 
+function pressed(pad: PadSnapshot, previous: PadSnapshot | null, index: number): boolean {
+  return previous !== null && held(pad, index) && !held(previous, index);
+}
+
 /** Left stick, or the d-pad when the stick is centred. */
 function padMove(pad: PadSnapshot): { moveX: -1 | 0 | 1; moveY: -1 | 0 | 1 } {
   const stickX = quantiseAxis(pad.axes[0] ?? 0);
@@ -89,7 +93,10 @@ export function padCommand(pad: PadSnapshot | null, previous: PadSnapshot | null
     ...padMove(pad),
     attack: held(pad, PAD_BUTTON.a) || held(pad, PAD_BUTTON.rt),
     ability: held(pad, PAD_BUTTON.x) || held(pad, PAD_BUTTON.rb),
-    usePotion: previous !== null && held(pad, PAD_BUTTON.y) && !held(previous, PAD_BUTTON.y)
+    usePotion: pressed(pad, previous, PAD_BUTTON.y),
+    join: pressed(pad, previous, PAD_BUTTON.start),
+    leave: pressed(pad, previous, PAD_BUTTON.back),
+    interact: held(pad, PAD_BUTTON.b)
   };
 }
 
@@ -101,7 +108,10 @@ export function mergeCommands(a: InputCommand, b: InputCommand): InputCommand {
     moveY: clamp(a.moveY + b.moveY),
     attack: a.attack || b.attack,
     ability: a.ability || b.ability,
-    usePotion: a.usePotion || b.usePotion
+    usePotion: a.usePotion || b.usePotion,
+    join: a.join || b.join,
+    leave: a.leave || b.leave,
+    interact: a.interact || b.interact
   };
 }
 

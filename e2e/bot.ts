@@ -108,8 +108,10 @@ export class WarrensBot {
   /** Last decision's log line, for the failure dump. */
   readonly trace: string[] = [];
 
+  constructor(private readonly playerSlot = 0) {}
+
   decide(state: SimState): BotAction {
-    const me = state.players[0]!;
+    const me = state.players.find((player) => player.slot === this.playerSlot)!;
 
     // Survival first: break off and heal when hurt — from a health pickup or
     // by smashing an amber clutch (the bot swings constantly, so walking onto

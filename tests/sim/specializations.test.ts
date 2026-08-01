@@ -94,10 +94,12 @@ describe('ability specializations in the deterministic sim (#108)', () => {
     if (aftershock.kind !== 'blast' || !aftershock.aftershock) throw new Error('expected authored aftershock');
     expect(generator.hp).toBe(1000 - aftershock.damage);
     expect(sim.state.pendingBlasts).toHaveLength(1);
+    expect(sim.state.pendingBlasts[0]!.ticksLeft).toBe(aftershock.aftershock.delayTicks);
 
     const events: SimEvent[] = [];
     for (let i = 0; i < aftershock.aftershock.delayTicks - 1; i++) events.push(...simTick(sim, [EMPTY_INPUT]));
     expect(generator.hp).toBe(1000 - aftershock.damage);
+    expect(sim.state.pendingBlasts[0]!.ticksLeft).toBe(1);
     events.push(...simTick(sim, [EMPTY_INPUT]));
     expect(events.some((event) => event.type === 'ability' && event.effect === 'aftershock')).toBe(true);
     expect(generator.hp).toBe(1000 - aftershock.damage - aftershock.aftershock.damage);

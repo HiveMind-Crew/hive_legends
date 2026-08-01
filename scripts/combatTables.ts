@@ -377,13 +377,13 @@ function spawnerTable(content: ContentDb): string {
     String(g.maxHp),
     content.enemies[g.spawnsEnemyId]?.name ?? g.spawnsEnemyId,
     `${g.spawnIntervalTicks}t`,
-    String(g.maxAlive),
+    `${g.maxAlive} / +${g.maxAlivePerExtraPlayer ?? 0}`,
     g.enrage ? `≤${pct(g.enrage.hpFraction)} hp → ×${g.enrage.intervalMult} for ${secs(g.enrage.durationTicks)}` : '—',
     g.onDeathSpawn ? (content.enemies[g.onDeathSpawn.enemyId]?.name ?? g.onDeathSpawn.enemyId) : '—',
     String(g.goldDrop),
     String(g.xp)
   ]);
-  return table(['Spawner', 'HP', 'Spawns', 'Interval', 'Max alive', 'Enrage', 'On death', 'Gold', 'XP'], rows);
+  return table(['Spawner', 'HP', 'Spawns', 'Interval', 'Max alive solo / +hero', 'Enrage', 'On death', 'Gold', 'XP'], rows);
 }
 
 function bossPhaseTable(boss: BossDef): string {

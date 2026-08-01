@@ -6,8 +6,8 @@ import { mergeCommands, padCommand, type PadSnapshot } from './padMapping';
  * Input devices, reduced to the one thing the sim consumes: an `InputCommand`
  * per player per tick.
  *
- * `MissionScene` holds one `Commander` per player slot, so adding player 2 for
- * M3 local co-op is wiring rather than redesign (issue #98).
+ * `MissionScene` holds one `Commander` per reserved player slot. Participation
+ * is then an explicit command handled by the deterministic sim (issue #106).
  */
 export interface Commander {
   sample(): InputCommand;
@@ -15,7 +15,8 @@ export interface Commander {
 
 /**
  * Keyboard → per-tick InputCommand. WASD or arrows to move,
- * Space/J to attack, Shift/K for the hero ability, Q to quaff a potion.
+ * Space/J to attack, Shift/K for the hero ability, Q to quaff a potion, and
+ * E to hold a teammate revive. Keyboard always owns slot 0.
  */
 export class KeyboardCommander implements Commander {
   private keys: Record<string, Phaser.Input.Keyboard.Key>;
@@ -36,7 +37,8 @@ export class KeyboardCommander implements Commander {
       j: kb.addKey(Phaser.Input.Keyboard.KeyCodes.J),
       shift: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT),
       k: kb.addKey(Phaser.Input.Keyboard.KeyCodes.K),
-      potion: kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q)
+      potion: kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
+      interact: kb.addKey(Phaser.Input.Keyboard.KeyCodes.E)
     };
   }
 
@@ -53,7 +55,10 @@ export class KeyboardCommander implements Commander {
       ability: k.shift!.isDown || k.k!.isDown,
       // Rising-edge so one press spends exactly one potion, even across the
       // several sim ticks a single render frame may step.
-      usePotion: Phaser.Input.Keyboard.JustDown(k.potion!)
+      usePotion: Phaser.Input.Keyboard.JustDown(k.potion!),
+      join: false,
+      leave: false,
+      interact: k.interact!.isDown
     };
   }
 }

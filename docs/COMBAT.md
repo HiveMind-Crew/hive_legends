@@ -546,11 +546,11 @@ drop each hero from full — the pressure a single one of these represents, befo
 
 ### Where they come from
 
-| Spawner | HP | Spawns | Interval | Max alive | Enrage | On death | Gold | XP |
+| Spawner | HP | Spawns | Interval | Max alive solo / +hero | Enrage | On death | Gold | XP |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Brood Node | 120 | Skitterling | 24t | 9 | ≤50% hp → ×0.6 for 2.50 s | — | 25 | 40 |
-| Husk Mound | 150 | Carapace Husk | 165t | 2 | — | Gravebound Ravager | 30 | 45 |
-| Spitter Nest | 110 | Bile Spitter | 150t | 2 | — | — | 30 | 45 |
+| Brood Node | 120 | Skitterling | 24t | 9 / +2 | ≤50% hp → ×0.6 for 2.50 s | — | 25 | 40 |
+| Husk Mound | 150 | Carapace Husk | 165t | 2 / +1 | — | Gravebound Ravager | 30 | 45 |
+| Spitter Nest | 110 | Bile Spitter | 150t | 2 / +1 | — | — | 30 | 45 |
 
 ### Mireveil — Mother of the Brood
 

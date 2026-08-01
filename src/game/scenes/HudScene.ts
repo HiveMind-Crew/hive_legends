@@ -14,11 +14,10 @@ import type { HudInfo, MissionScene } from './MissionScene';
  * and an ability meter with a READY! flash. Rendered by a parallel scene so the
  * mission camera's zoom and scroll never distort it.
  *
- * Panels are built from the live player count (issue #96), so the bar is always
- * full: solo play gets the whole of it instead of one panel beside three dimmed
- * JOIN placeholders advertising a mode that does not exist yet. Geometry lives
- * in `src/game/hudLayout.ts` and is unit-tested; at four players it reproduces
- * the original fixed layout exactly.
+ * Panels are built from the live joined count, so solo gets the wide layout
+ * and explicit join/drop-out reflows the row. The bottom JOIN affordance keeps
+ * open pad slots discoverable without reserving three empty top panels.
+ * Geometry lives in `src/game/hudLayout.ts` and is unit-tested.
  */
 
 const PANEL_H = 54;
@@ -30,6 +29,8 @@ const BOSS_BAR_W = 620;
 const BOSS_BAR_INNER_W = 616;
 
 interface Panel {
+  slot: number;
+  objects: Phaser.GameObjects.GameObject[];
   border: Phaser.GameObjects.Rectangle;
   chip: Phaser.GameObjects.Rectangle;
   chipText: Phaser.GameObjects.Text;
@@ -81,6 +82,7 @@ export class HudScene extends Phaser.Scene {
   private continueAction!: Phaser.GameObjects.Text;
   private continueBarBack!: Phaser.GameObjects.Rectangle;
   private continueBar!: Phaser.GameObjects.Rectangle;
+  private joinText!: Phaser.GameObjects.Text;
 
   constructor() {
     super('hud');
@@ -91,14 +93,13 @@ export class HudScene extends Phaser.Scene {
     // opinion of its own about how many players there are.
     const count = Math.max(1, Math.min(MAX_PLAYERS, data?.playerCount ?? 1));
     this.panels = [];
-    this.goldShown = new Array<number>(count).fill(0);
-    this.prevAbilityCd = new Array<number>(count).fill(0);
+    this.goldShown = new Array<number>(MAX_PLAYERS).fill(0);
+    this.prevAbilityCd = new Array<number>(MAX_PLAYERS).fill(0);
     this.prevObjective = '';
     this.heraldQueue = [];
     this.heraldBusy = false;
     this.drawVignette();
-    const layout = panelLayout(count, this.scale.width);
-    layout.xs.forEach((x, i) => this.panels.push(this.buildPanel(i, x, layout.width)));
+    this.rebuildPanels(Array.from({ length: count }, (_, slot) => slot));
 
     const cx = this.scale.width / 2;
 
@@ -150,6 +151,14 @@ export class HudScene extends Phaser.Scene {
         color: '#544868'
       })
       .setOrigin(1, 1);
+
+    this.joinText = this.add
+      .text(12, this.scale.height - 12, '', {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        color: '#7a6f92'
+      })
+      .setOrigin(0, 1);
 
     this.buildPauseLayer();
     this.buildContinueLayer();
@@ -352,20 +361,20 @@ export class HudScene extends Phaser.Scene {
    * the old fixed layout while a solo bar spreads the same three clusters
    * across the screen instead of huddling them at the left edge.
    */
-  private buildPanel(i: number, x: number, w: number): Panel {
+  private buildPanel(slot: number, x: number, w: number): Panel {
     const y = PANEL_Y;
-    const accent = playerAccent(i);
+    const accent = playerAccent(slot);
     const mid = anchorOffset('center', w);
     const end = anchorOffset('right', w);
     const mono = (tx: number, ty: number, size: number, color: string, style = '') =>
       this.add.text(x + tx, y + ty, '', { fontFamily: 'monospace', fontSize: `${size}px`, color, fontStyle: style });
 
-    this.add.rectangle(x, y, w, PANEL_H, 0x000000, 0.55).setOrigin(0, 0);
+    const background = this.add.rectangle(x, y, w, PANEL_H, 0x000000, 0.55).setOrigin(0, 0);
     const border = this.add.rectangle(x, y, w, PANEL_H).setOrigin(0, 0).setStrokeStyle(2, accent);
 
     const chip = this.add.rectangle(x, y, 26, 16, accent).setOrigin(0, 0);
     const chipText = mono(4, 2, 11, '#101020', 'bold');
-    chipText.setText(`P${i + 1}`);
+    chipText.setText(`P${slot + 1}`);
 
     const portrait = this.add.image(x + 24, y + 34, TEX.hero).setScale(0.9);
 
@@ -404,7 +413,33 @@ export class HudScene extends Phaser.Scene {
       this.add.image(x + end + 190 + index * 13, y + 39, texture).setVisible(false)
     );
 
+    const objects: Phaser.GameObjects.GameObject[] = [
+      background,
+      border,
+      chip,
+      chipText,
+      portrait,
+      hpText,
+      maxHpText,
+      goldIcon,
+      goldText,
+      killsIcon,
+      killsText,
+      keyIcon,
+      keyText,
+      potionIcon,
+      potionText,
+      levelText,
+      xpBack,
+      xpBar,
+      abilityBack,
+      abilityBar,
+      readyFlare,
+      ...powerIcons
+    ];
     return {
+      slot,
+      objects,
       width: w,
       border,
       chip,
@@ -435,6 +470,7 @@ export class HudScene extends Phaser.Scene {
     const info = mission.hudInfo();
     if (!info) return;
 
+    this.syncPartyPanels(info);
     for (let i = 0; i < this.panels.length; i++) {
       this.updatePanel(i, info);
     }
@@ -445,6 +481,28 @@ export class HudScene extends Phaser.Scene {
     this.pressureText.setVisible(roused);
     if (roused) this.pressureText.setText(`HIVE ROUSED ${'\u25B2'.repeat(info.pressureStage)}`);
     this.muteIcon.setText(audio.isMuted ? '♪ muted' : '♪');
+  }
+
+  /** Reflows the top bar only when explicit participation changed. */
+  private syncPartyPanels(info: HudInfo): void {
+    const slots = info.players.map((p) => p.slot);
+    if (slots.length !== this.panels.length || slots.some((slot, i) => this.panels[i]?.slot !== slot)) {
+      this.rebuildPanels(slots);
+    }
+    const joined = new Set(slots);
+    const open = Array.from({ length: MAX_PLAYERS }, (_, slot) => slot).filter((slot) => !joined.has(slot));
+    const join = open.length > 0 ? `${open.map((slot) => `P${slot + 1}`).join('/')} START TO JOIN` : 'PARTY FULL';
+    this.joinText.setText(`${join}   •   BACK DROP OUT   •   HOLD (B) / E REVIVE`);
+  }
+
+  private rebuildPanels(slots: readonly number[]): void {
+    for (const panel of this.panels) for (const object of panel.objects) object.destroy();
+    this.panels = [];
+    const safeSlots = slots.length > 0 ? slots : [0];
+    const layout = panelLayout(safeSlots.length, this.scale.width);
+    layout.xs.forEach((x, index) => {
+      this.panels.push(this.buildPanel(safeSlots[index] ?? index, x, layout.width));
+    });
   }
 
   /** The finale meter: name, eased HP drain, and the current phase title. */
@@ -503,8 +561,9 @@ export class HudScene extends Phaser.Scene {
     panel.xpBar.setFillStyle(atCap ? 0x9fe06a : 0xffd75e);
 
     // Large health number with a low-health pulse.
-    panel.hpText.setText(String(Math.ceil(p.hp)));
-    panel.maxHpText.setText(`/ ${p.maxHp}`);
+    const revivePercent = Math.floor((p.reviveProgress / Math.max(1, p.reviveRequired)) * 100);
+    panel.hpText.setText(p.alive ? String(Math.ceil(p.hp)) : `DOWN ${revivePercent}%`);
+    panel.maxHpText.setText(p.alive ? `/ ${p.maxHp}` : 'HOLD REVIVE');
     const low = p.hp / p.maxHp <= LOW_HP_FRACTION;
     panel.hpText.setColor(p.alive ? (low ? '#ff5a4d' : '#ffffff') : '#666270');
     panel.hpText.setScale(low && p.alive ? 1 + 0.06 * Math.sin(this.time.now / 90) : 1);
@@ -512,12 +571,13 @@ export class HudScene extends Phaser.Scene {
     panel.portrait.setTint(p.alive ? 0xffffff : 0x555555);
 
     // Gold counter rolls up toward the real value.
-    const shown = this.goldShown[i]!;
+    const shown = this.goldShown[p.slot]!;
     if (shown !== p.gold) {
       const diff = p.gold - shown;
-      this.goldShown[i] = Math.abs(diff) <= 1 ? p.gold : shown + Math.sign(diff) * Math.max(1, Math.ceil(Math.abs(diff) * 0.18));
+      this.goldShown[p.slot] =
+        Math.abs(diff) <= 1 ? p.gold : shown + Math.sign(diff) * Math.max(1, Math.ceil(Math.abs(diff) * 0.18));
     }
-    panel.goldText.setText(String(this.goldShown[i]));
+    panel.goldText.setText(String(this.goldShown[p.slot]));
     panel.killsText.setText(String(p.kills));
 
     // Active temporary buffs occupy fixed silhouette-coded chips. Their
@@ -537,12 +597,14 @@ export class HudScene extends Phaser.Scene {
     } else {
       const frac = p.abilityMax > 0 ? Math.max(0, Math.min(1, 1 - p.abilityCooldown / p.abilityMax)) : 1;
       panel.abilityBar.width = 68 * frac;
-      panel.abilityBar.setFillStyle(p.abilityCooldown === 0 ? playerAccent(i) : 0x6a6480);
+      panel.abilityBar.setFillStyle(p.abilityCooldown === 0 ? playerAccent(p.slot) : 0x6a6480);
     }
     const ready = p.guardTicks === 0 && p.abilityCooldown === 0;
     panel.readyFlare.setVisible(ready).setAlpha(ready ? 0.45 + Math.sin(this.time.now / 130) * 0.25 : 0);
-    if (this.prevAbilityCd[i]! > 0 && p.abilityCooldown === 0) this.readyFlash(panel.abilityBack.x + 34, panel.abilityBack.y + 4);
-    this.prevAbilityCd[i] = p.abilityCooldown;
+    if (this.prevAbilityCd[p.slot]! > 0 && p.abilityCooldown === 0) {
+      this.readyFlash(panel.abilityBack.x + 34, panel.abilityBack.y + 4);
+    }
+    this.prevAbilityCd[p.slot] = p.abilityCooldown;
   }
 
   private updateObjective(info: HudInfo): void {
