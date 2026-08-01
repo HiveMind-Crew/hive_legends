@@ -45,6 +45,15 @@ export type AmberResinTileKey =
   | 'tile-amber-resin-floor-2'
   | 'tile-amber-resin-floor-3';
 
+export type CobaltCombsTileKey =
+  | 'tile-cobalt-combs-wall'
+  | 'tile-cobalt-combs-wall-inner'
+  | 'tile-cobalt-combs-wall-face'
+  | 'tile-cobalt-combs-floor-0'
+  | 'tile-cobalt-combs-floor-1'
+  | 'tile-cobalt-combs-floor-2'
+  | 'tile-cobalt-combs-floor-3';
+
 export type HollowThroneTileKey =
   | 'tile-hollow-throne-wall'
   | 'tile-hollow-throne-wall-inner'
@@ -69,6 +78,20 @@ const AMBER = {
   wallHigh: 0x7a521f,
   wallGlow: 0xc4852d,
   shadow: 0x0d0906
+} as const;
+
+const COBALT = {
+  floor: 0x111927,
+  floorLow: 0x0a101a,
+  floorMid: 0x17243a,
+  floorHigh: 0x203554,
+  joint: 0x29486b,
+  steel: 0x355d86,
+  wallLow: 0x111b2a,
+  wall: 0x233955,
+  wallMid: 0x2e4d70,
+  wallHigh: 0x3b638c,
+  shadow: 0x070c13
 } as const;
 
 const THRONE = {
@@ -178,6 +201,39 @@ function ellipseOutline(
   for (let step = 0; step < 96; step++) {
     const angle = (step / 96) * Math.PI * 2;
     put(image, Math.round(cx + Math.cos(angle) * rx), Math.round(cy + Math.sin(angle) * ry), colour, true);
+  }
+}
+
+/** A flat-sided, mechanically regular cell—the Combs' defining geometry. */
+function hexOutline(
+  image: Bitmap,
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  colour: number,
+  wrap = true
+): void {
+  const shoulder = Math.max(1, Math.floor(rx / 2));
+  const points = [
+    [cx - rx, cy],
+    [cx - shoulder, cy - ry],
+    [cx + shoulder, cy - ry],
+    [cx + rx, cy],
+    [cx + shoulder, cy + ry],
+    [cx - shoulder, cy + ry]
+  ] as const;
+  for (let i = 0; i < points.length; i++) {
+    const from = points[i]!;
+    const to = points[(i + 1) % points.length]!;
+    line(image, from[0], from[1], to[0], to[1], colour, wrap);
+  }
+}
+
+function hexFill(image: Bitmap, cx: number, cy: number, rx: number, ry: number, colour: number): void {
+  for (let y = -ry; y <= ry; y++) {
+    const inset = Math.floor((Math.abs(y) * Math.ceil(rx / 2)) / Math.max(1, ry));
+    line(image, cx - rx + inset, cy + y, cx + rx - inset, cy + y, colour, true);
   }
 }
 
@@ -523,6 +579,184 @@ function amberWallFace(): Bitmap {
   return image;
 }
 
+function cobaltMottle(image: Bitmap, seed: number, density: number): void {
+  for (let y = 0; y < image.h; y++) {
+    for (let x = 0; x < image.w; x++) {
+      const n = hash(x, y, seed) % 100;
+      if (n < density) put(image, x, y, COBALT.floorMid);
+      else if (n > 98) put(image, x, y, COBALT.floorLow);
+    }
+  }
+}
+
+/** Repeat interlocked cells past the canvas edge so no cell is cut uniquely. */
+function cobaltCombGrid(image: Bitmap, colour: number): void {
+  for (let row = 0; row <= 3; row++) {
+    const cy = row * 10;
+    const offset = row % 2 === 0 ? 0 : 6;
+    for (let cx = offset; cx < 32; cx += 12) hexOutline(image, cx, cy, 6, 5, colour);
+  }
+}
+
+/** Tight load-bearing cells establish the cold, manufactured comb floor. */
+function cobaltFloorCells(): Bitmap {
+  const image = bitmap(32, 32, COBALT.floor);
+  cobaltMottle(image, 101, 6);
+  cobaltCombGrid(image, COBALT.joint);
+  for (const [x, y] of [
+    [6, 5],
+    [24, 15],
+    [12, 25]
+  ] as const) {
+    put(image, x, y, COBALT.steel, true);
+  }
+  sealOppositeEdges(image);
+  return image;
+}
+
+/** A few split joints and shifted seams break repetition without bright noise. */
+function cobaltFloorFractures(): Bitmap {
+  const image = bitmap(32, 32, COBALT.floor);
+  cobaltMottle(image, 103, 5);
+  cobaltCombGrid(image, COBALT.floorHigh);
+  for (const points of [
+    [
+      [0, 8],
+      [6, 11],
+      [10, 17],
+      [8, 24],
+      [15, 31]
+    ],
+    [
+      [23, 0],
+      [21, 7],
+      [26, 13],
+      [31, 15]
+    ]
+  ] as const) {
+    for (let i = 0; i < points.length - 1; i++) {
+      line(image, points[i]![0], points[i]![1], points[i + 1]![0], points[i + 1]![1], COBALT.floorLow, true);
+    }
+  }
+  line(image, 10, 17, 16, 14, COBALT.joint, true);
+  sealOppositeEdges(image);
+  return image;
+}
+
+/** Broad reinforced plates and dark fasteners read as hard engineering. */
+function cobaltFloorBraces(): Bitmap {
+  const image = bitmap(32, 32, COBALT.floor);
+  cobaltMottle(image, 107, 4);
+  for (const [x, y] of [
+    [3, 4],
+    [20, 7],
+    [10, 21],
+    [29, 25]
+  ] as const) {
+    hexOutline(image, x, y, 9, 7, COBALT.joint);
+    hexOutline(image, x, y, 6, 4, COBALT.floorHigh);
+    put(image, x, y, COBALT.floorLow, true);
+  }
+  for (const [x, y] of [
+    [6, 11],
+    [25, 14],
+    [16, 28]
+  ] as const) {
+    disc(image, x, y, 1, COBALT.steel, true);
+  }
+  sealOppositeEdges(image);
+  return image;
+}
+
+/** Recessed sockets give one quieter variant a deep, weighty comb texture. */
+function cobaltFloorSockets(): Bitmap {
+  const image = bitmap(32, 32, COBALT.floor);
+  cobaltMottle(image, 109, 5);
+  cobaltCombGrid(image, COBALT.floorHigh);
+  for (const [x, y] of [
+    [6, 5],
+    [24, 5],
+    [12, 15],
+    [30, 15],
+    [6, 25],
+    [24, 25]
+  ] as const) {
+    hexFill(image, x, y, 3, 2, COBALT.floorLow);
+    hexOutline(image, x, y, 4, 3, COBALT.joint);
+  }
+  sealOppositeEdges(image);
+  return image;
+}
+
+/** Thick hex plates make the roof read as a rigid comb, not tinted chitin. */
+function cobaltWallRoof(): Bitmap {
+  const image = bitmap(32, 32, COBALT.wall);
+  for (let y = 0; y < image.h; y++) {
+    for (let x = 0; x < image.w; x++) {
+      const n = hash(x, y, 113) % 100;
+      if (n < 6) put(image, x, y, COBALT.wallMid);
+      else if (n > 98) put(image, x, y, COBALT.wallLow);
+    }
+  }
+  for (const [x, y] of [
+    [3, 4],
+    [20, 6],
+    [10, 20],
+    [29, 24]
+  ] as const) {
+    hexOutline(image, x, y, 10, 8, COBALT.wallHigh);
+    hexOutline(image, x, y, 7, 5, COBALT.wallLow);
+  }
+  for (const [x, y] of [
+    [4, 4],
+    [20, 6],
+    [10, 20],
+    [29, 24]
+  ] as const) {
+    disc(image, x, y, 1, COBALT.wallMid, true);
+  }
+  sealOppositeEdges(image);
+  return image;
+}
+
+/** Surrounded walls stay darker and flatter while retaining the comb grid. */
+function cobaltWallInner(): Bitmap {
+  const image = bitmap(32, 32, COBALT.wallLow);
+  cobaltCombGrid(image, COBALT.wallMid);
+  for (const [x, y] of [
+    [6, 5],
+    [24, 5],
+    [12, 15],
+    [30, 15],
+    [6, 25],
+    [24, 25]
+  ] as const) {
+    hexOutline(image, x, y, 4, 3, COBALT.wall);
+    put(image, x, y, COBALT.shadow, true);
+  }
+  sealOppositeEdges(image);
+  return image;
+}
+
+/** South-facing slabs expose stacked cell ribs beneath a hard upper lip. */
+function cobaltWallFace(): Bitmap {
+  const image = bitmap(32, 16, COBALT.wallLow);
+  rect(image, 0, 0, 32, 3, COBALT.wallHigh);
+  rect(image, 0, 3, 32, 2, COBALT.wall);
+  for (const [x, y] of [
+    [4, 8],
+    [16, 10],
+    [28, 8]
+  ] as const) {
+    hexOutline(image, x, y, 7, 5, COBALT.wallMid);
+    hexOutline(image, x, y, 4, 3, COBALT.wall, false);
+  }
+  for (const x of [0, 11, 23, 31]) line(image, x, 4, x, 14, COBALT.wallHigh, true);
+  rect(image, 0, 14, 32, 2, COBALT.shadow);
+  for (let y = 0; y < image.h; y++) copyPixel(image, 0, y, image.w - 1, y);
+  return image;
+}
+
 function throneMottle(image: Bitmap, seed: number, density: number): void {
   for (let y = 0; y < image.h; y++) {
     for (let x = 0; x < image.w; x++) {
@@ -776,6 +1010,38 @@ export function buildAmberResinTilePack(): ReadonlyMap<AmberResinTileKey, Uint8A
     'tile-amber-resin-floor-3'
   ];
   return new Map(keys.map((key) => [key, encodePng(amberResinTileBitmap(key), 0)]));
+}
+
+export function cobaltCombsTileBitmap(key: CobaltCombsTileKey): Bitmap {
+  switch (key) {
+    case 'tile-cobalt-combs-wall':
+      return cobaltWallRoof();
+    case 'tile-cobalt-combs-wall-inner':
+      return cobaltWallInner();
+    case 'tile-cobalt-combs-wall-face':
+      return cobaltWallFace();
+    case 'tile-cobalt-combs-floor-0':
+      return cobaltFloorCells();
+    case 'tile-cobalt-combs-floor-1':
+      return cobaltFloorFractures();
+    case 'tile-cobalt-combs-floor-2':
+      return cobaltFloorBraces();
+    case 'tile-cobalt-combs-floor-3':
+      return cobaltFloorSockets();
+  }
+}
+
+export function buildCobaltCombsTilePack(): ReadonlyMap<CobaltCombsTileKey, Uint8Array> {
+  const keys: readonly CobaltCombsTileKey[] = [
+    'tile-cobalt-combs-wall',
+    'tile-cobalt-combs-wall-inner',
+    'tile-cobalt-combs-wall-face',
+    'tile-cobalt-combs-floor-0',
+    'tile-cobalt-combs-floor-1',
+    'tile-cobalt-combs-floor-2',
+    'tile-cobalt-combs-floor-3'
+  ];
+  return new Map(keys.map((key) => [key, encodePng(cobaltCombsTileBitmap(key), 0)]));
 }
 
 export function hollowThroneTileBitmap(key: HollowThroneTileKey): Bitmap {

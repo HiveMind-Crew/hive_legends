@@ -61,6 +61,7 @@ What the benchmark does that we must match *in spirit*:
 
 - Warren dark: `#17131f` floor / `#2b2036` wall
 - Amber-resin galleries: `#1b1510` floor / `#3d2813` wall / `#c4852d` trapped light
+- Cobalt Combs: `#111927` floor / `#233955` wall / `#355d86` cold steel joints
 - Hive bioluminescence: violet `#a855c8`, spore green `#9fe06a`
 - Treasure/UI warmth: gold `#ffd75e`
 - Player accents: `#5a8fd9` / `#e0524d` / `#58c98a` / `#b07fe6`

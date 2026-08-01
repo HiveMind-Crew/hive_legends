@@ -57,6 +57,10 @@ function buildSpecs(): Record<string, TextureSpec> {
   add('tile-amber-resin-wall-inner', 32, 32);
   add('tile-amber-resin-wall-face', 32, 16);
   for (let v = 0; v < 4; v++) add(`tile-amber-resin-floor-${v}`, 32, 32);
+  add('tile-cobalt-combs-wall', 32, 32);
+  add('tile-cobalt-combs-wall-inner', 32, 32);
+  add('tile-cobalt-combs-wall-face', 32, 16);
+  for (let v = 0; v < 4; v++) add(`tile-cobalt-combs-floor-${v}`, 32, 32);
   add('tile-hollow-throne-wall', 32, 32);
   add('tile-hollow-throne-wall-inner', 32, 32);
   add('tile-hollow-throne-wall-face', 32, 16);
