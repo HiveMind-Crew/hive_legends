@@ -77,6 +77,49 @@ describe('deterministic local co-op participation', () => {
     expect(p2).toMatchObject({ id, participating: true, gold: 17, xpEarned: 6 });
   });
 
+  it('pays the level-up heal for levels crossed while dormant', () => {
+    const prog = CONTENT.progression;
+    const sim = coopSim();
+    joinP2(sim);
+    const p2 = sim.state.players.find((p) => p.slot === 1)!;
+    const baseMaxHp = p2.maxHp;
+    p2.hp = 20;
+
+    simTick(sim, [EMPTY_INPUT, command({ leave: true })]);
+    // The party clears two thresholds without them.
+    sim.state.rewards.xp = prog.xpToReach[2]!;
+    simTick(sim, [EMPTY_INPUT, command({ join: true })]);
+
+    // A dormant hero pays no attrition for the levels: same +maxHp and same
+    // heal a hero who stayed in would have banked (docs/PROGRESSION.md).
+    expect(p2.level).toBe(3);
+    expect(p2.maxHp).toBe(baseMaxHp + 2 * prog.maxHpPerLevel);
+    expect(p2.hp).toBe(20 + 2 * prog.maxHpPerLevel);
+  });
+
+  it('never heals a dormant hero past max, or a downed one at all', () => {
+    const prog = CONTENT.progression;
+    const sim = coopSim();
+    joinP2(sim);
+    const p2 = sim.state.players.find((p) => p.slot === 1)!;
+    const baseMaxHp = p2.maxHp;
+
+    simTick(sim, [EMPTY_INPUT, command({ leave: true })]);
+    sim.state.rewards.xp = prog.xpToReach[1]!;
+    simTick(sim, [EMPTY_INPUT, command({ join: true })]);
+    expect(p2.hp).toBe(p2.maxHp);
+    expect(p2.maxHp).toBe(baseMaxHp + prog.maxHpPerLevel);
+
+    // A downed hero takes the max-HP raise only; the revive owns its own hp.
+    simTick(sim, [EMPTY_INPUT, command({ leave: true })]);
+    p2.alive = false;
+    p2.hp = 0;
+    sim.state.rewards.xp = prog.xpToReach[2]!;
+    simTick(sim, [EMPTY_INPUT, command({ join: true })]);
+    expect(p2.maxHp).toBe(baseMaxHp + 2 * prog.maxHpPerLevel);
+    expect(p2.hp).toBe(0);
+  });
+
   it('removes dormant bodies from pickups and failure without erasing them', () => {
     const sim = coopSim();
     joinP2(sim);

@@ -115,8 +115,9 @@ export const GENERATORS: Record<string, GeneratorDef> = {
     spawnIntervalTicks: 24,
     // Swarmer node: a full 9-strong crush so the room reads as a horde, not a
     // skirmish (#38). Well within the readability budget (~15) in a mixed horde.
-    // Scale generator pressure with player count when co-op lands (M3).
     maxAlive: 9,
+    // Co-op pressure (#106): +2 per extra joined hero, so a full party faces 15
+    // — the readability ceiling — while solo keeps its exact 9.
     maxAlivePerExtraPlayer: 2,
     goldDrop: 25,
     xp: 40,

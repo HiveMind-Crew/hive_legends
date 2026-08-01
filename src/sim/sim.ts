@@ -301,16 +301,26 @@ function updateParticipation(sim: Sim, inputs: readonly InputCommand[], events: 
   }
 }
 
-/** Catches a returning/downed hero up to the party's unique XP ledger. */
+/**
+ * Catches a returning/downed hero up to the party's unique XP ledger.
+ *
+ * Each caught-up level pays the same +maxHp and level-up heal `awardXp` pays,
+ * so time spent dormant costs nothing a hero who stayed in would have kept.
+ * A downed hero takes the max-HP raise only; the revive owns its own hp.
+ * No `player-leveled` event fires: this is a silent catch-up, not levels the
+ * hero earned this tick, and a rejoin should not burst level-up juice.
+ */
 function syncRunXp(sim: Sim, player: PlayerState): void {
   const baseXp = Math.max(0, sim.config.players[player.slot]?.startXp ?? 0);
   const targetXp = baseXp + sim.state.rewards.xp;
   if (player.xp >= targetXp) return;
   player.xp = targetXp;
-  const targetLevel = levelForXp(sim.config.content.progression, targetXp);
+  const prog = sim.config.content.progression;
+  const targetLevel = levelForXp(prog, targetXp);
   while (player.level < targetLevel) {
     player.level++;
-    player.maxHp += sim.config.content.progression.maxHpPerLevel;
+    player.maxHp += prog.maxHpPerLevel;
+    if (player.alive) player.hp = Math.min(player.maxHp, player.hp + prog.maxHpPerLevel);
   }
 }
 
@@ -838,6 +848,11 @@ function awardXp(sim: Sim, p: PlayerState, amount: number, events: SimEvent[]): 
  * Records one unique XP source for the shared profile, credits its securing
  * hero for results, and grants the XP to every living joined hero. Solo keeps
  * its exact old progression while co-op cannot multiply a reward by party size.
+ *
+ * This deliberately replaces #46's two-policy split, where kill XP went only to
+ * the killer and only objective XP was shared. One path now, for #46's own
+ * stated reason — a party levels together rather than racing for last hits.
+ * See docs/adr/0003-deterministic-local-coop.md.
  */
 function awardPartyXp(sim: Sim, contributorId: EntityId, amount: number, events: SimEvent[]): void {
   if (amount <= 0) return;

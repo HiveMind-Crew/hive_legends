@@ -28,8 +28,21 @@ Gold pickups are consumed once, credited to their collector, and added once to
 `SimState.rewards.gold`. Every enemy/objective XP source is added once to
 `rewards.xp`, attributed to the securing slot for results, and granted to each
 living joined hero for in-run levels. Returning heroes catch up from the unique
-ledger. Results sum retained per-player contributions into the shared profile;
-first-clear, clear records, unlocks, and mission count occur once per run.
+ledger, paying the same max-HP raise and level-up heal a hero who stayed in
+would have banked. Results sum retained per-player contributions into the
+shared profile; first-clear, clear records, unlocks, and mission count occur
+once per run.
+
+This supersedes the split issue #46 introduced, where kill XP went only to the
+hero who landed the killing blow and objective XP was shared. That split
+predates a playable party, and #46 already gave the reason to drop it: a party
+should level together rather than race for last hits. Applying that to kills
+too costs nothing in solo — one active hero takes the whole source either way,
+so solo progression is byte-identical — and it removes the one reward in the
+game that would have made a couch partner a competitor. XP is not divided
+either: a source is banked once for the profile but granted whole to each
+living joined hero, so a party levels at roughly solo pace instead of falling
+behind it.
 
 Generator caps use `maxAlive + maxAlivePerExtraPlayer × (joined - 1)`. Leaving
 does not despawn excess enemies; it only prevents new births until the live
