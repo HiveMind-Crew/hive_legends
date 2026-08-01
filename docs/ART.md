@@ -75,6 +75,9 @@ tables below summarize it.
 | `tile-amber-resin-wall`, `tile-amber-resin-wall-inner` | 32×32 | Resin Galleries roof slab / surrounded-wall surface |
 | `tile-amber-resin-wall-face` | 32×16 | Resin Galleries south-facing curtain edge |
 | `tile-amber-resin-floor-0`…`3` | 32×32 | Pools / fissures / sealed cells / frozen inclusions |
+| `tile-cobalt-combs-wall`, `tile-cobalt-combs-wall-inner` | 32×32 | Cobalt Combs interlocked roof plates / recessed comb surface |
+| `tile-cobalt-combs-wall-face` | 32×16 | Cobalt Combs south-facing stacked cell ribs |
+| `tile-cobalt-combs-floor-0`…`3` | 32×32 | Tight cells / split joints / reinforced plates / recessed sockets |
 | `tile-hollow-throne-wall`, `tile-hollow-throne-wall-inner` | 32×32 | Hollow Throne grown crown plates / surrounded brood wall |
 | `tile-hollow-throne-wall-face` | 32×16 | Hollow Throne south-facing root curtain |
 | `tile-hollow-throne-floor-0`…`3` | 32×32 | Brood plates / root channels / membranes / shell remnants |
@@ -90,6 +93,15 @@ realm can add another seven-key pack without a scene branch. The amber-resin
 source shares `scripts/art/environmentTilePack.ts` with Realm 1 and is guarded
 for exact dimensions, seamless edges, subdued floor luminance, and visual
 distinctness from the violet exports.
+
+**The Cobalt Combs has a complete cold comb-work set**, selected by
+`LevelTheme.tileSet: 'cobalt-combs'`. Its mechanically regular hex cells,
+fractured joints, reinforced plates, recessed sockets, and stacked wall ribs
+make it structurally distinct from the organic Realm 1, amber-resin, and
+Hollow Throne sets. The deterministic source is the Cobalt Combs section of
+`scripts/art/environmentTilePack.ts`; tests guard its exact dimensions,
+seamless edges, cold-blue palette, subdued floor luminance, and distinct pixel
+structure. Lighting, actor accents, and shadows remain renderer-owned.
 
 **The Hollow Throne has its own complete grown-chitin set**, selected by
 `LevelTheme.tileSet: 'hollow-throne'`. Its crown plates, root curtains, brood

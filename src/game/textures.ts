@@ -6,7 +6,10 @@ import {
   type EnemyFamily,
   type EnemyTier
 } from '../sim/types';
+import { floorVariant, wallTexture } from './environmentTextures';
 import { TEXTURE_SPECS } from './textureSpecs';
+
+export { floorVariant, wallTexture } from './environmentTextures';
 
 /**
  * Generated programmer-art textures and sprite frames. Everything is drawn
@@ -212,20 +215,6 @@ export function decorGlowColor(kind: DecorKind): number | undefined {
   return DECOR_GLOW_COLORS[kind];
 }
 
-export function floorVariant(i: number, tileSet?: string): string {
-  return tileSet ? `tile-${tileSet}-floor-${i}` : `tile-floor-${i}`;
-}
-
-export function wallTexture(surface: 'top' | 'inner' | 'face', tileSet?: string): string {
-  if (!tileSet) {
-    if (surface === 'inner') return TEX.wallInner;
-    if (surface === 'face') return TEX.wallFace;
-    return TEX.wall;
-  }
-  const suffix = surface === 'top' ? 'wall' : `wall-${surface}`;
-  return `tile-${tileSet}-${suffix}`;
-}
-
 export function propTexture(typeId: string): string {
   return `prop-${typeId}`;
 }
@@ -269,6 +258,22 @@ export function generateTextures(scene: Phaser.Scene): void {
     const spec = TEXTURE_SPECS[key];
     if (!spec) throw new Error(`no texture spec for key: ${key}`);
     if (!scene.textures.exists(key)) g.generateTexture(key, spec.w, spec.h);
+  };
+  const strokeHex = (cx: number, cy: number, rx: number, ry: number): void => {
+    const shoulder = rx / 2;
+    const points = [
+      [cx - rx, cy],
+      [cx - shoulder, cy - ry],
+      [cx + shoulder, cy - ry],
+      [cx + rx, cy],
+      [cx + shoulder, cy + ry],
+      [cx - shoulder, cy + ry]
+    ] as const;
+    for (let i = 0; i < points.length; i++) {
+      const from = points[i]!;
+      const to = points[(i + 1) % points.length]!;
+      g.lineBetween(from[0], from[1], to[0], to[1]);
+    }
   };
 
   // Wall top face: chitin roof slab, read from above.
@@ -395,6 +400,87 @@ export function generateTextures(scene: Phaser.Scene): void {
       g.fillTriangle(23, 20, 28, 24, 21, 26);
     }
     gen(floorVariant(v, 'amber-resin'));
+  }
+
+  // Cobalt Combs fallback set. Original PNGs normally override these keys;
+  // these hard hex plates preserve the realm identity in a partial manifest.
+  g.clear();
+  g.fillStyle(0x233955);
+  g.fillRect(0, 0, 32, 32);
+  g.lineStyle(2, 0x3b638c);
+  strokeHex(7, 7, 9, 7);
+  strokeHex(24, 8, 9, 7);
+  strokeHex(15, 23, 10, 8);
+  g.lineStyle(1, 0x111b2a);
+  strokeHex(7, 7, 6, 4);
+  strokeHex(24, 8, 6, 4);
+  strokeHex(15, 23, 7, 5);
+  gen(wallTexture('top', 'cobalt-combs'));
+
+  g.clear();
+  g.fillStyle(0x111b2a);
+  g.fillRect(0, 0, 32, 32);
+  g.lineStyle(1, 0x2e4d70);
+  for (const [x, y] of [
+    [6, 6],
+    [18, 6],
+    [12, 16],
+    [24, 16],
+    [6, 26],
+    [18, 26]
+  ] as const) {
+    strokeHex(x, y, 6, 5);
+  }
+  gen(wallTexture('inner', 'cobalt-combs'));
+
+  g.clear();
+  g.fillStyle(0x111b2a);
+  g.fillRect(0, 0, 32, 16);
+  g.fillStyle(0x3b638c);
+  g.fillRect(0, 0, 32, 3);
+  g.fillStyle(0x233955);
+  g.fillRect(0, 3, 32, 2);
+  g.lineStyle(1, 0x2e4d70);
+  strokeHex(5, 9, 7, 5);
+  strokeHex(17, 9, 7, 5);
+  strokeHex(29, 9, 7, 5);
+  g.fillStyle(0x070c13);
+  g.fillRect(0, 14, 32, 2);
+  gen(wallTexture('face', 'cobalt-combs'));
+
+  for (let v = 0; v < FLOOR_VARIANTS; v++) {
+    g.clear();
+    g.fillStyle(0x111927);
+    g.fillRect(0, 0, 32, 32);
+    g.lineStyle(1, v === 1 ? 0x17243a : 0x29486b);
+    const offset = v % 2 === 0 ? 0 : 6;
+    for (let row = 0; row < 3; row++) {
+      for (let x = -6 + ((row + offset / 6) % 2) * 6; x <= 36; x += 12) {
+        strokeHex(x, 5 + row * 10, 6, 5);
+      }
+    }
+    if (v === 1) {
+      g.lineStyle(1, 0x0a101a);
+      g.lineBetween(2, 8, 12, 17);
+      g.lineBetween(12, 17, 8, 26);
+    } else if (v === 2) {
+      g.lineStyle(1, 0x355d86);
+      strokeHex(16, 16, 9, 7);
+      g.fillStyle(0x0a101a);
+      g.fillCircle(16, 16, 1.5);
+    } else if (v === 3) {
+      g.fillStyle(0x0a101a);
+      for (const [x, y] of [
+        [6, 5],
+        [24, 5],
+        [12, 15],
+        [6, 25],
+        [24, 25]
+      ] as const) {
+        g.fillCircle(x, y, 2);
+      }
+    }
+    gen(floorVariant(v, 'cobalt-combs'));
   }
 
   // Hollow Throne fallback set. The original pack overrides these keys, but

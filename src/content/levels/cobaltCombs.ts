@@ -23,9 +23,9 @@ export const COBALT_COMBS: LevelDef = {
   id: 'cobalt-combs',
   name: 'The Cobalt Combs',
   tileSize: 32,
-  // Cold cobalt realm accent, against the Warrens' violet and the Galleries'
-  // amber. This is the blue the Azure Reach is named for.
-  theme: { wall: 0x6f92c9, floor: 0x5b7aa8, accent: 0x4aa3ff },
+  // Dedicated cold, hard comb-work replaces the former blue tint over the
+  // Warrens tiles. This is the blue the Azure Reach is named for.
+  theme: { tileSet: 'cobalt-combs', accent: 0x4aa3ff },
   walls: [
     '######################################',
     '######################################',

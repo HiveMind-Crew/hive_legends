@@ -10,11 +10,14 @@ import { buildMireveilPack, mireveilGrid } from '../scripts/art/mireveilPack';
 import {
   amberResinTileBitmap,
   buildAmberResinTilePack,
+  buildCobaltCombsTilePack,
   buildEnvironmentTilePack,
   environmentTileBitmap,
   type AmberResinTileKey,
+  type CobaltCombsTileKey,
   type EnvironmentTileKey,
   buildHollowThroneTilePack,
+  cobaltCombsTileBitmap,
   hollowThroneTileBitmap,
   type HollowThroneTileKey
 } from '../scripts/art/environmentTilePack';
@@ -300,6 +303,102 @@ describe('the amber-resin environment tile pack (#28)', () => {
       // Canonicalising each palette to first-seen indices makes a pure colour
       // substitution compare equal while preserving the underlying drawing.
       expect(colourPattern(amber.rgba)).not.toEqual(colourPattern(realmOne.rgba));
+    }
+  });
+});
+
+describe('the Cobalt Combs environment tile pack (#109)', () => {
+  const keys: readonly CobaltCombsTileKey[] = [
+    'tile-cobalt-combs-wall',
+    'tile-cobalt-combs-wall-inner',
+    'tile-cobalt-combs-wall-face',
+    'tile-cobalt-combs-floor-0',
+    'tile-cobalt-combs-floor-1',
+    'tile-cobalt-combs-floor-2',
+    'tile-cobalt-combs-floor-3'
+  ];
+
+  it('matches the deterministic pixel source', () => {
+    const pack = buildCobaltCombsTilePack();
+
+    if (process.env.UPDATE_ART) {
+      const listed = manifestKeys();
+      for (const [key, png] of pack) {
+        writeFileSync(`${ART_DIR}${key}.png`, png);
+        if (!listed.includes(key)) listed.push(key);
+      }
+      writeFileSync(MANIFEST, `${JSON.stringify(listed, null, 2)}\n`);
+      return;
+    }
+
+    for (const [key, png] of pack) {
+      const file = `${ART_DIR}${key}.png`;
+      expect(existsSync(file), `${key}.png is missing — run \`npm run art:build\``).toBe(true);
+      expect(readFileSync(file).equals(Buffer.from(png)), `${key}.png is stale — run \`npm run art:build\``).toBe(true);
+    }
+  });
+
+  it('covers four floors and three wall surfaces at contract sizes', () => {
+    expect([...buildCobaltCombsTilePack().keys()]).toEqual(keys);
+    for (const key of keys) {
+      const image = cobaltCombsTileBitmap(key);
+      expect({ w: image.w, h: image.h }).toEqual(TEXTURE_SPECS[key]);
+      for (let i = 3; i < image.rgba.length; i += 4) expect(image.rgba[i]).toBe(0xff);
+    }
+  });
+
+  it('tiles without horizontal or vertical seams', () => {
+    for (const key of keys) {
+      const image = cobaltCombsTileBitmap(key);
+      for (let y = 0; y < image.h; y++) {
+        const left = y * image.w * 4;
+        const right = (y * image.w + image.w - 1) * 4;
+        expect(image.rgba.slice(left, left + 4), `${key} horizontal seam at y=${y}`).toEqual(
+          image.rgba.slice(right, right + 4)
+        );
+      }
+      if (key === 'tile-cobalt-combs-wall-face') continue;
+      for (let x = 0; x < image.w; x++) {
+        const top = x * 4;
+        const bottom = ((image.h - 1) * image.w + x) * 4;
+        expect(image.rgba.slice(top, top + 4), `${key} vertical seam at x=${x}`).toEqual(
+          image.rgba.slice(bottom, bottom + 4)
+        );
+      }
+    }
+  });
+
+  it('keeps the cold-blue floors subdued for actor contrast', () => {
+    for (let variant = 0; variant < 4; variant++) {
+      const image = cobaltCombsTileBitmap(`tile-cobalt-combs-floor-${variant}` as CobaltCombsTileKey);
+      let luminance = 0;
+      let red = 0;
+      let blue = 0;
+      for (let i = 0; i < image.rgba.length; i += 4) {
+        red += image.rgba[i]!;
+        blue += image.rgba[i + 2]!;
+        luminance += 0.2126 * image.rgba[i]! + 0.7152 * image.rgba[i + 1]! + 0.0722 * image.rgba[i + 2]!;
+      }
+      expect(luminance / (image.w * image.h)).toBeLessThan(45);
+      expect(blue).toBeGreaterThan(red * 1.5);
+    }
+  });
+
+  it('uses distinct comb geometry rather than recolouring Realm 1 floors', () => {
+    const colourPattern = (rgba: Uint8Array): number[] => {
+      const colours = new Map<string, number>();
+      const pattern: number[] = [];
+      for (let i = 0; i < rgba.length; i += 4) {
+        const colour = `${rgba[i]},${rgba[i + 1]},${rgba[i + 2]},${rgba[i + 3]}`;
+        if (!colours.has(colour)) colours.set(colour, colours.size);
+        pattern.push(colours.get(colour)!);
+      }
+      return pattern;
+    };
+    for (let variant = 0; variant < 4; variant++) {
+      const realmOne = environmentTileBitmap(`tile-floor-${variant}` as EnvironmentTileKey);
+      const cobalt = cobaltCombsTileBitmap(`tile-cobalt-combs-floor-${variant}` as CobaltCombsTileKey);
+      expect(colourPattern(cobalt.rgba)).not.toEqual(colourPattern(realmOne.rgba));
     }
   });
 });

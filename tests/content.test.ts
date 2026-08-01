@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { BROOD_WARRENS, CONTENT, HOLLOW_THRONE, LEVELS, MISSION_ORDER, SPOKES, TEASER_SPOKES } from '../src/content';
+import {
+  BROOD_WARRENS,
+  COBALT_COMBS,
+  CONTENT,
+  HOLLOW_THRONE,
+  LEVELS,
+  MISSION_ORDER,
+  RESIN_GALLERIES,
+  SPOKES,
+  TEASER_SPOKES
+} from '../src/content';
+import { floorVariant, wallTexture } from '../src/game/environmentTextures';
 import { TEXTURE_SPECS } from '../src/game/textureSpecs';
-import { DECOR_KINDS, ENEMY_FAMILIES, ENEMY_TIERS } from '../src/sim/types';
+import { DECOR_KINDS, ENEMY_FAMILIES, ENEMY_TIERS, type LevelTheme } from '../src/sim/types';
 
 /**
  * Content-data validity: the enemy visual grammar (issue #7) requires every
@@ -76,6 +87,24 @@ describe('content validity', () => {
         expect(TEXTURE_SPECS[`tile-${tileSet}-floor-${variant}`], `${level.id}/floor-${variant}`).toBeDefined();
       }
     }
+  });
+
+  it('selects each authored realm pack generically and preserves shared-tile fallback', () => {
+    expect(RESIN_GALLERIES.theme?.tileSet).toBe('amber-resin');
+    expect(COBALT_COMBS.theme?.tileSet).toBe('cobalt-combs');
+    expect(HOLLOW_THRONE.theme?.tileSet).toBe('hollow-throne');
+    expect(BROOD_WARRENS.theme?.tileSet).toBeUndefined();
+
+    expect(wallTexture('top', COBALT_COMBS.theme?.tileSet)).toBe('tile-cobalt-combs-wall');
+    expect(wallTexture('inner', 'future-realm')).toBe('tile-future-realm-wall-inner');
+    expect(floorVariant(3, 'future-realm')).toBe('tile-future-realm-floor-3');
+
+    // A future level may keep tinting the shared pack by omitting tileSet.
+    const tintOnlyTheme: LevelTheme = { wall: 0x7799bb, floor: 0x557799 };
+    expect(wallTexture('top', tintOnlyTheme.tileSet)).toBe('tile-wall');
+    expect(wallTexture('inner', tintOnlyTheme.tileSet)).toBe('tile-wall-inner');
+    expect(wallTexture('face', tintOnlyTheme.tileSet)).toBe('tile-wall-face');
+    expect(floorVariant(2, tintOnlyTheme.tileSet)).toBe('tile-floor-2');
   });
 
   it('dresses the Hollow Throne with its namespaced art and generic decor keys', () => {
