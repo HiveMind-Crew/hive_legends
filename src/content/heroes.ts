@@ -127,7 +127,9 @@ export const HEROES: Record<string, HeroDef> = {
       range: 64,
       arcDeg: 150,
       knockback: 380, // heavy sweep that scatters hordes
-      cooldownTicks: 28
+      // Still the roster's lowest single-target DPS, but no longer so slow
+      // that the defensive anchor falls outside Mireveil's TTK spread bound.
+      cooldownTicks: 24
     },
     ability: {
       kind: 'guard',

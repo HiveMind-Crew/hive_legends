@@ -96,7 +96,7 @@ the Sentinel's maul to do it. Mid HP, mid speed, and a self-centred blast that
 clears the swarm threshold outright.
 
 The trade against the Sentinel is **focus for breadth**: the Vanguard kills
-what is in front of him roughly two and a half times faster, and pays for it by
+what is in front of him about one and a half times faster, and pays for it by
 being flankable. His track deepens reach and weight; it never widens the arc.
 
 ### Arcanist — Veyra Solmerin
@@ -219,7 +219,7 @@ history is kept because the reasoning constrains future tuning.
    to *Sunreaver Pike*. The Sentinel took the wide sweep outright (reach 56 →
    64, T3 arc 180° → 175° so no shipped weapon sits on the degenerate
    boundary). The Sentinel now out-crowds the Vanguard at every tier while the
-   Vanguard out-damages him by ~65%.
+   Vanguard out-damages him by ~53%.
 
 ### Cost of the melee split
 
@@ -295,9 +295,9 @@ upgrades, hero level and the frenzy relic — all of which scale damage only, ne
 | Ranger | T1 | Thornbow | — | 16 | 12t | 80.0 | pierce 2 / 380 px @ 520 px/s | 40 |
 | Ranger | T2 | Thornscar Bow | 100g | 17 | 11t | 92.7 | pierce 2 / 380 px @ 520 px/s | 40 |
 | Ranger | T3 | Galewind Longbow | 240g | 20 | 11t | 109.1 | pierce 4 / 380 px @ 520 px/s | 40 |
-| Sentinel | T1 | Warmaul | — | 20 | 28t | 42.9 | 150° / 64 px | 380 |
-| Sentinel | T2 | Bulwark Cleaver | 110g | 26 | 28t | 55.7 | 170° / 64 px | 380 |
-| Sentinel | T3 | Graven Maul | 260g | 34 | 28t | 72.9 | 175° / 68 px | 480 |
+| Sentinel | T1 | Warmaul | — | 20 | 24t | 50.0 | 150° / 64 px | 380 |
+| Sentinel | T2 | Bulwark Cleaver | 110g | 26 | 24t | 65.0 | 170° / 64 px | 380 |
+| Sentinel | T3 | Graven Maul | 260g | 34 | 24t | 85.0 | 175° / 68 px | 480 |
 
 ### Throughput and lockdown
 
@@ -320,9 +320,9 @@ which re-stuns before the previous stun lapses and locks that target out permane
 | Ranger | T1 | 80.0 | 3 | — | 240.0 | 83% |
 | Ranger | T2 | 92.7 | 3 | — | 278.2 | 91% |
 | Ranger | T3 | 109.1 | 5 | — | 545.5 | 91% |
-| Sentinel | T1 | 42.9 | arc | 5362 px² | 229.8 | 36% |
-| Sentinel | T2 | 55.7 | arc | 6077 px² | 338.5 | 36% |
-| Sentinel | T3 | 72.9 | arc | 7062 px² | 514.5 | 36% |
+| Sentinel | T1 | 50.0 | arc | 5362 px² | 268.1 | 42% |
+| Sentinel | T2 | 65.0 | arc | 6077 px² | 395.0 | 42% |
+| Sentinel | T3 | 85.0 | arc | 7062 px² | 600.2 | 42% |
 
 ### Abilities
 
@@ -357,9 +357,9 @@ A burst that does neither that nor control is a button with no felt moment.
 | Ranger | T1 | 0.50 | 1.75 | 0.57 | 4.00 |
 | Ranger | T2 | 0.43 | 1.51 | 0.50 | 3.45 |
 | Ranger | T3 | 0.37 | 1.28 | 0.42 | 2.93 |
-| Sentinel | T1 | 0.93 | 3.27 | 1.07 | 7.47 |
-| Sentinel | T2 | 0.72 | 2.51 | 0.83 | 5.74 |
-| Sentinel | T3 | 0.55 | 1.92 | 0.63 | 4.39 |
+| Sentinel | T1 | 0.80 | 2.80 | 0.92 | 6.40 |
+| Sentinel | T2 | 0.62 | 2.15 | 0.71 | 4.92 |
+| Sentinel | T3 | 0.47 | 1.65 | 0.54 | 3.76 |
 
 ### Axis leaders
 
@@ -373,7 +373,7 @@ to feel like one. Ties are listed together, and a tie is its own warning.
 | Move speed | Ranger | 230 | +40 over Vanguard |
 | Reach | Arcanist | 420 px | +40 px over Ranger |
 | Single-target DPS | Ranger | 80.0 | +3.6 over Vanguard |
-| Crowd score | Ranger | 240.0 | +10.2 over Sentinel |
+| Crowd score | Sentinel | 268.1 | +28.1 over Ranger |
 | Knockback | Sentinel | 380 | +160 over Vanguard |
 
 **Leads nothing: Vanguard.** A hero with no axis of its own is the shape convergence takes.
@@ -464,6 +464,25 @@ behind a full telegraph, and every phase transition both speeds her up and adds
 a move. The fight is meant to be learnable: the same sequence every time, so
 dying to it twice is the player's fault and not the dice's.
 
+#### Mireveil matchup budget
+
+Issue #104 replaced the old hand-timed “ranged ~15–17 s, melee ~32 s” note with
+a fixed-seed headless encounter. The untouched content did not reproduce that
+direction: Vanguard was fastest at 12.90 s, followed by Ranger at 22.52 s,
+Sentinel at 25.13 s, and Arcanist at 27.50 s. It did confirm the underlying
+problem, however: fastest to slowest was still 2.13×.
+
+Two small data changes close that outlier without giving every kit the same
+damage profile. Mireveil's collision radius is 42 px rather than 34, matching
+more of her 96 px silhouette and giving a properly aimed bolt a fair target
+through the clutch around her. The Sentinel's base sweep recovers in 24 ticks
+rather than 28; at 50 DPS he remains the lowest-damage hero at every weapon
+tier, while preserving his wide-arc crowd lead. The regression ceiling is
+**1.8× fastest-to-slowest**. Base-kit DPS still spans 1.6×, so that bound leaves
+room for archetypes but permits only 12.5% additional matchup overhead. The
+exact current measurements are generated from the real sim in
+[Mireveil's bestiary entry](#scripted-base-kit-time-to-kill).
+
 ### Changing an enemy or the boss
 
 **Tuning numbers:** edit `src/content/enemies.ts` or `src/content/bosses.ts`,
@@ -535,7 +554,7 @@ drop each hero from full — the pressure a single one of these represents, befo
 
 ### Mireveil — Mother of the Brood
 
-900 hp · radius 34 px · 12 contact damage every 0.75 s · 1.00 s telegraph · 150g and 600 xp on death.
+900 hp · radius 42 px · 12 contact damage every 0.75 s · 1.00 s telegraph · 150g and 600 xp on death.
 
 | Phase | Name | HP | Speed | Action interval | Action cycle |
 | --- | --- | --- | --- | --- | --- |
@@ -551,5 +570,18 @@ over the cycle above — no randomness — each preceded by the full telegraph.
 | brood-call | summons 3× skitterling | SHE CALLS THE BROOD! |
 | lunge | 420 px/s for 0.43 s, 22 damage on contact | SHE CHARGES! |
 | glob | 5 bolts across 60°, 10 damage @ 230 px/s, 420 px | SHE SPITS! |
+
+#### Scripted base-kit time to kill
+
+Fixed seed 104; level 1, tier-1 built-in weapon, no upgrades, room loot, or potions.
+One shared input script approaches through normal collision, attacks only in authored reach,
+uses each kit’s ability in its intended geometry, circles during recovery, and sidesteps charges.
+
+| Hero | Ticks | TTK |
+| --- | --- | --- |
+| Vanguard | 769 | 12.82 s |
+| Arcanist | 1255 | 20.92 s |
+| Ranger | 1363 | 22.72 s |
+| Sentinel | 1343 | 22.38 s |
 
 <!-- END GENERATED: bestiary-tables -->

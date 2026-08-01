@@ -44,7 +44,11 @@ export const MIREVEIL: BossDef = {
   name: 'Mireveil',
   title: 'Mother of the Brood',
   maxHp: 900,
-  radius: 34,
+  // The 96 px brood-queen sprite reads as a broad body. An 84 px collision
+  // diameter keeps that silhouette honest and lets aimed bolts reach her
+  // through the clutch spawned around her instead of vanishing into a tiny
+  // central hit target.
+  radius: 42,
   touchDamage: 12,
   touchCooldownTicks: 45,
   // 60 ticks = 1 s. The readability rule asks for >= 45; a content test guards it.
