@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { ABILITY_SPECIALIZATIONS } from '../src/content/abilitySpecializations';
 import { PROGRESSION } from '../src/content/progression';
 import { levelForXp } from '../src/sim/sim';
 import { actionToKeys, getState, WarrensBot } from './bot';
@@ -149,16 +150,31 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   expect(profile.bestClearTicks['brood-warrens']).toBeGreaterThan(0);
   expect(Object.keys(profile.bestClearTicks)).toEqual(['brood-warrens']);
 
-  // Buy a persistent upgrade in the results shop (Hearthstone Vigor, 80g).
+  // Buy one permanent ability branch through the real Results control. The
+  // sibling is mutually locked in meta; replay below proves the resolved
+  // ability, not the profile, is what crosses into the next sim.
+  const aftershock = ABILITY_SPECIALIZATIONS['vanguard-aftershock']!;
   const bank: number = profile.bank;
-  if (bank >= 80) {
+  expect(bank).toBeGreaterThanOrEqual(aftershock.cost);
+  await page.keyboard.press('6');
+  await page.waitForTimeout(300);
+  const afterSpecialization = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('hive-legends-profile-v1') ?? 'null')
+  );
+  expect(afterSpecialization.abilitySpecializations[aftershock.groupId]).toBe(aftershock.id);
+  expect(afterSpecialization.bank).toBe(bank - aftershock.cost);
+  await page.screenshot({ path: 'test-results/04b-results-specialized.png' });
+
+  // Buy a persistent upgrade in the results shop (Hearthstone Vigor, 80g).
+  const shopBank: number = afterSpecialization.bank;
+  if (shopBank >= 80) {
     await page.keyboard.press('1');
     await page.waitForTimeout(300);
     const after = await page.evaluate(() =>
       JSON.parse(localStorage.getItem('hive-legends-profile-v1') ?? 'null')
     );
     expect(after.upgrades.vitality).toBe(1);
-    expect(after.bank).toBe(bank - 80);
+    expect(after.bank).toBe(shopBank - 80);
   }
 
   // Replay: the hero must keep the purchased power (+20 max HP per vitality
@@ -169,11 +185,16 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
     .poll(async () => (await getState(page))?.phase, { timeout: 10_000 })
     .toBe('combat');
   const replayState = await getState(page);
-  const vitality = bank >= 80 ? 1 : 0;
+  const vitality = shopBank >= 80 ? 1 : 0;
   const heroLevel = levelForXp(PROGRESSION, profile.xp);
   const levelHp = (heroLevel - 1) * PROGRESSION.maxHpPerLevel;
   expect(replayState.players[0]!.level).toBe(heroLevel);
   expect(replayState.players[0]!.maxHp).toBe(120 + 20 * vitality + levelHp);
+  await page.keyboard.down('Shift');
+  await expect
+    .poll(async () => (await getState(page))?.pendingBlasts.length, { timeout: 1000, intervals: [10] })
+    .toBe(1);
+  await page.keyboard.up('Shift');
   await page.screenshot({ path: 'test-results/05-replay-upgraded.png' });
 
   // Abandon back to the wheel, which must now show the record the earlier clear

@@ -109,6 +109,19 @@ export interface BlastAbilityDef extends AbilityBase {
   slowTicks?: number;
   /** Movement-speed multiplier while slowed (e.g. 0.1 = near-rooted). */
   slowMult?: number;
+  /**
+   * Optional non-circular delivery. A faultline is a forward capsule from the
+   * caster rather than a burst around a point; omitted abilities keep the
+   * shipped circular behavior.
+   */
+  shape?: { kind: 'faultline'; length: number; width: number };
+  /** A deterministic second impact left at the original cast point. */
+  aftershock?: {
+    delayTicks: number;
+    damage: number;
+    radius: number;
+    knockback: number;
+  };
 }
 
 /**
@@ -144,6 +157,22 @@ export interface GuardAbilityDef extends AbilityBase {
 }
 
 export type AbilityDef = BlastAbilityDef | DashVolleyAbilityDef | GuardAbilityDef;
+
+/**
+ * A permanent, mutually exclusive branch for one hero ability. The complete
+ * resolved ability is authored here so the selected definition can cross the
+ * meta/sim boundary without the sim knowing anything about profiles or costs.
+ */
+export interface AbilitySpecializationDef {
+  id: string;
+  heroId: string;
+  /** Stable exclusivity key. Exactly one definition in a group may be bought. */
+  groupId: string;
+  name: string;
+  description: string;
+  cost: number;
+  ability: AbilityDef;
+}
 
 /**
  * How a hero is recruited on the hero-select screen. A hero with no `unlock`
@@ -721,6 +750,7 @@ export interface ReviveDef {
 
 export interface ContentDb {
   heroes: Record<string, HeroDef>;
+  abilitySpecializations: Record<string, AbilitySpecializationDef>;
   enemies: Record<string, EnemyDef>;
   generators: Record<string, GeneratorDef>;
   props: Record<string, PropDef>;
@@ -864,6 +894,16 @@ export interface ProjectileState {
   hostile: boolean;
 }
 
+/** A specialization-authored blast waiting to strike at a fixed cast point. */
+export interface PendingBlastState {
+  playerId: EntityId;
+  ticksLeft: number;
+  pos: Vec2;
+  damage: number;
+  radius: number;
+  knockback: number;
+}
+
 export type MissionPhase = 'combat' | 'exit-open' | 'complete' | 'failed';
 
 export interface SimState {
@@ -879,6 +919,7 @@ export interface SimState {
   gates: GateState[];
   secrets: SecretWallState[];
   projectiles: ProjectileState[];
+  pendingBlasts: PendingBlastState[];
   /** The level's boss, or null on a boss-less mission. Dead bosses stay at hp 0. */
   boss: BossState | null;
   /** How roused the hive is, 0 = calm. Rises on the mission clock (#41). */
@@ -927,7 +968,14 @@ export type SimEvent =
     }
   | { type: 'projectile-hit'; projectileId: EntityId; pos: Vec2 }
   | { type: 'projectile-expired'; projectileId: EntityId; pos: Vec2 }
-  | { type: 'ability'; playerId: EntityId; pos: Vec2; radius: number }
+  | {
+      type: 'ability';
+      playerId: EntityId;
+      pos: Vec2;
+      radius: number;
+      effect: 'impact' | 'slow' | 'aftershock';
+    }
+  | { type: 'ability-line'; playerId: EntityId; from: Vec2; to: Vec2; width: number }
   | { type: 'ability-dash'; playerId: EntityId; from: Vec2; to: Vec2 }
   | { type: 'ability-guard'; playerId: EntityId; pos: Vec2; durationTicks: number }
   | { type: 'guard-block'; playerId: EntityId; enemyId: EntityId; pos: Vec2 }
@@ -1023,6 +1071,12 @@ export interface SimPlayerConfig {
    * how a purchased weapon enters the sim — like modifiers, only at createSim.
    */
   attack?: AttackDef;
+  /**
+   * Resolved persistent ability specialization. Omit to use the hero's base
+   * ability. Like weapons and stat modifiers, this is the only point where the
+   * meta choice enters the sim.
+   */
+  ability?: AbilityDef;
   /**
    * Banked XP the hero carries in (issue #46). The sim derives the starting
    * level from it against the progression curve — meta enters the sim here and

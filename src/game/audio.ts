@@ -187,6 +187,7 @@ class AudioEngine {
         this.arpeggio([440, 330, 262, 196], 'triangle', 0.12, 0.5);
         break;
       case 'ability':
+      case 'ability-line':
         this.slam();
         break;
       case 'ability-dash':

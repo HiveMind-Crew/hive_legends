@@ -1,9 +1,19 @@
+import { ABILITY_SPECIALIZATIONS } from '../content/abilitySpecializations';
 import { ECONOMY } from '../content/economy';
 import { PROGRESSION } from '../content/progression';
 import { SPOKES, TEASER_SPOKES } from '../content/spokes';
 import { WEAPONS } from '../content/weapons';
 import { levelForXp } from '../sim/sim';
-import type { AttackDef, HeroDef, HeroModifiers, SpokeDef, TeaserSpokeDef, WeaponDef } from '../sim/types';
+import type {
+  AbilityDef,
+  AbilitySpecializationDef,
+  AttackDef,
+  HeroDef,
+  HeroModifiers,
+  SpokeDef,
+  TeaserSpokeDef,
+  WeaponDef
+} from '../sim/types';
 
 /**
  * Persistent meta-progression, stored in localStorage. Mission gold is
@@ -61,6 +71,8 @@ export interface Profile {
    * entry (or an unset `equipped`) means the base weapon is equipped.
    */
   weapons: Record<string, { owned: string[]; equipped?: string }>;
+  /** Chosen ability-specialization id keyed by its mutually exclusive group. */
+  abilitySpecializations: Record<string, string>;
   /** Total XP banked across runs; drives the hero's starting level (#46). */
   xp: number;
   /** Master audio volume 0..1. */
@@ -82,6 +94,7 @@ export function defaultProfile(): Profile {
     clearedLevels: [],
     mastery: {},
     weapons: {},
+    abilitySpecializations: {},
     xp: 0,
     volume: 0.7,
     muted: false,
@@ -107,6 +120,18 @@ function migrateClearTicks(stored: Profile['bestClearTicks'] | number | null | u
   return out;
 }
 
+/** Keeps only real specialization ids stored under their authored group. */
+function migrateAbilitySpecializations(stored: unknown): Record<string, string> {
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return {};
+  const out: Record<string, string> = {};
+  for (const [groupId, specializationId] of Object.entries(stored)) {
+    if (typeof specializationId !== 'string') continue;
+    const def = ABILITY_SPECIALIZATIONS[specializationId];
+    if (def?.groupId === groupId) out[groupId] = specializationId;
+  }
+  return out;
+}
+
 export function loadProfile(): Profile {
   try {
     const raw = globalThis.localStorage?.getItem(STORAGE_KEY);
@@ -125,7 +150,8 @@ export function loadProfile(): Profile {
           Array.isArray(heroIds) ? [...heroIds] : []
         ])
       ),
-      weapons: { ...(parsed.weapons ?? {}) }
+      weapons: { ...(parsed.weapons ?? {}) },
+      abilitySpecializations: migrateAbilitySpecializations(parsed.abilitySpecializations)
     };
   } catch {
     return defaultProfile();
@@ -592,6 +618,62 @@ export function equippedAttack(profile: Profile, hero: HeroDef): AttackDef | und
   const weapon = equippedWeapon(profile, hero.id);
   if (!weapon || weapon.tier === 1) return undefined;
   return resolveWeaponAttack(hero, weapon);
+}
+
+// ---------------------------------------------------------------------------
+// Ability specializations (issue #108)
+// ---------------------------------------------------------------------------
+
+/** Authored specialization choices for a hero, in stable content order. */
+export function abilitySpecializationsForHero(heroId: string): AbilitySpecializationDef[] {
+  return Object.values(ABILITY_SPECIALIZATIONS).filter((def) => def.heroId === heroId);
+}
+
+/** The persistent shop state for one authored branch. */
+export type AbilitySpecializationState =
+  | { state: 'chosen' }
+  | { state: 'locked'; chosenId: string }
+  | { state: 'purchasable'; cost: number; affordable: boolean }
+  | { state: 'unavailable' };
+
+export function abilitySpecializationState(profile: Profile, specializationId: string): AbilitySpecializationState {
+  const def = ABILITY_SPECIALIZATIONS[specializationId];
+  if (!def) return { state: 'unavailable' };
+  const chosenId = profile.abilitySpecializations[def.groupId];
+  if (chosenId === def.id) return { state: 'chosen' };
+  if (chosenId) return { state: 'locked', chosenId };
+  return { state: 'purchasable', cost: def.cost, affordable: profile.bank >= def.cost };
+}
+
+/**
+ * Buys one permanent branch. A group is write-once: the chosen branch and all
+ * siblings reject every later purchase, so neither repeat input nor a stale UI
+ * can spend the bank twice or cross the mutually exclusive fork.
+ */
+export function buyAbilitySpecialization(profile: Profile, specializationId: string): boolean {
+  const def = ABILITY_SPECIALIZATIONS[specializationId];
+  if (!def) return false;
+  if (profile.abilitySpecializations[def.groupId]) return false;
+  if (profile.bank < def.cost) return false;
+  profile.bank -= def.cost;
+  profile.abilitySpecializations[def.groupId] = def.id;
+  saveProfile(profile);
+  return true;
+}
+
+/** The branch selected for this hero, if that hero has made its choice. */
+export function selectedAbilitySpecialization(
+  profile: Profile,
+  heroId: string
+): AbilitySpecializationDef | undefined {
+  return abilitySpecializationsForHero(heroId).find(
+    (def) => profile.abilitySpecializations[def.groupId] === def.id
+  );
+}
+
+/** Resolved ability handed to SimPlayerConfig; base kits need no override. */
+export function specializedAbility(profile: Profile, hero: HeroDef): AbilityDef | undefined {
+  return selectedAbilitySpecialization(profile, hero.id)?.ability;
 }
 
 /** Persists audio preferences without disturbing progression fields. */

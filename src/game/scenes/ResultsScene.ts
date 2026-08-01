@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { CONTENT, firstClearBonus, LEVELS, MISSION_ORDER } from '../../content';
 import {
   bankXp,
+  abilitySpecializationsForHero,
+  buyAbilitySpecialization,
   buyUpgrade,
   buyWeapon,
   equipWeapon,
@@ -27,6 +29,7 @@ import { continuesSpentCopy } from '../continueCopy';
 import { bindFullscreenToggle } from '../fullscreen';
 import { bindPadMenu } from '../padMenu';
 import { TEX } from '../textures';
+import { specializationShopRows } from '../specializationCopy';
 import { xpResultCopy } from '../xpCopy';
 
 interface ResultsData {
@@ -193,12 +196,13 @@ export class ResultsScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.shopText = this.add
-      .text(width / 2, 355, '', {
+      .text(width / 2, 370, '', {
         fontFamily: 'monospace',
-        fontSize: '16px',
+        fontSize: '14px',
         color: '#f4e3b2',
         align: 'center',
-        lineSpacing: 10
+        lineSpacing: 7,
+        wordWrap: { width: width - 60, useAdvancedWrap: true }
       })
       .setOrigin(0.5);
 
@@ -245,7 +249,7 @@ export class ResultsScene extends Phaser.Scene {
         height - 48,
         `O — settings      Pad: ${
           nextName ? '(A) next realm  (B) the wheel  (X) replay' : '(A) replay  (B) the wheel'
-        }  LB/RB/(Y) buy`,
+        }  LB/RB/(Y) buy${abilitySpecializationsForHero(this.heroId).length ? '  ↑/↓ specialize' : ''}`,
         {
           fontFamily: 'monospace',
           fontSize: '13px',
@@ -285,6 +289,8 @@ export class ResultsScene extends Phaser.Scene {
     kb.on('keydown-TWO', () => this.tryBuy('might'));
     kb.on('keydown-THREE', () => this.tryBuyWeapon());
     kb.on('keydown-FOUR', () => this.cycleWeapon());
+    kb.on('keydown-FIVE', () => this.tryBuyAbilitySpecialization(0));
+    kb.on('keydown-SIX', () => this.tryBuyAbilitySpecialization(1));
     const openSettings = (): void => {
       audio.uiConfirm();
       this.scene.launch('settings', { returnScene: 'results' });
@@ -324,6 +330,8 @@ export class ResultsScene extends Phaser.Scene {
       shoulderRight: () => this.tryBuy('might'),
       left: () => this.cycleWeapon(),
       right: () => this.cycleWeapon(),
+      up: () => this.tryBuyAbilitySpecialization(0),
+      down: () => this.tryBuyAbilitySpecialization(1),
       back: toHeroSelect,
       menu: openSettings
     });
@@ -381,6 +389,17 @@ export class ResultsScene extends Phaser.Scene {
     this.refreshTexts();
   }
 
+  private tryBuyAbilitySpecialization(index: number): void {
+    const def = abilitySpecializationsForHero(this.heroId)[index];
+    if (def && buyAbilitySpecialization(this.profile, def.id)) {
+      if (!loadProfile().reduceMotion) this.cameras.main.flash(170, 217, 164, 65);
+      audio.uiConfirm();
+    } else {
+      audio.uiTick(220);
+    }
+    this.settleBank();
+  }
+
   private refreshTexts(): void {
     this.bankText.setText(`Bank: ${Math.round(this.shownBank)} gold`);
     const lines = Object.values(UPGRADES).map((def, i) => {
@@ -400,6 +419,13 @@ export class ResultsScene extends Phaser.Scene {
       : '[3] Buy weapon — all owned';
     lines.push('');
     lines.push(`${heroName}'s weapon: ${equippedName}   ${buyLine}   [4] Swap equipped`);
+
+    const specializationRows = specializationShopRows(this.profile, this.heroId);
+    if (specializationRows.length > 0) {
+      lines.push('');
+      lines.push('ABILITY SPECIALIZATION — permanent, choose one');
+      lines.push(...specializationRows.map((row) => row.text));
+    }
 
     this.shopText.setText(lines.join('\n'));
   }

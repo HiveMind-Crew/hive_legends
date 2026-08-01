@@ -9,6 +9,39 @@ import { DECOR_KINDS, ENEMY_FAMILIES, ENEMY_TIERS } from '../src/sim/types';
  * texture generator composes frames from exactly these keys.
  */
 describe('content validity', () => {
+  it('ability specializations form same-kind, mutually exclusive hero branches', () => {
+    const groups = new Map<string, typeof CONTENT.abilitySpecializations[string][]>();
+    for (const [id, def] of Object.entries(CONTENT.abilitySpecializations)) {
+      expect(id, 'map key matches stable id').toBe(def.id);
+      const hero = CONTENT.heroes[def.heroId];
+      expect(hero, `${id} references a real hero`).toBeDefined();
+      expect(def.groupId.length, `${id} group id`).toBeGreaterThan(0);
+      expect(def.name.length, `${id} player name`).toBeGreaterThan(0);
+      expect(def.description.length, `${id} player description`).toBeGreaterThan(0);
+      expect(def.cost, `${id} gold cost`).toBeGreaterThan(0);
+      expect(def.ability.kind, `${id} preserves ${def.heroId}'s ability archetype`).toBe(hero!.ability.kind);
+      expect(def.ability.cooldownTicks, `${id} cooldown`).toBeGreaterThan(0);
+      if (def.ability.kind === 'blast' && def.ability.shape?.kind === 'faultline') {
+        expect(def.ability.shape.length, `${id} faultline length`).toBeGreaterThan(0);
+        expect(def.ability.shape.width, `${id} faultline width`).toBeGreaterThan(0);
+      }
+      if (def.ability.kind === 'blast' && def.ability.aftershock) {
+        expect(def.ability.aftershock.delayTicks, `${id} aftershock delay`).toBeGreaterThan(0);
+        expect(def.ability.aftershock.damage, `${id} aftershock damage`).toBeGreaterThan(0);
+        expect(def.ability.aftershock.radius, `${id} aftershock radius`).toBeGreaterThan(0);
+      }
+      const members = groups.get(def.groupId) ?? [];
+      members.push(def);
+      groups.set(def.groupId, members);
+    }
+    expect(groups.size).toBeGreaterThan(0);
+    for (const [groupId, defs] of groups) {
+      expect(defs, `${groupId} is a real fork`).toHaveLength(2);
+      expect(new Set(defs.map((def) => def.heroId)).size, `${groupId} belongs to one hero`).toBe(1);
+      expect(new Set(defs.map((def) => JSON.stringify(def.ability))).size, `${groupId} changes behavior`).toBe(2);
+    }
+  });
+
   it('every enemy references a valid family and tier', () => {
     const enemies = Object.values(CONTENT.enemies);
     expect(enemies.length).toBeGreaterThan(0);
