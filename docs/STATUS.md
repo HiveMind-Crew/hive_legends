@@ -78,12 +78,12 @@ level in the renderer.
 
 ## Verification state
 
-`lint`, `typecheck`, **292 unit tests across 24 files**, the production build,
-and the Playwright gameplay playthrough (bot clears The Brood Warrens, banks
-gold and XP, buys an upgrade, and replays with both the upgrade and the earned
-level applied; screenshots in `test-results/`) all pass. Run the whole gate
-with the one-liner in `CLAUDE.md`; layer-by-layer detail is in
-`docs/TESTING.md`.
+`lint`, `typecheck`, **443 unit tests across 42 files**, the production build,
+and all 13 Playwright checks pass. Browser coverage includes solo keyboard and
+gamepad clears, hot-plug, continue, specialization purchase/replay, two
+independent pads clearing The Brood Warrens with one shared-profile payout,
+and viewport fitting; screenshots land in `test-results/`. Run the whole gate
+with the one-liner in `CLAUDE.md`; layer-by-layer detail is in `docs/TESTING.md`.
 
 One transient e2e failure was observed once early in development and has not
 reproduced since — watch CI for recurrence.
