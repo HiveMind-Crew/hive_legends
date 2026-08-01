@@ -1,5 +1,6 @@
 import { TICK_RATE } from '../src/sim/types';
 import type { AttackDef, BossActionDef, BossDef, ContentDb, EnemyDef, GeneratorDef, HeroDef, WeaponDef } from '../src/sim/types';
+import { benchmarkMireveilRoster, MIREVEIL_BENCHMARK_SEED } from './mireveilBenchmark';
 
 /**
  * Derives every combat table in docs/COMBAT.md from src/content, so the
@@ -417,6 +418,15 @@ function bossActionDescription(action: BossActionDef): string {
   );
 }
 
+function mireveilBenchmarkTable(content: ContentDb): string {
+  const rows = benchmarkMireveilRoster(content).map((result) => [
+    result.role,
+    String(result.ticks),
+    `${result.seconds.toFixed(2)} s`
+  ]);
+  return table(['Hero', 'Ticks', 'TTK'], rows);
+}
+
 // ---------------------------------------------------------------------------
 // Assembly
 // ---------------------------------------------------------------------------
@@ -524,7 +534,19 @@ export function renderBestiaryTables(content: ContentDb): string {
       'over the cycle above — no randomness — each preceded by the full telegraph.',
       '',
       bossActionTable(boss),
-      ''
+      '',
+      ...(boss.id === 'mireveil'
+        ? [
+            '#### Scripted base-kit time to kill',
+            '',
+            `Fixed seed ${MIREVEIL_BENCHMARK_SEED}; level 1, tier-1 built-in weapon, no upgrades, room loot, or potions.`,
+            'One shared input script approaches through normal collision, attacks only in authored reach,',
+            'uses each kit’s ability in its intended geometry, circles during recovery, and sidesteps charges.',
+            '',
+            mireveilBenchmarkTable(content),
+            ''
+          ]
+        : [])
     ]),
     marker.end
   ];

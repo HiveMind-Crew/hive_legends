@@ -450,7 +450,7 @@ raised to hold its DPS roughly in place. The Vanguard became a pike — arc 110�
 → 70°, reach 52 → 68, damage 25 → 28, T3 renamed *Sunreaver Pike* — and the
 Sentinel took the wide sweep outright (reach 56 → 64, T3 arc 180° → 175°). The
 Sentinel now out-crowds the Vanguard at every tier while the Vanguard
-out-damages him ~65%. Both tracked-exception sets in `tests/combat.test.ts` are
+out-damages him ~53%. Both tracked-exception sets in `tests/combat.test.ts` are
 empty, so all nine archetype invariants hold unconditionally.
 
 Cost worth watching: narrowing the Vanguard slowed the e2e bot's reference
@@ -484,6 +484,9 @@ realm and the invariants that guard it.
 M1 and its original-art track are complete. The next work should start by
 turning the M2 candidates in tracking issue #29 into scoped implementation
 issues rather than extending the finished vertical slice ad hoc.
-Balance note carried from #25: ranged heroes kite Mireveil noticeably more
-easily than melee (~15–17s vs ~32s to kill). Worth a tuning pass once there is
-real playtest data, rather than speculative numbers now.
+The Mireveil balance note from #25 is resolved by #104. A deterministic
+level-1, base-kit benchmark now measures every hero and generates its table in
+`docs/COMBAT.md`; the checked regression ceiling is 1.8× fastest-to-slowest.
+The old anecdotal ranged advantage did not reproduce, but the baseline still
+showed a 2.13× outlier, closed by Mireveil's truer-to-silhouette hit radius and
+a modest Sentinel recovery improvement.
