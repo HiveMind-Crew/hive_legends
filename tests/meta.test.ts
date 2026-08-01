@@ -3,6 +3,7 @@ import { CONTENT, MISSION_ORDER, SPOKES, TEASER_SPOKES } from '../src/content';
 import {
   bestClearTicks,
   buyContinue,
+  claimTutorial,
   buyHeroUnlock,
   continueCost,
   buyWeapon,
@@ -44,6 +45,19 @@ import { WEAPONS } from '../src/content/weapons';
 describe('profile reset', () => {
   it('restores every profile field to its default', () => {
     expect(resetProfile()).toEqual(defaultProfile());
+  });
+});
+
+describe('contextual tutorials (#97)', () => {
+  it('claims each lesson once per profile', () => {
+    const profile = defaultProfile();
+    expect(claimTutorial(profile, 'potion')).toBe(true);
+    expect(claimTutorial(profile, 'potion')).toBe(false);
+    expect(profile.tutorialsSeen).toEqual(['potion']);
+  });
+
+  it('backfills tutorial history for older saves', () => {
+    expect(loadProfile().tutorialsSeen).toEqual([]);
   });
 });
 

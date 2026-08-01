@@ -154,8 +154,15 @@ test('a gamepad can navigate the shell and clear The Brood Warrens', async ({ pa
 
   // Results banks the run, so the pad drove a complete mission end to end.
   await expect
-    .poll(() => page.evaluate(() => localStorage.getItem('hive-legends-profile-v1')), { timeout: 10_000 })
-    .not.toBeNull();
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const raw = localStorage.getItem('hive-legends-profile-v1');
+          return raw ? (JSON.parse(raw).missionsCompleted ?? 0) : 0;
+        }),
+      { timeout: 10_000 }
+    )
+    .toBeGreaterThanOrEqual(1);
   const profile = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('hive-legends-profile-v1') ?? 'null')
   );
