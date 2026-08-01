@@ -131,9 +131,18 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   expect(lastPhase).toBe('complete');
   // The end-of-mission banner shows first; poll until the results scene has
   // banked the run to the persistent profile rather than sleeping a fixed time.
+  // Contextual lessons may create the profile during combat (#97), so mere
+  // localStorage presence no longer proves ResultsScene has run.
   await expect
-    .poll(() => page.evaluate(() => localStorage.getItem('hive-legends-profile-v1')), { timeout: 10_000 })
-    .not.toBeNull();
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const raw = localStorage.getItem('hive-legends-profile-v1');
+          return raw ? (JSON.parse(raw).missionsCompleted ?? 0) : 0;
+        }),
+      { timeout: 10_000 }
+    )
+    .toBeGreaterThanOrEqual(1);
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'test-results/04-results.png' });
 

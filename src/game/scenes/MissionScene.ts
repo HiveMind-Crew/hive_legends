@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { BROOD_WARRENS, CONTENT, LEVELS } from '../../content';
 import {
   buyContinue,
+  claimTutorial,
   continueCost,
   equippedAttack,
   loadProfile,
@@ -35,6 +36,7 @@ import { bindFullscreenToggle } from '../fullscreen';
 import { playerAccent } from '../colors';
 import { PlayerCommander, type Commander } from '../input';
 import { bindPadMenu } from '../padMenu';
+import { tutorialHerald, type TutorialId } from '../tutorialCopy';
 import type { HudScene } from './HudScene';
 import {
   FLOOR_VARIANTS,
@@ -746,8 +748,8 @@ export class MissionScene extends Phaser.Scene {
             ev.kind === 'gold' ? '#ffd75e' : ev.kind === 'key' ? '#e6c34a' : ev.kind === 'potion' ? '#7be08a' : '#e0524d';
           this.floatText(ev.pos, label, color);
           this.burst(ev.kind === 'health' ? this.heartFx : this.sparkFx, ev.kind === 'health' ? 5 : 6, ev.pos);
-          if (ev.kind === 'key') hud.herald('YOU FOUND A KEY', '#e6c34a');
-          if (ev.kind === 'potion') hud.herald('HIVE-FIRE DRAUGHT — [Q] TO QUAFF', '#7be08a');
+          if (ev.kind === 'key' && !this.teach('key-gate', hud)) hud.herald('YOU FOUND A KEY', '#e6c34a');
+          if (ev.kind === 'potion' && !this.teach('potion', hud)) hud.herald('HIVE-FIRE DRAUGHT', '#7be08a');
           break;
         }
         case 'powerup-gained': {
@@ -757,7 +759,7 @@ export class MissionScene extends Phaser.Scene {
           this.floatText(ev.pos, name.toUpperCase(), hex);
           this.flashRing(ev.pos, 34, color);
           this.burst(this.sparkFx, 8, ev.pos);
-          hud.herald(`${name.toUpperCase()} EMPOWERED`, hex);
+          if (!this.teach('relic', hud, name)) hud.herald(`${name.toUpperCase()} EMPOWERED`, hex);
           break;
         }
         case 'player-hit':
@@ -821,6 +823,14 @@ export class MissionScene extends Phaser.Scene {
           break;
       }
     }
+  }
+
+  /** Shows and persists a first-run lesson, leaving repeat pickups to normal feedback. */
+  private teach(id: TutorialId, hud: HudScene, relicName?: string): boolean {
+    if (!claimTutorial(this.profile, id)) return false;
+    const lesson = tutorialHerald(id, relicName);
+    hud.herald(lesson.text, lesson.color);
+    return true;
   }
 
   private spriteFor(ev: { enemyId?: EntityId; generatorId?: EntityId }): Phaser.GameObjects.Image | undefined {

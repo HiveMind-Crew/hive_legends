@@ -80,6 +80,8 @@ export interface Profile {
   muted: boolean;
   /** Disables full-screen flashes, camera shake, and hit-stop. */
   reduceMotion: boolean;
+  /** Stable ids for contextual lessons already shown on this profile (#97). */
+  tutorialsSeen: string[];
 }
 
 const STORAGE_KEY = 'hive-legends-profile-v1';
@@ -98,7 +100,8 @@ export function defaultProfile(): Profile {
     xp: 0,
     volume: 0.7,
     muted: false,
-    reduceMotion: false
+    reduceMotion: false,
+    tutorialsSeen: []
   };
 }
 
@@ -151,7 +154,10 @@ export function loadProfile(): Profile {
         ])
       ),
       weapons: { ...(parsed.weapons ?? {}) },
-      abilitySpecializations: migrateAbilitySpecializations(parsed.abilitySpecializations)
+      abilitySpecializations: migrateAbilitySpecializations(parsed.abilitySpecializations),
+      tutorialsSeen: Array.isArray(parsed.tutorialsSeen)
+        ? [...new Set(parsed.tutorialsSeen.filter((id): id is string => typeof id === 'string'))]
+        : []
     };
   } catch {
     return defaultProfile();
@@ -171,6 +177,18 @@ export function resetProfile(): Profile {
   const profile = defaultProfile();
   saveProfile(profile);
   return profile;
+}
+
+/**
+ * Claims a contextual lesson for this profile. The first caller persists it
+ * and gets `true`; later callers get `false`, so presentation can fall back to
+ * ordinary pickup feedback without repeating tutorial copy.
+ */
+export function claimTutorial(profile: Profile, tutorialId: string): boolean {
+  if (profile.tutorialsSeen.includes(tutorialId)) return false;
+  profile.tutorialsSeen.push(tutorialId);
+  saveProfile(profile);
+  return true;
 }
 
 export function upgradeLevel(profile: Profile, upgradeId: string): number {

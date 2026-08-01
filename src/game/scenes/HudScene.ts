@@ -5,6 +5,7 @@ import { TEX, heroPortrait } from '../textures';
 import { POWERUP_KINDS } from '../../sim/types';
 import { MAX_PLAYERS, anchorOffset, panelLayout } from '../hudLayout';
 import { heroLevelCopy } from '../xpCopy';
+import { missionControlsText } from '../tutorialCopy';
 import type { HudInfo, MissionScene } from './MissionScene';
 
 /**
@@ -163,10 +164,10 @@ export class HudScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const backdrop = this.add.rectangle(0, 0, width, height, 0x07050c, 0.82).setOrigin(0, 0);
     const panel = this.add
-      .rectangle(width / 2, height / 2, 520, 320, 0x171020, 0.98)
+      .rectangle(width / 2, height / 2, 660, 520, 0x171020, 0.98)
       .setStrokeStyle(3, 0x64e6ff, 0.8);
     const title = this.add
-      .text(width / 2, height / 2 - 104, 'RUN PAUSED', {
+      .text(width / 2, height / 2 - 220, 'RUN PAUSED', {
         fontFamily: 'monospace',
         fontSize: '34px',
         color: '#ffd75e',
@@ -174,14 +175,30 @@ export class HudScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     const subtitle = this.add
-      .text(width / 2, height / 2 - 60, 'The hive waits. No time passes.', {
+      .text(width / 2, height / 2 - 180, 'The hive waits. No time passes.', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#a89bb8'
       })
       .setOrigin(0.5);
+    const controlsTitle = this.add
+      .text(width / 2, height / 2 - 138, 'CONTROLS                 KEYBOARD              GAMEPAD', {
+        fontFamily: 'monospace',
+        fontSize: '13px',
+        color: '#64e6ff',
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5);
+    const controls = this.add
+      .text(width / 2, height / 2 - 106, missionControlsText(), {
+        fontFamily: 'monospace',
+        fontSize: '15px',
+        color: '#e7e0ef',
+        lineSpacing: 8
+      })
+      .setOrigin(0.5, 0);
     const resume = this.add
-      .text(width / 2, height / 2, 'ESC — RESUME', {
+      .text(width / 2, height / 2 + 62, 'ESC / START — RESUME', {
         fontFamily: 'monospace',
         fontSize: '22px',
         color: '#9fe06a',
@@ -189,21 +206,21 @@ export class HudScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     const abandon = this.add
-      .text(width / 2, height / 2 + 48, 'A — ABANDON RUN', {
+      .text(width / 2, height / 2 + 112, 'A / PAD B — ABANDON RUN', {
         fontFamily: 'monospace',
         fontSize: '20px',
         color: '#ff7a70'
       })
       .setOrigin(0.5);
     const settings = this.add
-      .text(width / 2, height / 2 + 92, 'S — SETTINGS', {
+      .text(width / 2, height / 2 + 154, 'S / PAD X — SETTINGS', {
         fontFamily: 'monospace',
         fontSize: '18px',
         color: '#cfc4de'
       })
       .setOrigin(0.5);
     const note = this.add
-      .text(width / 2, height / 2 + 132, 'Abandoning forfeits all rewards from this run.', {
+      .text(width / 2, height / 2 + 204, 'Abandoning forfeits all rewards from this run.', {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#756a86'
@@ -211,7 +228,7 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.pauseLayer = this.add
-      .container(0, 0, [backdrop, panel, title, subtitle, resume, abandon, settings, note])
+      .container(0, 0, [backdrop, panel, title, subtitle, controlsTitle, controls, resume, abandon, settings, note])
       .setDepth(10_000)
       .setVisible(false);
   }
