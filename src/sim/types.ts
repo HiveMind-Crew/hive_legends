@@ -22,6 +22,12 @@ export interface InputCommand {
   ability: boolean;
   /** Rising-edge: consume one carried potion this tick (screen-clear burst). */
   usePotion: boolean;
+  /** Rising-edge: claim this player slot for the run. */
+  join: boolean;
+  /** Rising-edge: deliberately make this slot dormant. Slot 0 cannot leave. */
+  leave: boolean;
+  /** Held: revive a nearby downed teammate. */
+  interact: boolean;
 }
 
 export const EMPTY_INPUT: InputCommand = Object.freeze({
@@ -29,7 +35,10 @@ export const EMPTY_INPUT: InputCommand = Object.freeze({
   moveY: 0,
   attack: false,
   ability: false,
-  usePotion: false
+  usePotion: false,
+  join: false,
+  leave: false,
+  interact: false
 });
 
 export type EntityId = number;
@@ -324,6 +333,8 @@ export interface GeneratorDef {
   spawnIntervalTicks: number;
   /** Max simultaneously-alive enemies originating from one generator. */
   maxAlive: number;
+  /** Extra alive-cap per participating hero above one; solo remains exact. */
+  maxAlivePerExtraPlayer?: number;
   goldDrop: number;
   /** XP awarded for destroying it (issue #46). */
   xp: number;
@@ -746,6 +757,14 @@ export interface ReviveDef {
   clearRadius: number;
   /** Impulse applied to those enemies, in px/s. */
   knockback: number;
+  /** Range in pixels for a living hero to help a downed teammate. */
+  teammateRange: number;
+  /** Consecutive held-input ticks required for a teammate revive. */
+  teammateHoldTicks: number;
+  /** Fraction of max HP restored by a free teammate revive. */
+  teammateHpFraction: number;
+  /** I-frames granted by a teammate revive. */
+  teammateInvulnTicks: number;
 }
 
 export interface ContentDb {
@@ -778,6 +797,8 @@ export type PickupKind = 'gold' | 'health' | 'powerup' | 'key' | 'potion';
 
 export interface PlayerState {
   id: EntityId;
+  /** Stable local input/config slot; array order is not player identity. */
+  slot: number;
   heroId: string;
   pos: Vec2;
   facing: Vec2;
@@ -798,8 +819,18 @@ export interface PlayerState {
   potions: number;
   /** Total XP carried into and earned during this run (issue #46). */
   xp: number;
+  /** Unique party XP sources personally secured; used only in results. */
+  xpEarned: number;
   /** Level derived from `xp` against the progression curve; 1-based. */
   level: number;
+  /** False after an explicit drop-out; dormant players retain contributions. */
+  participating: boolean;
+  /** Consecutive help ticks accumulated while this hero is down. */
+  reviveProgress: number;
+  /** Reviver currently supplying that consecutive progress, or null. */
+  reviveBy: EntityId | null;
+  /** Tick of the most recent hit, used to interrupt a held revive. */
+  lastHitTick: number;
   alive: boolean;
 }
 
@@ -912,6 +943,8 @@ export interface SimState {
   nextEntityId: number;
   phase: MissionPhase;
   players: PlayerState[];
+  /** Unique run rewards banked once into the shared local profile. */
+  rewards: { gold: number; xp: number };
   enemies: EnemyState[];
   generators: GeneratorState[];
   pickups: PickupState[];
@@ -1045,8 +1078,10 @@ export type SimEvent =
   | { type: 'pressure-rose'; stage: number }
   | { type: 'player-hit'; playerId: EntityId; damage: number; pos: Vec2 }
   | { type: 'player-died'; playerId: EntityId; pos: Vec2 }
-  /** A continue was bought and the hero stood back up (issue #99). */
-  | { type: 'player-revived'; playerId: EntityId; pos: Vec2; hp: number }
+  /** A teammate helped or a shared-bank continue stood the hero back up. */
+  | { type: 'player-revived'; playerId: EntityId; pos: Vec2; hp: number; source: 'teammate' | 'continue' }
+  | { type: 'player-joined'; playerId: EntityId; slot: number; pos: Vec2 }
+  | { type: 'player-left'; playerId: EntityId; slot: number; pos: Vec2 }
   | { type: 'exit-opened'; pos: Vec2 }
   | { type: 'mission-complete' }
   | { type: 'mission-failed' };
@@ -1064,6 +1099,8 @@ export const NO_MODIFIERS: HeroModifiers = Object.freeze({ maxHpBonus: 0, damage
 
 export interface SimPlayerConfig {
   heroId: string;
+  /** False reserves a deterministic drop-in slot without spawning it yet. */
+  startJoined?: boolean;
   modifiers?: HeroModifiers;
   /**
    * Resolved attack for the equipped weapon tier (hero base attack merged with

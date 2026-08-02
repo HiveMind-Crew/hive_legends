@@ -56,7 +56,7 @@ describe('revivePlayer', () => {
     expect(p.invulnTicks).toBe(CONTENT.revive.invulnTicks);
     expect(p.pos).toEqual(deathSpot); // the arcade answer: continue where you stood
     expect(sim.state.phase).toBe('combat');
-    expect(events).toEqual([{ type: 'player-revived', playerId: p.id, pos: deathSpot, hp: p.hp }]);
+    expect(events).toEqual([{ type: 'player-revived', playerId: p.id, pos: deathSpot, hp: p.hp, source: 'continue' }]);
   });
 
   it('shoves the ring of enemies standing over the body, without damaging them', () => {

@@ -1,18 +1,18 @@
 /**
- * Top-bar geometry for the per-player HUD panels (issue #96).
+ * Top-bar geometry for the dynamic per-player HUD panels (issues #96/#106).
  *
  * The HUD used to draw four fixed panels and fill the three empty ones with
  * dimmed JOIN placeholders. In a game that is solo-only until M3 that spent
  * three quarters of a 960px bar advertising a mode that does not exist, and
  * squeezed the objective ribbon underneath it.
  *
- * Panels now derive from the live player count: the bar is always full, and
- * whoever is actually playing gets the whole of it. Kept out of `HudScene` so
+ * Panels derive from the live joined count: the bar reflows on explicit join
+ * and drop-out, and whoever is playing gets the whole of it. Kept out of `HudScene` so
  * the arithmetic is testable without Phaser (the `hubCopy` precedent) — the
  * scene asks where the panels go and draws them.
  */
 
-/** Co-op ceiling. Nothing today exceeds one; the maths must still hold at four. */
+/** Local co-op ceiling, matching the four authored level spawn slots. */
 export const MAX_PLAYERS = 4;
 
 /**

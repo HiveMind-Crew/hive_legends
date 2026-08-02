@@ -17,9 +17,10 @@ npm run dev        # hot-reload dev server → http://localhost:5173
 ```
 
 Controls: **WASD/Arrows** move · **Space/J** attack · **Shift/K** ability ·
-**Q** quaff a potion · **Enter** confirm · **Esc** pause. On a gamepad:
+**Q** quaff a potion · hold **E** to revive · **Enter** confirm · **Esc** pause. On a gamepad:
 **left stick / d-pad** move · **(A)** attack and confirm · **(X)** ability ·
-**(Y)** potion · **(B)** back · **START** pause. On hero select,
+**(Y)** potion · hold **(B)** to revive · **START** pause for P1 / join for
+P2–P4 · **BACK** drop out an extra slot. On hero select,
 **←→** pick a hero, **B** recruit. On the wheel, **↑↓** move along a spoke,
 **←→** jump between realms, **Enter** deploy, **H** back to hero select. In
 the results shop, **1/2** buy upgrades, **3/4** weapons, **N** next mission,
@@ -41,6 +42,7 @@ npm run build && npm run preview   # production build → http://localhost:4173
 | Unit (vitest) | `npm test` (watch: `npm run test:watch`) | The whole gameplay sim, headlessly: movement, combat, attack windups, generators and enrage, pickups and power-ups, keys/gates/secrets, the boss phase script, XP and levelling, and a determinism regression (same seed + inputs ⇒ byte-identical state) |
 | End-to-end (Playwright) | `npm run build && npm run test:e2e` | A bot plays the real production build through the browser keyboard path: BFS-pathfinds The Brood Warrens, destroys all three spawners, exits, banks gold and XP, buys an upgrade, and replays with both the upgrade and the earned level applied |
 | Gamepad (Playwright) | same command | The same bot clears the same mission on a pad, navigating hero select, the wheel and results with it, and a pad plugged in mid-run takes over without a reload (`e2e/gamepad.spec.ts`) |
+| Local co-op (Playwright) | same command | Two fake standard pads join through independent command streams, deliberately drop out/rejoin, clear The Brood Warrens, and bank the shared run once (`e2e/coop.spec.ts`, issue #106) |
 | Continue (Playwright) | same command | A run stands still until the Warrens kill it, then buys a continue and is back on its feet at half HP with the gold gone; falling again and declining ends the run as before (`e2e/continue.spec.ts`, issue #99) |
 | Viewport (Playwright) | same command | The fixed 960×720 canvas fits, keeps its aspect ratio and stays centred in windows smaller and larger than native, and re-fits on a live window resize (`e2e/viewport.spec.ts`) |
 
@@ -91,7 +93,8 @@ from inside the game loop, and the loop is suspended while a tab is hidden.
   `05-replay-upgraded`, plus the gamepad run's
   `07-gamepad-mission-start` → `08-gamepad-results` → `09-gamepad-wheel` →
   `10-gamepad-hotplug`, plus the continue run's `11-continue-prompt` →
-  `12-continued-run` → `13-continue-declined-results`. CI uploads these as
+  `12-continued-run` → `13-continue-declined-results`, and co-op's
+  `14-two-player-joined` → `15-two-player-results`. CI uploads these as
   artifacts on every run.
 - The bot reads game state through a read-only debug handle the game exposes
   on `globalThis`:
@@ -111,8 +114,8 @@ from inside the game loop, and the loop is suspended while a tab is hidden.
 
 ## Gamepad test (`e2e/gamepad.spec.ts`)
 
-Guards the pad path added in issue #98, and needs no hardware. The spec
-installs a fake entry in `navigator.getGamepads()` before the page loads:
+Guards the pad path added in issue #98, and needs no hardware. The specs
+install fake entries in `navigator.getGamepads()` before the page loads:
 Phaser rebuilds its pad list from that call on every update, so a fake pad is
 indistinguishable from a real one — and that same polling is why hot-plug works
 in the game without any connect/disconnect handling of its own.
@@ -130,12 +133,25 @@ the point: the pad run proves the *device*, not a second, easier bot. Its
 driver pushes the stick to 0.85 rather than 1 so the deadzone and quantisation
 are actually exercised.
 
-**The input contract did not change.** `InputCommand.moveX/moveY` are still
+`e2e/coop.spec.ts` installs two independently addressable entries. It proves
+the truthful browser integration seam, not physical Bluetooth hardware: P2
+must press START after the pad is visible, BACK emits an explicit deterministic
+leave command, and disconnecting the fake device alone leaves the slot active
+and idle. Two instances of `WarrensBot` then clear the mission through pad 0
+and pad 1, and the spec checks that shared-profile gold, XP, and completion
+bank once rather than once per hero.
+
+`InputCommand.moveX/moveY` are still
 integers in {-1,0,1}: `src/game/padMapping.ts` quantises a stick past
 `STICK_DEADZONE` into exactly the value the matching key produces, so
 `hashState` and the determinism regression are untouched by gamepad support.
 Widening those fields to floats for analogue speed is a deliberate, separate
 change — it is sim-visible, and it re-baselines determinism.
+
+Participation adds three deterministic booleans: `join` and `leave` are rising
+edges; `interact` is the held revive verb. The browser decides which command
+to sample, but only `simTick` changes `PlayerState.participating`, so the same
+input sequence still hashes exactly.
 
 ## Sandbox / CI quirks
 

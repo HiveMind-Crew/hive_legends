@@ -1,8 +1,9 @@
 # Project status
 
-Updated: 2026-07-29 — **the M1 vertical slice is content-complete** (boss #25,
-XP levelling #46, combat-feel pass #38/#39/#40, screen-clear potion #41, and
-the first real art pack #44 all landed).
+Updated: 2026-08-01 — **local co-op is playable** (issue #106) and the M1
+vertical slice remains content-complete (boss #25, XP levelling #46,
+combat-feel pass #38/#39/#40, screen-clear potion #41, and the first real art
+pack #44 all landed).
 
 ## Milestones
 
@@ -14,10 +15,11 @@ the first real art pack #44 all landed).
 - M2 — Systems depth (progression trees, deeper economy): not started; board
   in #29. Note the full four-hero roster and realms 2–3, once slated here and
   for M4, landed early during M1.
-- M3 — Co-op (local first, then online lockstep): not started. The
-  deterministic sim (ADR 0002) and the party-sized HUD are the groundwork;
-  generator pressure and objective XP already have per-player hooks noted in
-  the code.
+- M3 — Co-op: local couch co-op is playable for P1–P4 (#106), with explicit
+  deterministic pad join/drop-out, shared camera/HUD/results, unique party
+  banking, authored player-count generator caps, and held teammate revive.
+  Online lockstep remains future work; the participation commands and hashed
+  state preserve that foundation (ADR 0003).
 - M4 — Content expansion (further realms, hazards, economy): not started.
 - M5 — Final realm, release polish: not started.
 
@@ -76,12 +78,12 @@ level in the renderer.
 
 ## Verification state
 
-`lint`, `typecheck`, **292 unit tests across 24 files**, the production build,
-and the Playwright gameplay playthrough (bot clears The Brood Warrens, banks
-gold and XP, buys an upgrade, and replays with both the upgrade and the earned
-level applied; screenshots in `test-results/`) all pass. Run the whole gate
-with the one-liner in `CLAUDE.md`; layer-by-layer detail is in
-`docs/TESTING.md`.
+`lint`, `typecheck`, **443 unit tests across 42 files**, the production build,
+and all 13 Playwright checks pass. Browser coverage includes solo keyboard and
+gamepad clears, hot-plug, continue, specialization purchase/replay, two
+independent pads clearing The Brood Warrens with one shared-profile payout,
+and viewport fitting; screenshots land in `test-results/`. Run the whole gate
+with the one-liner in `CLAUDE.md`; layer-by-layer detail is in `docs/TESTING.md`.
 
 One transient e2e failure was observed once early in development and has not
 reproduced since — watch CI for recurrence.
@@ -212,7 +214,8 @@ on any future failure.
 
 ## Known limitations / risks
 
-- Player death ends the mission (no revive); revival mechanics arrive with co-op.
+- Local co-op uses one shared profile and selected hero kit. Per-slot hero
+  selection/loadouts are future UI work; they are not inferred from device state.
 - Future content can still fall back to generated programmer art; the current
   character, Realm 1 and amber-resin environment, object, interaction, and UI
   packs are drawn.

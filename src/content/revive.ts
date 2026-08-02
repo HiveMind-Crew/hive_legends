@@ -22,5 +22,11 @@ export const REVIVE: ReviveDef = {
   invulnTicks: 150,
   // Wider than the Vanguard's reach (68px) so the shove actually opens a gap.
   clearRadius: 120,
-  knockback: 320
+  knockback: 320,
+  // A deliberate 1.5s hold in melee range. Letting go, leaving range, being
+  // hit, dying, or dropping out resets it rather than banking partial help.
+  teammateRange: 64,
+  teammateHoldTicks: 90,
+  teammateHpFraction: 0.3,
+  teammateInvulnTicks: 60
 };

@@ -11,7 +11,7 @@ import {
   type Profile
 } from '../../meta/save';
 import { levelHeightPx, levelWidthPx } from '../../sim/level';
-import { createSim, revivePlayer, simTick, type Sim } from '../../sim/sim';
+import { activePlayers, createSim, effectiveGeneratorMaxAlive, revivePlayer, simTick, type Sim } from '../../sim/sim';
 import {
   POWERUP_KINDS,
   TICK_DT,
@@ -34,7 +34,10 @@ import {
 import { enemyAttackCue, heroAttackCue } from '../attackCues';
 import { bindFullscreenToggle } from '../fullscreen';
 import { playerAccent } from '../colors';
+import { MAX_PLAYERS } from '../hudLayout';
 import { PlayerCommander, type Commander } from '../input';
+import { PARTY_CAMERA, partyCameraTarget } from '../partyCamera';
+import type { PartyResultPlayer } from '../partyResults';
 import { bindPadMenu } from '../padMenu';
 import { tutorialHerald, type TutorialId } from '../tutorialCopy';
 import type { HudScene } from './HudScene';
@@ -71,6 +74,7 @@ function xpSpanForLevel(level: number): number | null {
 }
 
 export interface HudPlayerInfo {
+  slot: number;
   heroId: string;
   heroName: string;
   hp: number;
@@ -91,6 +95,8 @@ export interface HudPlayerInfo {
   xp: number;
   xpIntoLevel: number;
   xpForLevel: number | null;
+  reviveProgress: number;
+  reviveRequired: number;
   alive: boolean;
 }
 
@@ -132,7 +138,6 @@ const HIT_STOP_MAX_MS = 90;
 const MAX_ALIVE_PARTICLES = 300;
 const MAX_FLOAT_TEXTS = 24;
 const MAX_TRAIL_GHOSTS = 40;
-const CAM_LOOKAHEAD = 36;
 const CAM_LERP = 0.08;
 const CAM_KICK_DECAY = 0.8;
 
@@ -158,7 +163,6 @@ export class MissionScene extends Phaser.Scene {
   private exitGlow!: Phaser.GameObjects.Image;
   private moteFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private exitSprite!: Phaser.GameObjects.Image;
-  private startXp = 0; // banked XP at mission start, for the results delta
   private heroId = 'vanguard';
   private levelId = BROOD_WARRENS.id;
   private slowedIds = new Set<EntityId>();
@@ -205,21 +209,24 @@ export class MissionScene extends Phaser.Scene {
     this.levelId = data?.levelId && LEVELS[data.levelId] ? data.levelId : BROOD_WARRENS.id;
     const level = LEVELS[this.levelId]!;
     const hero = CONTENT.heroes[this.heroId]!;
+    const playerConfig = {
+      heroId: this.heroId,
+      modifiers: profileModifiers(profile),
+      attack: equippedAttack(profile, hero),
+      ability: specializedAbility(profile, hero),
+      startXp: profile.xp
+    };
     this.sim = createSim({
       seed: (Date.now() ^ 0x5eed) >>> 0,
       level,
-      players: [
-        {
-          heroId: this.heroId,
-          modifiers: profileModifiers(profile),
-          attack: equippedAttack(profile, hero),
-          ability: specializedAbility(profile, hero),
-          startXp: profile.xp
-        }
-      ],
+      // Four deterministic slots share the selected local profile kit. Only
+      // P1 starts joined; later pads claim their reserved slot with START.
+      players: Array.from({ length: MAX_PLAYERS }, (_, slot) => ({
+        ...playerConfig,
+        startJoined: slot === 0
+      })),
       content: CONTENT
     });
-    this.startXp = profile.xp;
     this.accumulator = 0;
     this.ended = false;
     this.runPaused = false;
@@ -248,11 +255,9 @@ export class MissionScene extends Phaser.Scene {
     const spawn = this.sim.state.players[0]?.pos ?? { x: 0, y: 0 };
     this.camFollow = { x: spawn.x, y: spawn.y };
     this.glows = [];
-    // One commander per player slot (issue #98): slot 0 answers to the keyboard
-    // and pad 0 together, later slots to their own pad. The sim has always been
-    // N-player, so adding player 2 in M3 is a longer players array, not a
-    // change here.
-    this.commanders = this.sim.state.players.map((_, slot) => new PlayerCommander(this, slot));
+    // One commander per reserved slot: slot 0 answers to keyboard and pad 0,
+    // later slots to their matching pad. START/BACK become sim commands.
+    this.commanders = this.sim.config.players.map((_, slot) => new PlayerCommander(this, slot));
     this.game.events.on('reduce-motion-changed', this.setReduceMotion, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.game.events.off('reduce-motion-changed', this.setReduceMotion, this);
@@ -468,10 +473,11 @@ export class MissionScene extends Phaser.Scene {
     if (!this.sim) return null;
     const s = this.sim.state;
     return {
-      players: s.players.map((p, i) => {
+      players: activePlayers(this.sim).map((p) => {
         const hero = CONTENT.heroes[p.heroId];
-        const ability = this.sim.config.players[i]?.ability ?? hero?.ability;
+        const ability = this.sim.config.players[p.slot]?.ability ?? hero?.ability;
         return {
+          slot: p.slot,
           heroId: p.heroId,
           heroName: hero?.name ?? p.heroId,
           hp: p.hp,
@@ -489,6 +495,8 @@ export class MissionScene extends Phaser.Scene {
           xp: p.xp,
           xpIntoLevel: p.xp - (CONTENT.progression.xpToReach[p.level - 1] ?? 0),
           xpForLevel: xpSpanForLevel(p.level),
+          reviveProgress: p.reviveProgress,
+          reviveRequired: CONTENT.revive.teammateHoldTicks,
           alive: p.alive
         };
       }),
@@ -552,16 +560,14 @@ export class MissionScene extends Phaser.Scene {
 
     this.syncSprites();
 
-    // The Herald warns once when the lead hero drops into the danger zone.
-    const p0 = this.sim.state.players[0];
-    if (p0 && p0.alive) {
-      const frac = p0.hp / p0.maxHp;
-      if (!this.lowHpHeralded && frac <= 0.3) {
-        this.lowHpHeralded = true;
-        (this.scene.get('hud') as HudScene).herald('HEALTH CRITICAL', '#ff5a4d');
-      } else if (this.lowHpHeralded && frac > 0.45) {
-        this.lowHpHeralded = false; // re-arm once recovered
-      }
+    // Warn once when any living party member enters the danger zone.
+    const living = activePlayers(this.sim).filter((p) => p.alive);
+    const critical = living.some((p) => p.hp / p.maxHp <= 0.3);
+    if (!this.lowHpHeralded && critical) {
+      this.lowHpHeralded = true;
+      (this.scene.get('hud') as HudScene).herald('HEALTH CRITICAL', '#ff5a4d');
+    } else if (this.lowHpHeralded && living.every((p) => p.hp / p.maxHp > 0.45)) {
+      this.lowHpHeralded = false;
     }
 
     if (this.exitSprite.visible) {
@@ -577,14 +583,15 @@ export class MissionScene extends Phaser.Scene {
     this.updateCamera();
   }
 
-  /** Smoothed follow with facing lookahead plus a decaying melee-impact kick. */
+  /** Smoothed living-party midpoint/fit zoom plus a decaying impact kick. */
   private updateCamera(): void {
-    const p = this.sim.state.players[0];
-    if (!p) return;
-    const tx = p.pos.x + p.facing.x * CAM_LOOKAHEAD;
-    const ty = p.pos.y + p.facing.y * CAM_LOOKAHEAD;
-    this.camFollow.x += (tx - this.camFollow.x) * CAM_LERP;
-    this.camFollow.y += (ty - this.camFollow.y) * CAM_LERP;
+    const living = activePlayers(this.sim).filter((p) => p.alive);
+    const target = partyCameraTarget(living, this.scale.width, this.scale.height);
+    if (!target) return;
+    this.camFollow.x += (target.x - this.camFollow.x) * CAM_LERP;
+    this.camFollow.y += (target.y - this.camFollow.y) * CAM_LERP;
+    const zoom = this.cameras.main.zoom + (target.zoom - this.cameras.main.zoom) * CAM_LERP;
+    this.cameras.main.setZoom(Math.max(PARTY_CAMERA.minZoom, Math.min(PARTY_CAMERA.soloZoom, zoom)));
     this.camKick.x *= CAM_KICK_DECAY;
     this.camKick.y *= CAM_KICK_DECAY;
     this.cameras.main.centerOn(this.camFollow.x + this.camKick.x, this.camFollow.y + this.camKick.y);
@@ -646,13 +653,13 @@ export class MissionScene extends Phaser.Scene {
           this.tintFlash(this.spriteFor(ev), 0xffffff);
           this.damageNumber(ev.pos, ev.damage, '#f4e3b2');
           this.burst(this.ichorFx, 2, ev.pos);
-          this.meleeKick();
+          this.meleeKick(ev.pos);
           break;
         case 'generator-hit':
           this.tintFlash(this.spriteFor(ev), 0xffffff);
           this.damageNumber(ev.pos, ev.damage, '#e1a6f0');
           this.burst(this.shardFx, 2, ev.pos);
-          this.meleeKick();
+          this.meleeKick(ev.pos);
           break;
         case 'enemy-spawned': {
           // Egg-burst at the hatch point plus a squash-pop on the source node.
@@ -692,7 +699,7 @@ export class MissionScene extends Phaser.Scene {
           this.tintFlash(this.sprites.get(ev.bossId), 0xffffff);
           this.damageNumber(ev.pos, ev.damage, '#ffd0e0');
           this.burst(this.ichorFx, 3, ev.pos);
-          this.meleeKick();
+          this.meleeKick(ev.pos);
           break;
         case 'boss-died': {
           // Finale spectacle: the #6 destruction pattern, scaled way up.
@@ -764,6 +771,18 @@ export class MissionScene extends Phaser.Scene {
         }
         case 'player-hit':
           this.cameraShake(80, 0.004);
+          break;
+        case 'player-joined':
+          hud.herald(`P${ev.slot + 1} JOINS THE DESCENT`, '#64e6ff');
+          this.flashRing(ev.pos, 48, playerAccent(ev.slot));
+          break;
+        case 'player-left':
+          hud.herald(`P${ev.slot + 1} DROPS OUT`, '#a89bb8');
+          break;
+        case 'player-revived':
+          this.flashRing(ev.pos, 58, 0x9fe06a);
+          this.burst(this.heartFx, 12, ev.pos);
+          if (ev.source === 'teammate') hud.herald('A TEAMMATE RISES', '#9fe06a');
           break;
         case 'prop-destroyed':
           this.deathPuff(ev.pos, 0xd9b26a, 0.8);
@@ -878,7 +897,7 @@ export class MissionScene extends Phaser.Scene {
     );
   }
 
-  /** Takes the offer: pay the bank, stand the hero up, resume the run. */
+  /** Takes the offer: pay once from the shared bank and stand up the party. */
   private acceptContinue(): void {
     const offer = this.continueOffer;
     if (!offer || this.ended) return;
@@ -891,8 +910,8 @@ export class MissionScene extends Phaser.Scene {
     this.continueOffer = null;
     (this.scene.get('hud') as HudScene).hideContinue();
 
-    const player = this.sim.state.players[0]!;
-    this.handleEvents(revivePlayer(this.sim, player.id));
+    const reviveEvents = activePlayers(this.sim).flatMap((player) => revivePlayer(this.sim, player.id));
+    this.handleEvents(reviveEvents);
     // Real time passed while the prompt was up; do not pay it back as a burst
     // of catch-up ticks the moment the hero stands.
     this.accumulator = 0;
@@ -914,17 +933,17 @@ export class MissionScene extends Phaser.Scene {
     const levelName = this.sim.config.level.name;
     hud.herald(victory ? `${levelName.toUpperCase()} CLEANSED` : 'THE PARTY HAS FALLEN', victory ? '#9fe06a' : '#ff5a4d');
     hud.banner(victory ? 'REALM CLEARED' : 'THE HIVE PREVAILS', victory ? '#ffd75e' : '#ff5a4d');
-    const p = this.sim.state.players[0]!;
+    const players: PartyResultPlayer[] = this.sim.state.players
+      .map((p) => ({ slot: p.slot, heroId: p.heroId, gold: p.gold, kills: p.kills, xp: p.xpEarned }))
+      .sort((a, b) => a.slot - b.slot);
     this.time.delayedCall(1400, () => {
       audio.stopMusic();
       this.clearDebugHandle();
       this.scene.stop('hud');
       this.scene.start('results', {
         victory,
-        gold: p.gold,
-        kills: p.kills,
+        players,
         ticks: this.sim.state.tick,
-        xpEarned: Math.max(0, p.xp - this.startXp),
         continuesUsed: this.continuesUsed,
         continueGold: this.continueGoldSpent,
         heroId: this.heroId,
@@ -966,14 +985,15 @@ export class MissionScene extends Phaser.Scene {
     const s = this.sim.state;
     const seen = new Set<EntityId>();
 
-    s.players.forEach((p, index) => {
+    s.players.forEach((p) => {
+      if (!p.participating) return;
       seen.add(p.id);
       this.trackMovement(p.id, p.pos, s.tick);
       const spr = this.ensureSprite(p.id, heroFrame(p.heroId, 2, 'w0'));
       spr.setTexture(heroFrame(p.heroId, facingDirIndex(p.facing.x, p.facing.y), this.heroPose(p, s.tick)));
       spr.setPosition(p.pos.x, p.pos.y).setDepth(p.pos.y);
       spr.setAlpha(p.invulnTicks > 0 && p.invulnTicks % 10 < 5 ? 0.4 : 1);
-      if (!p.alive) spr.setTint(0x555555);
+      spr.setTint(p.alive ? 0xffffff : 0x555555);
 
       this.ensureShadow(p.id).setPosition(p.pos.x, p.pos.y + 10);
 
@@ -1001,7 +1021,7 @@ export class MissionScene extends Phaser.Scene {
         aura.setScale(1.4).setAlpha(0.3 + 0.14 * Math.sin(this.time.now / 130));
       }
 
-      const accent = playerAccent(index);
+      const accent = playerAccent(p.slot);
       let ring = this.rings.get(p.id);
       if (!ring) {
         ring = this.add.image(0, 0, TEX.accentRing).setDepth(DEPTH_DECAL).setScale(1, 0.55).setAlpha(0.55);
@@ -1135,7 +1155,8 @@ export class MissionScene extends Phaser.Scene {
       const breath = (enraged ? 0.06 : 0.03) * Math.sin(this.time.now / (enraged ? 180 : 400) + g.id);
       const def = CONTENT.generators[g.typeId];
       const aliveFromThis = s.enemies.reduce((n, e) => n + (e.sourceGen === g.id ? 1 : 0), 0);
-      const canSpawn = def !== undefined && aliveFromThis < def.maxAlive;
+      const canSpawn =
+        def !== undefined && aliveFromThis < effectiveGeneratorMaxAlive(def, activePlayers(this.sim).length);
       const bulge =
         canSpawn && g.spawnCooldown <= PRESPAWN_BULGE_TICKS
           ? ((PRESPAWN_BULGE_TICKS - g.spawnCooldown) / PRESPAWN_BULGE_TICKS) * 0.12
@@ -1310,7 +1331,7 @@ export class MissionScene extends Phaser.Scene {
   }
 
   private heroPose(p: PlayerState, tick: number): HeroPose {
-    const cooldown = CONTENT.heroes[p.heroId]?.attack.cooldownTicks ?? 0;
+    const cooldown = this.sim.config.players[p.slot]?.attack?.cooldownTicks ?? CONTENT.heroes[p.heroId]?.attack.cooldownTicks ?? 0;
     if (cooldown > 0 && p.attackCooldown > cooldown - ATTACK_POSE_TICKS) return 'atk';
     const walking = tick - (this.movedAtTick.get(p.id) ?? -Infinity) <= 2;
     if (!walking) return 'w0';
@@ -1321,7 +1342,7 @@ export class MissionScene extends Phaser.Scene {
     let best: PlayerState | null = null;
     let bestDist = Infinity;
     for (const p of this.sim.state.players) {
-      if (!p.alive) continue;
+      if (!p.participating || !p.alive) continue;
       const dist = Math.hypot(p.pos.x - from.x, p.pos.y - from.y);
       if (dist < bestDist) {
         bestDist = dist;
@@ -1376,8 +1397,8 @@ export class MissionScene extends Phaser.Scene {
   }
 
   /** 2–3 px camera nudge in the player's facing when their melee connects. */
-  private meleeKick(): void {
-    const p = this.sim.state.players[0];
+  private meleeKick(impact: Vec2): void {
+    const p = this.nearestLivingPlayer(impact);
     if (!p) return;
     this.camKick.x = p.facing.x * 3;
     this.camKick.y = p.facing.y * 3;
@@ -1426,8 +1447,9 @@ export class MissionScene extends Phaser.Scene {
   /** Volley Step presentation: a fan of fading hero afterimages along the dash. */
   private dashTrail(playerId: EntityId, from: Vec2, to: Vec2): void {
     const spr = this.sprites.get(playerId);
-    const key = spr?.texture.key ?? heroFrame(this.heroId, 2, 'w0');
-    const accent = playerAccent(Math.max(0, this.sim.state.players.findIndex((pl) => pl.id === playerId)));
+    const player = this.sim.state.players.find((pl) => pl.id === playerId);
+    const key = spr?.texture.key ?? heroFrame(player?.heroId ?? this.heroId, 2, 'w0');
+    const accent = playerAccent(player?.slot ?? 0);
     const GHOSTS = 5;
     for (let i = 0; i < GHOSTS; i++) {
       const t = i / (GHOSTS - 1);

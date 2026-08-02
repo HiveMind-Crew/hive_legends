@@ -1,5 +1,5 @@
 import { TICK_RATE } from '../src/sim/types';
-import type { AttackDef, BossActionDef, BossDef, ContentDb, EnemyDef, GeneratorDef, HeroDef, WeaponDef } from '../src/sim/types';
+import type { AbilityDef, AttackDef, BossActionDef, BossDef, ContentDb, EnemyDef, GeneratorDef, HeroDef, WeaponDef } from '../src/sim/types';
 import { benchmarkMireveilRoster, MIREVEIL_BENCHMARK_SEED } from './mireveilBenchmark';
 
 /**
@@ -223,30 +223,71 @@ function throughputTable(content: ContentDb): string {
   );
 }
 
-function abilityTable(content: ContentDb): string {
-  const rows = heroList(content).map((h) => {
-    const a = h.ability;
-    let damage = '—';
-    let shape = '—';
-    let control = '—';
-    if (a.kind === 'blast') {
-      damage = String(a.damage);
-      shape = `r${a.radius}${a.offsetPx ? ` @ +${a.offsetPx} px ahead` : ' (self)'}`;
-      const parts: string[] = [];
-      if (a.knockback > 0) parts.push(`${a.knockback} knockback`);
-      if (a.slowTicks) parts.push(`${secs(a.slowTicks)} slow ×${a.slowMult ?? 0.5}`);
-      control = parts.join(', ') || '—';
-    } else if (a.kind === 'dash-volley') {
-      damage = 'basic attack ×' + a.dartCount;
-      shape = `${a.dashPx} px dash, ${a.spreadDeg}° rear fan`;
-      control = 'reposition';
-    } else {
-      shape = `${secs(a.durationTicks)} stance`;
-      control = `×${a.damageMult} damage taken, ×${a.moveMult} speed, ${a.reflectKnockback} reflect`;
+/** Damage / shape / effect cells for one ability, base or specialized. */
+function abilityCells(a: AbilityDef): [string, string, string] {
+  let damage = '—';
+  let shape = '—';
+  let control = '—';
+  if (a.kind === 'blast') {
+    damage = String(a.damage);
+    shape = a.shape
+      ? `${a.shape.length}×${a.shape.width} px line ahead`
+      : `r${a.radius}${a.offsetPx ? ` @ +${a.offsetPx} px ahead` : ' (self)'}`;
+    const parts: string[] = [];
+    if (a.knockback > 0) parts.push(`${a.knockback} knockback`);
+    if (a.slowTicks) parts.push(`${secs(a.slowTicks)} slow ×${a.slowMult ?? 0.5}`);
+    if (a.aftershock) {
+      const s = a.aftershock;
+      parts.push(`+${s.damage} in r${s.radius} after ${secs(s.delayTicks)} (${s.knockback} knockback)`);
     }
-    return [h.role, a.name, a.kind, secs(a.cooldownTicks), damage, shape, control];
-  });
+    control = parts.join(', ') || '—';
+  } else if (a.kind === 'dash-volley') {
+    damage = 'basic attack ×' + a.dartCount;
+    shape = `${a.dashPx} px dash, ${a.spreadDeg}° rear fan`;
+    control = 'reposition';
+  } else {
+    shape = `${secs(a.durationTicks)} stance`;
+    control = `×${a.damageMult} damage taken, ×${a.moveMult} speed, ${a.reflectKnockback} reflect`;
+  }
+  return [damage, shape, control];
+}
+
+function abilityTable(content: ContentDb): string {
+  const rows = heroList(content).map((h) => [
+    h.role,
+    h.ability.name,
+    h.ability.kind,
+    secs(h.ability.cooldownTicks),
+    ...abilityCells(h.ability)
+  ]);
   return table(['Hero', 'Ability', 'Kind', 'Cooldown', 'Damage', 'Shape', 'Effect'], rows);
+}
+
+/**
+ * The bought branches (issue #108). A specialization replaces the hero's base
+ * ability outright, so its numbers belong in this document exactly as much as
+ * the base row does — read each row against the base row above it. The
+ * archetype line is that a branch may re-shape delivery but never changes
+ * `kind`; `createSim` rejects an override that does.
+ */
+function specializationTable(content: ContentDb): string {
+  const specs = Object.values(content.abilitySpecializations);
+  if (specs.length === 0) return '_No ability specializations are authored._';
+  const rows = specs.map((s) => {
+    const hero = content.heroes[s.heroId];
+    return [
+      hero?.role ?? s.heroId,
+      hero?.ability.name ?? '—',
+      s.name,
+      `${s.cost}g`,
+      secs(s.ability.cooldownTicks),
+      ...abilityCells(s.ability)
+    ];
+  });
+  return table(
+    ['Hero', 'Replaces', 'Branch', 'Cost', 'Cooldown', 'Damage', 'Shape', 'Effect'],
+    rows
+  );
 }
 
 function ttkTable(content: ContentDb): string {
@@ -377,13 +418,13 @@ function spawnerTable(content: ContentDb): string {
     String(g.maxHp),
     content.enemies[g.spawnsEnemyId]?.name ?? g.spawnsEnemyId,
     `${g.spawnIntervalTicks}t`,
-    String(g.maxAlive),
+    `${g.maxAlive} / +${g.maxAlivePerExtraPlayer ?? 0}`,
     g.enrage ? `≤${pct(g.enrage.hpFraction)} hp → ×${g.enrage.intervalMult} for ${secs(g.enrage.durationTicks)}` : '—',
     g.onDeathSpawn ? (content.enemies[g.onDeathSpawn.enemyId]?.name ?? g.onDeathSpawn.enemyId) : '—',
     String(g.goldDrop),
     String(g.xp)
   ]);
-  return table(['Spawner', 'HP', 'Spawns', 'Interval', 'Max alive', 'Enrage', 'On death', 'Gold', 'XP'], rows);
+  return table(['Spawner', 'HP', 'Spawns', 'Interval', 'Max alive solo / +hero', 'Enrage', 'On death', 'Gold', 'XP'], rows);
 }
 
 function bossPhaseTable(boss: BossDef): string {
@@ -466,6 +507,14 @@ export function renderCombatTables(content: ContentDb): string {
     '### Abilities',
     '',
     abilityTable(content),
+    '',
+    '### Ability specializations',
+    '',
+    'Permanent, mutually exclusive branches bought on the results screen. A branch replaces the',
+    'base ability above outright — it never stacks with it — and must keep the base ability’s',
+    '`kind`, so a specialization re-shapes delivery without moving the hero off their archetype.',
+    '',
+    specializationTable(content),
     '',
     '### Burst vs the swarm threshold',
     '',

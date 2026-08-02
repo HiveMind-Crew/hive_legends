@@ -254,6 +254,14 @@ first entry is the default and the e2e Enter-flow depends on it staying the
 Vanguard) and give it a tier-1 weapon. Hero art keys follow `hero-<id>-<dir>-<pose>`;
 see `docs/ART.md`.
 
+**Adding an ability *specialization*:** author exactly two definitions for one
+hero under one stable `groupId` in `src/content/abilitySpecializations.ts`, each
+resolving to a complete ability of the hero's own `kind` — `createSim` rejects
+an override that changes kind, because a branch is a delivery change, not an
+archetype change. Then run `npm run docs:combat`: the branches generate into
+[Ability specializations](#ability-specializations), and that diff is their
+balance review the same way the base tables are.
+
 **Adding an ability *kind*** is the expensive one — it is a closed union with a
 branch in each of: `AbilityDef` in `src/sim/types.ts`, `performAbility` in
 `src/sim/sim.ts`, a `SimEvent` variant, the event switch in `MissionScene`, the
@@ -332,6 +340,17 @@ which re-stuns before the previous stun lapses and locks that target out permane
 | Arcanist | Resin Cage | blast | 5.00 s | 45 | r100 @ +140 px ahead | 2.00 s slow ×0.1 |
 | Ranger | Volley Step | dash-volley | 4.00 s | basic attack ×5 | 120 px dash, 70° rear fan | reposition |
 | Sentinel | Bastion Wall | guard | 6.00 s | — | 2.50 s stance | ×0.25 damage taken, ×0.5 speed, 200 reflect |
+
+### Ability specializations
+
+Permanent, mutually exclusive branches bought on the results screen. A branch replaces the
+base ability above outright — it never stacks with it — and must keep the base ability’s
+`kind`, so a specialization re-shapes delivery without moving the hero off their archetype.
+
+| Hero | Replaces | Branch | Cost | Cooldown | Damage | Shape | Effect |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Vanguard | Sunder Slam | Faultline Drive | 180g | 5.00 s | 40 | 230×64 px line ahead | 440 knockback |
+| Vanguard | Sunder Slam | Echoing Crater | 180g | 5.00 s | 40 | r110 (self) | 440 knockback, +22 in r90 after 0.60 s (260 knockback) |
 
 ### Burst vs the swarm threshold
 
@@ -546,11 +565,11 @@ drop each hero from full — the pressure a single one of these represents, befo
 
 ### Where they come from
 
-| Spawner | HP | Spawns | Interval | Max alive | Enrage | On death | Gold | XP |
+| Spawner | HP | Spawns | Interval | Max alive solo / +hero | Enrage | On death | Gold | XP |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Brood Node | 120 | Skitterling | 24t | 9 | ≤50% hp → ×0.6 for 2.50 s | — | 25 | 40 |
-| Husk Mound | 150 | Carapace Husk | 165t | 2 | — | Gravebound Ravager | 30 | 45 |
-| Spitter Nest | 110 | Bile Spitter | 150t | 2 | — | — | 30 | 45 |
+| Brood Node | 120 | Skitterling | 24t | 9 / +2 | ≤50% hp → ×0.6 for 2.50 s | — | 25 | 40 |
+| Husk Mound | 150 | Carapace Husk | 165t | 2 / +1 | — | Gravebound Ravager | 30 | 45 |
+| Spitter Nest | 110 | Bile Spitter | 150t | 2 / +1 | — | — | 30 | 45 |
 
 ### Mireveil — Mother of the Brood
 

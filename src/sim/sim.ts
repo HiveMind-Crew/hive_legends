@@ -78,45 +78,74 @@ export interface Sim {
   flow?: FlowCache;
 }
 
+/** Joined, non-dormant players in stable slot order. */
+export function activePlayers(sim: Sim): PlayerState[] {
+  return sim.state.players.filter((p) => p.participating).sort((a, b) => a.slot - b.slot);
+}
+
+/** Data-authored generator cap for the current joined party size. */
+export function effectiveGeneratorMaxAlive(def: GeneratorDef, playerCount: number): number {
+  const extraPlayers = Math.max(0, Math.floor(playerCount) - 1);
+  return def.maxAlive + extraPlayers * Math.max(0, def.maxAlivePerExtraPlayer ?? 0);
+}
+
+function createPlayerState(config: SimConfig, slot: number, id: EntityId, runXp = 0): PlayerState {
+  const pc = config.players[slot];
+  if (!pc) throw new Error(`unknown player slot: ${slot}`);
+  const hero = config.content.heroes[pc.heroId];
+  if (!hero) throw new Error(`unknown hero: ${pc.heroId}`);
+  if (pc.ability && pc.ability.kind !== hero.ability.kind) {
+    throw new Error(`ability specialization for ${pc.heroId} must stay ${hero.ability.kind}`);
+  }
+  const mods = pc.modifiers ?? NO_MODIFIERS;
+  const spawn = config.level.playerSpawns[slot % config.level.playerSpawns.length] ?? config.level.playerSpawns[0];
+  if (!spawn) throw new Error('level has no player spawns');
+  const xp = Math.max(0, pc.startXp ?? 0) + Math.max(0, runXp);
+  const heroLevel = levelForXp(config.content.progression, xp);
+  const maxHp = hero.maxHp + mods.maxHpBonus + levelMaxHpBonus(config.content.progression, heroLevel);
+  return {
+    id,
+    slot,
+    heroId: hero.id,
+    pos: tileCenter(config.level, spawn.tx, spawn.ty),
+    facing: { x: 0, y: 1 },
+    hp: maxHp,
+    maxHp,
+    gold: 0,
+    kills: 0,
+    attackCooldown: 0,
+    abilityCooldown: 0,
+    invulnTicks: 0,
+    guardTicks: 0,
+    power: emptyPowerTimers(),
+    keys: 0,
+    potions: 0,
+    xp,
+    xpEarned: 0,
+    level: heroLevel,
+    participating: true,
+    reviveProgress: 0,
+    reviveBy: null,
+    lastHitTick: -1,
+    alive: true
+  };
+}
+
 export function createSim(config: SimConfig): Sim {
   const { level, content } = config;
   let nextEntityId = 1;
 
-  const players: PlayerState[] = config.players.map((pc, i) => {
-    const hero = content.heroes[pc.heroId];
-    if (!hero) throw new Error(`unknown hero: ${pc.heroId}`);
-    if (pc.ability && pc.ability.kind !== hero.ability.kind) {
-      throw new Error(`ability specialization for ${pc.heroId} must stay ${hero.ability.kind}`);
-    }
-    const mods = pc.modifiers ?? NO_MODIFIERS;
-    const spawn = level.playerSpawns[i % level.playerSpawns.length] ?? level.playerSpawns[0];
-    if (!spawn) throw new Error('level has no player spawns');
-    // Banked XP carries in and sets the starting level (issue #46); its
-    // bonuses stack on top of the bought upgrades.
-    const xp = Math.max(0, pc.startXp ?? 0);
-    const heroLevel = levelForXp(content.progression, xp);
-    const maxHp = hero.maxHp + mods.maxHpBonus + levelMaxHpBonus(content.progression, heroLevel);
-    return {
-      id: nextEntityId++,
-      heroId: hero.id,
-      pos: tileCenter(level, spawn.tx, spawn.ty),
-      facing: { x: 0, y: 1 },
-      hp: maxHp,
-      maxHp,
-      gold: 0,
-      kills: 0,
-      attackCooldown: 0,
-      abilityCooldown: 0,
-      invulnTicks: 0,
-      guardTicks: 0,
-      power: emptyPowerTimers(),
-      keys: 0,
-      potions: 0,
-      xp,
-      level: heroLevel,
-      alive: true
-    };
+  // Validate every reserved slot up front, including heroes who have not
+  // joined yet. Existing configs default to joined, preserving solo/tests.
+  config.players.forEach((_, slot) => {
+    createPlayerState(config, slot, -1);
   });
+  const players: PlayerState[] = [];
+  config.players.forEach((pc, slot) => {
+    if (pc.startJoined === false) return;
+    players.push(createPlayerState(config, slot, nextEntityId++));
+  });
+  if (!players.some((p) => p.slot === 0)) throw new Error('player slot 0 must start joined');
 
   const generators: GeneratorState[] = level.generators.map((g) => {
     const def = content.generators[g.typeId];
@@ -203,6 +232,7 @@ export function createSim(config: SimConfig): Sim {
       nextEntityId,
       phase: 'combat',
       players,
+      rewards: { gold: 0, xp: 0 },
       enemies: [],
       generators,
       pickups,
@@ -226,12 +256,14 @@ export function simTick(sim: Sim, inputs: readonly InputCommand[]): SimEvent[] {
     s.tick++;
     return events;
   }
+  updateParticipation(sim, inputs, events);
   updatePendingBlasts(sim, events);
   updatePlayers(sim, inputs, events);
   updateProjectiles(sim, events);
   updateEnemies(sim, events);
   separateEnemies(sim);
   updateBoss(sim, events);
+  updateTeammateRevives(sim, inputs, events);
   updatePressure(sim, events);
   updateGenerators(sim, events);
   collectPickups(sim, events);
@@ -240,6 +272,105 @@ export function simTick(sim: Sim, inputs: readonly InputCommand[]): SimEvent[] {
 
   s.tick++;
   return events;
+}
+
+/** Applies explicit join/drop-out commands before gameplay consumes the tick. */
+function updateParticipation(sim: Sim, inputs: readonly InputCommand[], events: SimEvent[]): void {
+  for (let slot = 1; slot < sim.config.players.length; slot++) {
+    const input = inputs[slot] ?? EMPTY_INPUT;
+    let player = sim.state.players.find((p) => p.slot === slot);
+    // Deliberate leave wins if both edges somehow arrive on the same tick.
+    if (input.leave) {
+      if (!player?.participating) continue;
+      player.participating = false;
+      player.reviveProgress = 0;
+      player.reviveBy = null;
+      events.push({ type: 'player-left', playerId: player.id, slot, pos: { ...player.pos } });
+      continue;
+    }
+    if (!input.join || player?.participating) continue;
+    if (!player) {
+      player = createPlayerState(sim.config, slot, sim.state.nextEntityId++, sim.state.rewards.xp);
+      sim.state.players.push(player);
+      sim.state.players.sort((a, b) => a.slot - b.slot);
+    } else {
+      player.participating = true;
+      syncRunXp(sim, player);
+    }
+    events.push({ type: 'player-joined', playerId: player.id, slot, pos: { ...player.pos } });
+  }
+}
+
+/**
+ * Catches a returning/downed hero up to the party's unique XP ledger.
+ *
+ * Each caught-up level pays the same +maxHp and level-up heal `awardXp` pays,
+ * so time spent dormant costs nothing a hero who stayed in would have kept.
+ * A downed hero takes the max-HP raise only; the revive owns its own hp.
+ * No `player-leveled` event fires: this is a silent catch-up, not levels the
+ * hero earned this tick, and a rejoin should not burst level-up juice.
+ */
+function syncRunXp(sim: Sim, player: PlayerState): void {
+  const baseXp = Math.max(0, sim.config.players[player.slot]?.startXp ?? 0);
+  const targetXp = baseXp + sim.state.rewards.xp;
+  if (player.xp >= targetXp) return;
+  player.xp = targetXp;
+  const prog = sim.config.content.progression;
+  const targetLevel = levelForXp(prog, targetXp);
+  while (player.level < targetLevel) {
+    player.level++;
+    player.maxHp += prog.maxHpPerLevel;
+    if (player.alive) player.hp = Math.min(player.maxHp, player.hp + prog.maxHpPerLevel);
+  }
+}
+
+/**
+ * Consecutive held help near a downed teammate. Candidate and collision ties
+ * resolve by stable slot, and damage on this tick interrupts before progress.
+ */
+function updateTeammateRevives(sim: Sim, inputs: readonly InputCommand[], events: SimEvent[]): void {
+  const { revive } = sim.config.content;
+  const joined = activePlayers(sim);
+  const downed = joined.filter((p) => !p.alive);
+  if (downed.length === 0) return;
+
+  const assigned = new Map<EntityId, PlayerState>();
+  for (const reviver of joined) {
+    if (!reviver.alive || reviver.lastHitTick === sim.state.tick) continue;
+    if (!(inputs[reviver.slot] ?? EMPTY_INPUT).interact) continue;
+    const candidates = downed
+      .filter((target) => !assigned.has(target.id))
+      .map((target) => ({ target, distance: Math.hypot(target.pos.x - reviver.pos.x, target.pos.y - reviver.pos.y) }))
+      .filter(({ distance }) => distance <= revive.teammateRange)
+      .sort((a, b) => a.distance - b.distance || a.target.slot - b.target.slot);
+    const target = candidates[0]?.target;
+    if (target) assigned.set(target.id, reviver);
+  }
+
+  for (const target of downed) {
+    const reviver = assigned.get(target.id);
+    if (!reviver) {
+      target.reviveProgress = 0;
+      target.reviveBy = null;
+      continue;
+    }
+    if (target.reviveBy !== reviver.id) {
+      target.reviveBy = reviver.id;
+      target.reviveProgress = 0;
+    }
+    target.reviveProgress++;
+    if (target.reviveProgress < revive.teammateHoldTicks) continue;
+
+    syncRunXp(sim, target);
+    target.alive = true;
+    target.hp = Math.max(1, Math.round(target.maxHp * revive.teammateHpFraction));
+    target.invulnTicks = revive.teammateInvulnTicks;
+    target.attackCooldown = 0;
+    target.guardTicks = 0;
+    target.reviveProgress = 0;
+    target.reviveBy = null;
+    events.push({ type: 'player-revived', playerId: target.id, pos: { ...target.pos }, hp: target.hp, source: 'teammate' });
+  }
 }
 
 /**
@@ -260,9 +391,10 @@ export function simTick(sim: Sim, inputs: readonly InputCommand[]): SimEvent[] {
 export function revivePlayer(sim: Sim, playerId: EntityId): SimEvent[] {
   const events: SimEvent[] = [];
   const p = sim.state.players.find((x) => x.id === playerId);
-  if (!p || p.alive) return events;
+  if (!p || !p.participating || p.alive) return events;
 
   const { revive } = sim.config.content;
+  syncRunXp(sim, p);
   p.alive = true;
   p.hp = Math.max(1, Math.round(p.maxHp * revive.hpFraction));
   p.invulnTicks = revive.invulnTicks;
@@ -270,6 +402,8 @@ export function revivePlayer(sim: Sim, playerId: EntityId): SimEvent[] {
   // death; the hero stands up ready, but with nothing already in flight.
   p.attackCooldown = 0;
   p.guardTicks = 0;
+  p.reviveProgress = 0;
+  p.reviveBy = null;
 
   // Shove the ring of enemies standing over the body. No damage: the continue
   // buys space, not a free screen-clear — that is what the potion is for.
@@ -287,7 +421,7 @@ export function revivePlayer(sim: Sim, playerId: EntityId): SimEvent[] {
   // `updateObjective` re-derives exit-open from the world on the next tick, so
   // returning to 'combat' cannot strand a party that had already cleared it.
   if (sim.state.phase === 'failed') sim.state.phase = 'combat';
-  events.push({ type: 'player-revived', playerId: p.id, pos: { ...p.pos }, hp: p.hp });
+  events.push({ type: 'player-revived', playerId: p.id, pos: { ...p.pos }, hp: p.hp, source: 'continue' });
   return events;
 }
 
@@ -297,11 +431,11 @@ function updatePlayers(sim: Sim, inputs: readonly InputCommand[], events: SimEve
   const s = sim.state;
   const { level, content } = sim.config;
 
-  s.players.forEach((p, i) => {
-    if (!p.alive) return;
+  s.players.forEach((p) => {
+    if (!p.participating || !p.alive) return;
     const hero = content.heroes[p.heroId];
     if (!hero) return;
-    const input = inputs[i] ?? EMPTY_INPUT;
+    const input = inputs[p.slot] ?? EMPTY_INPUT;
 
     if (p.attackCooldown > 0) p.attackCooldown--;
     if (p.abilityCooldown > 0) p.abilityCooldown--;
@@ -380,7 +514,7 @@ function performMeleeAttack(sim: Sim, p: PlayerState, atk: AttackDef, events: Si
     if (dist > atk.range + gdef.radius) continue;
     const dir = dist > 1e-6 ? { x: d.x / dist, y: d.y / dist } : { ...p.facing };
     if (dir.x * p.facing.x + dir.y * p.facing.y < cosHalfArc) continue;
-    damageGenerator(sim, g, damage, events);
+    damageGenerator(sim, g, damage, p.id, events);
   }
   for (const pr of sim.state.props) {
     const pdef = content.props[pr.typeId];
@@ -407,7 +541,7 @@ function performMeleeAttack(sim: Sim, p: PlayerState, atk: AttackDef, events: Si
     const dist = Math.hypot(d.x, d.y);
     if (bdef && dist <= atk.range + bdef.radius) {
       const dir = dist > 1e-6 ? { x: d.x / dist, y: d.y / dist } : { ...p.facing };
-      if (dir.x * p.facing.x + dir.y * p.facing.y >= cosHalfArc) damageBoss(sim, boss, damage, events);
+      if (dir.x * p.facing.x + dir.y * p.facing.y >= cosHalfArc) damageBoss(sim, boss, damage, p.id, events);
     }
   }
 }
@@ -521,7 +655,7 @@ function performCircularBlast(
     if (!gdef) continue;
     const dist = Math.hypot(g.pos.x - center.x, g.pos.y - center.y);
     if (dist > radius + gdef.radius) continue;
-    damageGenerator(sim, g, damage, events);
+    damageGenerator(sim, g, damage, p.id, events);
   }
   for (const pr of [...sim.state.props]) {
     const pdef = content.props[pr.typeId];
@@ -539,7 +673,7 @@ function performCircularBlast(
   if (boss) {
     const bdef = content.bosses[boss.typeId];
     if (bdef && Math.hypot(boss.pos.x - center.x, boss.pos.y - center.y) <= radius + bdef.radius) {
-      damageBoss(sim, boss, damage, events);
+      damageBoss(sim, boss, damage, p.id, events);
     }
   }
 }
@@ -571,7 +705,7 @@ function performFaultlineBlast(
   for (const g of [...sim.state.generators]) {
     const def = content.generators[g.typeId];
     if (!def || g.hp <= 0 || !hits(g.pos, def.radius)) continue;
-    damageGenerator(sim, g, damage, events);
+    damageGenerator(sim, g, damage, p.id, events);
   }
   for (const pr of [...sim.state.props]) {
     const def = content.props[pr.typeId];
@@ -582,7 +716,7 @@ function performFaultlineBlast(
   }
   const boss = livingBoss(sim);
   const bossDef = boss ? content.bosses[boss.typeId] : undefined;
-  if (boss && bossDef && hits(boss.pos, bossDef.radius)) damageBoss(sim, boss, damage, events);
+  if (boss && bossDef && hits(boss.pos, bossDef.radius)) damageBoss(sim, boss, damage, p.id, events);
 }
 
 function capsuleContains(point: Vec2, radius: number, from: Vec2, to: Vec2, width: number): boolean {
@@ -642,7 +776,7 @@ function usePotion(sim: Sim, p: PlayerState, events: SimEvent[]): void {
     const gdef = content.generators[g.typeId];
     if (!gdef) continue;
     if (Math.hypot(g.pos.x - center.x, g.pos.y - center.y) > potion.radius + gdef.radius) continue;
-    damageGenerator(sim, g, potion.damage, events);
+    damageGenerator(sim, g, potion.damage, p.id, events);
   }
   for (const pr of [...sim.state.props]) {
     const pdef = content.props[pr.typeId];
@@ -660,7 +794,7 @@ function usePotion(sim: Sim, p: PlayerState, events: SimEvent[]): void {
   if (boss) {
     const bdef = content.bosses[boss.typeId];
     if (bdef && Math.hypot(boss.pos.x - center.x, boss.pos.y - center.y) <= potion.radius + bdef.radius) {
-      damageBoss(sim, boss, potion.damage, events);
+      damageBoss(sim, boss, potion.damage, p.id, events);
     }
   }
 }
@@ -710,23 +844,26 @@ function awardXp(sim: Sim, p: PlayerState, amount: number, events: SimEvent[]): 
   }
 }
 
-/** Credits XP to a player by id (kills carry the killer's id). */
-function awardXpTo(sim: Sim, playerId: EntityId, amount: number, events: SimEvent[]): void {
-  const p = sim.state.players.find((x) => x.id === playerId);
-  if (p) awardXp(sim, p, amount, events);
-}
-
 /**
- * Objective XP (generators, the boss) goes to every living hero, so a co-op
- * party levels together rather than racing for last hits.
+ * Records one unique XP source for the shared profile, credits its securing
+ * hero for results, and grants the XP to every living joined hero. Solo keeps
+ * its exact old progression while co-op cannot multiply a reward by party size.
+ *
+ * This deliberately replaces #46's two-policy split, where kill XP went only to
+ * the killer and only objective XP was shared. One path now, for #46's own
+ * stated reason — a party levels together rather than racing for last hits.
+ * See docs/adr/0003-deterministic-local-coop.md.
  */
-function awardObjectiveXp(sim: Sim, amount: number, events: SimEvent[]): void {
-  for (const p of sim.state.players) awardXp(sim, p, amount, events);
+function awardPartyXp(sim: Sim, contributorId: EntityId, amount: number, events: SimEvent[]): void {
+  if (amount <= 0) return;
+  sim.state.rewards.xp += amount;
+  const contributor = sim.state.players.find((p) => p.id === contributorId);
+  if (contributor) contributor.xpEarned += amount;
+  for (const p of activePlayers(sim)) awardXp(sim, p, amount, events);
 }
 
 function heroDamageBonus(sim: Sim, p: PlayerState): number {
-  const idx = sim.state.players.indexOf(p);
-  return sim.config.players[idx]?.modifiers?.damageBonus ?? 0;
+  return sim.config.players[p.slot]?.modifiers?.damageBonus ?? 0;
 }
 
 /**
@@ -735,16 +872,14 @@ function heroDamageBonus(sim: Sim, p: PlayerState): number {
  * baked in at createSim (src/meta resolves it), so the sim stays profile-free.
  */
 function playerAttack(sim: Sim, p: PlayerState): AttackDef {
-  const idx = sim.state.players.indexOf(p);
-  const override = sim.config.players[idx]?.attack;
+  const override = sim.config.players[p.slot]?.attack;
   if (override) return override;
   return sim.config.content.heroes[p.heroId]!.attack;
 }
 
 /** Resolved config ability, with the base hero kit as the backward-compatible default. */
 function playerAbility(sim: Sim, p: PlayerState): AbilityDef {
-  const idx = sim.state.players.indexOf(p);
-  return sim.config.players[idx]?.ability ?? sim.config.content.heroes[p.heroId]!.ability;
+  return sim.config.players[p.slot]?.ability ?? sim.config.content.heroes[p.heroId]!.ability;
 }
 
 /** The active guard-stance def for a player, or null when not guarding. */
@@ -792,8 +927,7 @@ function damageEnemy(
     events.push({ type: 'enemy-died', enemyId: e.id, typeId: e.typeId, pos: { ...e.pos }, byPlayer, damage });
     const killer = sim.state.players.find((p) => p.id === byPlayer);
     if (killer) killer.kills++;
-    // XP goes to whoever landed the killing blow (issue #46).
-    awardXpTo(sim, byPlayer, sim.config.content.enemies[e.typeId]?.xp ?? 0, events);
+    awardPartyXp(sim, byPlayer, sim.config.content.enemies[e.typeId]?.xp ?? 0, events);
     dropEnemyGold(sim, e);
     sim.state.enemies = sim.state.enemies.filter((x) => x !== e);
   } else {
@@ -815,7 +949,13 @@ function dropEnemyGold(sim: Sim, e: EnemyState): void {
   });
 }
 
-function damageGenerator(sim: Sim, g: GeneratorState, damage: number, events: SimEvent[]): void {
+function damageGenerator(
+  sim: Sim,
+  g: GeneratorState,
+  damage: number,
+  byPlayer: EntityId,
+  events: SimEvent[]
+): void {
   const def = sim.config.content.generators[g.typeId];
   g.hp -= damage;
   if (g.hp > 0 && def?.enrage && !g.enrageTriggered && g.hp <= g.maxHp * def.enrage.hpFraction) {
@@ -828,7 +968,7 @@ function damageGenerator(sim: Sim, g: GeneratorState, damage: number, events: Si
   if (g.hp <= 0) {
     g.hp = 0;
     events.push({ type: 'generator-destroyed', generatorId: g.id, pos: { ...g.pos } });
-    awardObjectiveXp(sim, def?.xp ?? 0, events); // objective XP is shared
+    awardPartyXp(sim, byPlayer, def?.xp ?? 0, events);
     if (def && def.goldDrop > 0) {
       sim.state.pickups.push({
         id: sim.state.nextEntityId++,
@@ -1065,7 +1205,7 @@ function updateProjectiles(sim: Sim, events: SimEvent[]): void {
         const bdef = boss ? content.bosses[boss.typeId] : undefined;
         if (boss && bdef && Math.hypot(boss.pos.x - bolt.pos.x, boss.pos.y - bolt.pos.y) <= bolt.radius + bdef.radius) {
           events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
-          damageBoss(sim, boss, bolt.damage, events);
+          damageBoss(sim, boss, bolt.damage, bolt.ownerId, events);
           dead = true;
         }
       }
@@ -1077,7 +1217,7 @@ function updateProjectiles(sim: Sim, events: SimEvent[]): void {
           if (!gdef || g.hp <= 0) continue;
           if (Math.hypot(g.pos.x - bolt.pos.x, g.pos.y - bolt.pos.y) > bolt.radius + gdef.radius) continue;
           events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
-          damageGenerator(sim, g, bolt.damage, events);
+          damageGenerator(sim, g, bolt.damage, bolt.ownerId, events);
           dead = true;
           break;
         }
@@ -1122,13 +1262,14 @@ function updateProjectiles(sim: Sim, events: SimEvent[]): void {
 function hostileBoltHitsPlayer(sim: Sim, bolt: ProjectileState, events: SimEvent[]): boolean {
   const { content } = sim.config;
   for (const p of sim.state.players) {
-    if (!p.alive || p.invulnTicks > 0) continue;
+    if (!p.participating || !p.alive || p.invulnTicks > 0) continue;
     const hero = content.heroes[p.heroId];
     if (!hero) continue;
     if (Math.hypot(p.pos.x - bolt.pos.x, p.pos.y - bolt.pos.y) > bolt.radius + hero.radius) continue;
     const guard = guardDefFor(sim, p);
     const damage = bolt.damage * (guard ? guard.damageMult : 1) * powerMult(sim, p, 'damageTakenMult');
     p.hp -= damage;
+    p.lastHitTick = sim.state.tick;
     p.invulnTicks = content.combat.playerHitInvulnTicks;
     events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
     events.push({ type: 'player-hit', playerId: p.id, damage, pos: { ...p.pos } });
@@ -1198,7 +1339,7 @@ const PATH_STUCK_FRACTION = 0.5;
 function refreshFlowCache(sim: Sim, blk: Blockage): TileCoord[] | null {
   const { level } = sim.config;
   const sources: TileCoord[] = [];
-  for (const p of sim.state.players) if (p.alive) sources.push(tileAt(level, p.pos));
+  for (const p of sim.state.players) if (p.participating && p.alive) sources.push(tileAt(level, p.pos));
   if (sources.length === 0) return null;
 
   const blockKey = blk.blockedTiles.join(',');
@@ -1455,7 +1596,7 @@ function executeEnemyPounceAttack(
   });
 
   for (const player of sim.state.players) {
-    if (!player.alive || player.invulnTicks > 0) continue;
+    if (!player.participating || !player.alive || player.invulnTicks > 0) continue;
     const rel = sub(player.pos, from);
     const along = rel.x * dir.x + rel.y * dir.y;
     const closestAlong = Math.max(0, Math.min(distance, along));
@@ -1493,7 +1634,7 @@ function executeEnemyLineAttack(
   });
 
   for (const player of sim.state.players) {
-    if (!player.alive || player.invulnTicks > 0) continue;
+    if (!player.participating || !player.alive || player.invulnTicks > 0) continue;
     const rel = sub(player.pos, e.pos);
     const along = rel.x * dir.x + rel.y * dir.y;
     if (along < 0 || along > length) continue;
@@ -1553,6 +1694,7 @@ function damagePlayerFromEnemy(
   const damage =
     attackDamage * pressureDamageMult(sim) * (guard ? guard.damageMult : 1) * powerMult(sim, target, 'damageTakenMult');
   target.hp -= damage;
+  target.lastHitTick = sim.state.tick;
   target.invulnTicks = sim.config.content.combat.playerHitInvulnTicks;
   if (pushPx > 0) {
     const dir = pushDir ?? (dist > 1e-6 ? { x: d.x / dist, y: d.y / dist } : { x: 0, y: 0 });
@@ -1748,13 +1890,14 @@ function updateBoss(sim: Sim, events: SimEvent[]): void {
 function bossContactDamage(sim: Sim, boss: BossState, def: BossDef, damage: number, events: SimEvent[]): void {
   if (boss.touchCooldown > 0) return;
   for (const p of sim.state.players) {
-    if (!p.alive || p.invulnTicks > 0) continue;
+    if (!p.participating || !p.alive || p.invulnTicks > 0) continue;
     const hero = sim.config.content.heroes[p.heroId];
     if (!hero) continue;
     if (Math.hypot(p.pos.x - boss.pos.x, p.pos.y - boss.pos.y) > def.radius + hero.radius) continue;
     const guard = guardDefFor(sim, p);
     const dealt = damage * (guard ? guard.damageMult : 1) * powerMult(sim, p, 'damageTakenMult');
     p.hp -= dealt;
+    p.lastHitTick = sim.state.tick;
     p.invulnTicks = sim.config.content.combat.playerHitInvulnTicks;
     boss.touchCooldown = def.touchCooldownTicks;
     events.push({ type: 'player-hit', playerId: p.id, damage: dealt, pos: { ...p.pos } });
@@ -1844,7 +1987,7 @@ function summonBossEnemies(
 }
 
 /** Player damage onto the boss. At zero HP she dies and drops her hoard. */
-function damageBoss(sim: Sim, boss: BossState, damage: number, events: SimEvent[]): void {
+function damageBoss(sim: Sim, boss: BossState, damage: number, byPlayer: EntityId, events: SimEvent[]): void {
   if (boss.hp <= 0) return;
   const def = sim.config.content.bosses[boss.typeId];
   boss.hp -= damage;
@@ -1854,7 +1997,7 @@ function damageBoss(sim: Sim, boss: BossState, damage: number, events: SimEvent[
     boss.telegraphTicksLeft = 0;
     boss.pendingAction = null;
     events.push({ type: 'boss-died', bossId: boss.id, pos: { ...boss.pos } });
-    awardObjectiveXp(sim, def?.xp ?? 0, events); // the finale payout, shared
+    awardPartyXp(sim, byPlayer, def?.xp ?? 0, events);
     if (def && def.goldDrop > 0) {
       sim.state.pickups.push({
         id: sim.state.nextEntityId++,
@@ -1887,7 +2030,7 @@ function updateGenerators(sim: Sim, events: SimEvent[]): void {
       continue;
     }
     const aliveFromThis = s.enemies.reduce((n, e) => n + (e.sourceGen === g.id ? 1 : 0), 0);
-    if (aliveFromThis >= def.maxAlive) continue;
+    if (aliveFromThis >= effectiveGeneratorMaxAlive(def, activePlayers(sim).length)) continue;
 
     const enemyDef = content.enemies[def.spawnsEnemyId];
     if (!enemyDef) continue;
@@ -1951,7 +2094,7 @@ function collectPickups(sim: Sim, events: SimEvent[]): void {
   for (const pk of s.pickups) {
     let collected = false;
     for (const p of s.players) {
-      if (!p.alive) continue;
+      if (!p.participating || !p.alive) continue;
       const hero = content.heroes[p.heroId];
       if (!hero) continue;
       const dist = Math.hypot(pk.pos.x - p.pos.x, pk.pos.y - p.pos.y);
@@ -1972,6 +2115,7 @@ function collectPickups(sim: Sim, events: SimEvent[]): void {
         events.push({ type: 'pickup-collected', playerId: p.id, kind: pk.kind, amount: pk.amount, pos: { ...pk.pos } });
       } else {
         p.gold += pk.amount;
+        s.rewards.gold += pk.amount;
         events.push({ type: 'pickup-collected', playerId: p.id, kind: pk.kind, amount: pk.amount, pos: { ...pk.pos } });
       }
       collected = true;
@@ -1985,7 +2129,7 @@ function collectPickups(sim: Sim, events: SimEvent[]): void {
 function updateObjective(sim: Sim, events: SimEvent[]): void {
   const s = sim.state;
 
-  if (s.players.every((p) => !p.alive)) {
+  if (s.players.filter((p) => p.participating).every((p) => !p.alive)) {
     s.phase = 'failed';
     events.push({ type: 'mission-failed' });
     return;
@@ -2000,7 +2144,7 @@ function updateObjective(sim: Sim, events: SimEvent[]): void {
 
   if (s.phase === 'exit-open') {
     for (const p of s.players) {
-      if (!p.alive) continue;
+      if (!p.participating || !p.alive) continue;
       const dist = Math.hypot(p.pos.x - s.exitPos.x, p.pos.y - s.exitPos.y);
       if (dist <= EXIT_RADIUS) {
         s.phase = 'complete';
@@ -2046,7 +2190,7 @@ function updateGates(sim: Sim, events: SimEvent[]): void {
   for (const gate of sim.state.gates) {
     if (!gate.locked) continue;
     for (const p of sim.state.players) {
-      if (!p.alive || p.keys <= 0) continue;
+      if (!p.participating || !p.alive || p.keys <= 0) continue;
       const hero = content.heroes[p.heroId];
       if (!hero) continue;
       const reach = hero.radius + level.tileSize * 0.6;
@@ -2074,7 +2218,7 @@ function nearestLivingPlayer(players: PlayerState[], from: Vec2): PlayerState | 
   let best: PlayerState | null = null;
   let bestDist = Infinity;
   for (const p of players) {
-    if (!p.alive) continue;
+    if (!p.participating || !p.alive) continue;
     const dist = Math.hypot(p.pos.x - from.x, p.pos.y - from.y);
     if (dist < bestDist) {
       bestDist = dist;
