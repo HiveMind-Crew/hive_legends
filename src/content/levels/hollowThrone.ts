@@ -16,6 +16,13 @@ export const HOLLOW_THRONE: LevelDef = {
   id: 'hollow-throne',
   name: 'The Hollow Throne',
   tileSize: 32,
+  mission: {
+    biomeLabel: 'THRONE · BONE AND BROOD',
+    threatRating: 4,
+    threatLabel: 'EXTREME',
+    encounters: ['Mireveil', 'Gravebound Ravager', 'Brood swarms'],
+    description: 'Mireveil rules the open throne chamber from the dais. Bring down the brood mother before the sealed north exit can open.'
+  },
   // Dedicated grown-chitin art makes the finale read as Mireveil's brood
   // chamber instead of a tinted copy of either earlier Realm 1 room.
   theme: { tileSet: 'hollow-throne', accent: 0xff7a9a },

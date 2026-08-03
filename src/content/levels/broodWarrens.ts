@@ -13,6 +13,13 @@ export const BROOD_WARRENS: LevelDef = {
   id: 'brood-warrens',
   name: 'The Brood Warrens',
   tileSize: 32,
+  mission: {
+    biomeLabel: 'BROOD RESIN · TUNNELS',
+    threatRating: 1,
+    threatLabel: 'LOW',
+    encounters: ['Skitterlings', 'Carapace Husks', 'Brood nodes'],
+    description: 'Skitterling swarms pour from brood nodes through three connected tunnels. Destroy every node, then reach the exit vault.'
+  },
   walls: [
     '################################',
     '#..............#...............#',

@@ -10,6 +10,7 @@ interface MissionHubState {
   selectedStatus: string;
   selectedAction: string;
   selectedLabelCount: number;
+  selectedNameCount: number;
   selectedStateCount: number;
 }
 
@@ -47,6 +48,9 @@ test('revisiting the mission hub keeps authored nodes and labels singular', asyn
 
   const authoredNodeCount = CONTENT.spokes.reduce((total, spoke) => total + spoke.missions.length + 1, 0);
   const first = await enterHub(page);
+  // A settle for the screenshot only — correctness must not depend on this delay.
+  await page.waitForTimeout(1000);
+  await page.screenshot({ path: 'test-results/issue139-hub-available.png' });
   const originalSelection = {
     selectedIndex: first.selectedIndex,
     selectedLevelId: first.selectedLevelId,
@@ -61,6 +65,7 @@ test('revisiting the mission hub keeps authored nodes and labels singular', asyn
     expect(hub!.authoredNodeCount).toBe(authoredNodeCount);
     expect(hub!.nodeCount).toBe(authoredNodeCount);
     expect(hub!.selectedLabelCount).toBe(1);
+    expect(hub!.selectedNameCount).toBe(1);
     expect(hub!.selectedStateCount).toBe(1);
 
     for (let press = 0; press < authoredNodeCount; press++) await page.keyboard.press('ArrowDown');
@@ -69,6 +74,7 @@ test('revisiting the mission hub keeps authored nodes and labels singular', asyn
     expect(afterCycle).toMatchObject({
       ...originalSelection,
       selectedLabelCount: 1,
+      selectedNameCount: 1,
       selectedStateCount: 1
     });
 
@@ -77,4 +83,26 @@ test('revisiting the mission hub keeps authored nodes and labels singular', asyn
       await enterHub(page);
     }
   }
+});
+
+test('pointer hover and click use the shared cursor for a readable locked mission', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('canvas')).toBeVisible({ timeout: 15_000 });
+  await enterHub(page);
+
+  // Native 960×720 layout: the fourth route row is the locked boss.
+  await page.mouse.move(200, 560);
+  await expect
+    .poll(async () => getHubState(page), { timeout: 5_000 })
+    .toMatchObject({ selectedLevelId: 'hollow-throne', selectedStatus: expect.stringContaining('LOCKED') });
+  const locked = await getHubState(page);
+  await page.mouse.click(200, 560);
+  await expect.poll(async () => getHubState(page), { timeout: 5_000 }).toMatchObject({
+    selectedLevelId: locked!.selectedLevelId,
+    selectedStatus: locked!.selectedStatus
+  });
+  await expect.poll(async () => getHubState(page), { timeout: 5_000 }).not.toBeNull();
+  // A settle for the screenshot only — correctness must not depend on this delay.
+  await page.waitForTimeout(1000);
+  await page.screenshot({ path: 'test-results/issue139-hub-locked.png' });
 });
