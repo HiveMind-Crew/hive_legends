@@ -10,10 +10,12 @@ paragraph.
 - `proposed-*.png` — the proposed layouts at the same resolution, so the two are
   directly comparable.
 - `menu-redesign.html` — the live prototype the proposed shots were taken from.
-  Open it in a browser: the mission rows and shop cards are clickable, so the
-  selection model, affordability states, and the specialization confirmation can
-  be driven rather than described.
+  Open it in a browser: pointer hover, arrow keys, Enter, and the Gamepad API all
+  drive the same cursor across mission rows, shop cards, specialization choices,
+  and exit actions. Affordability states and the specialization confirmation can
+  therefore be driven rather than described.
 
 The prototype uses the game's own palette (`src/game/scenes/MissionHubScene.ts`
-`COLOR`, plus the scene text colours) and its own copy, but it is plain HTML —
-it is a drawing of the screens, not a second implementation of them.
+`COLOR`, plus the scene text colours), copy, realm tiles, encounter sprites, and
+HUD icons. It is still plain HTML — a drawing of the screens, not a second
+implementation of them.
