@@ -1,0 +1,487 @@
+<title>Hive Legends — proposed menu screens</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --page: #f4f1f7;
+    --card: #ffffff;
+    --edge: #ddd5e6;
+    --text: #1d1728;
+    --dim: #5c5170;
+    --faint: #8a7fa0;
+    --accent: #8a5a00;
+
+    /* The game's palette, verbatim. Fixed in both themes: the screens below
+       depict the game, so they don't follow the reader's theme. */
+    --void: #0a0a12;
+    --ink: #120c1a;
+    --panel: #1a1526;
+    --amber: #ffd75e;
+    --cyan: #64e6ff;
+    --green: #9fe06a;
+    --red: #e0524d;
+    --lilac: #a89bb8;
+    --dimg: #7a6f92;
+    --parch: #f4e3b2;
+
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root { --page:#0e0b14; --card:#17121f; --edge:#2c2338; --text:#ece7f2; --dim:#a89bb8; --faint:#776a8c; --accent:#ffd75e; }
+  }
+  :root[data-theme="dark"] { --page:#0e0b14; --card:#17121f; --edge:#2c2338; --text:#ece7f2; --dim:#a89bb8; --faint:#776a8c; --accent:#ffd75e; }
+  :root[data-theme="light"] { --page:#f4f1f7; --card:#ffffff; --edge:#ddd5e6; --text:#1d1728; --dim:#5c5170; --faint:#8a7fa0; --accent:#8a5a00; }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body { margin:0; background:var(--page); color:var(--text); font-family:var(--sans); font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px 96px; }
+
+  header { padding: 64px 0 36px; border-bottom: 1px solid var(--edge); display:flex; flex-direction:column; gap:16px; }
+  .eyebrow { margin:0; font-family:var(--mono); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); }
+  h1 { margin:0; font-size:clamp(30px,5vw,50px); line-height:1.04; letter-spacing:-.035em; font-weight:800; max-width:18ch; text-wrap:balance; }
+  .lede { margin:0; max-width:66ch; color:var(--dim); font-size:17px; }
+
+  section { padding-top: 64px; }
+  h2 { margin:0 0 8px; font-size:clamp(24px,3.4vw,34px); letter-spacing:-.025em; font-weight:800; line-height:1.12; }
+  .sub { margin:0 0 26px; max-width:66ch; color:var(--dim); }
+  h3 { margin:0 0 12px; font-family:var(--mono); font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); font-weight:600; }
+  code { font-family:var(--mono); font-size:.87em; background:color-mix(in srgb, var(--text) 8%, transparent); padding:1px 5px; border-radius:3px; }
+
+  .hint { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:11.5px; letter-spacing:.05em; color:var(--faint); margin:12px 0 0; }
+  .hint b { color:var(--accent); font-weight:600; }
+
+  /* ---------- screen frame ---------- */
+  .screen {
+    background: var(--void);
+    border: 1px solid var(--edge);
+    border-radius: 4px;
+    aspect-ratio: 4 / 3;
+    container-type: inline-size;
+    position: relative;
+    overflow: hidden;
+    font-family: var(--mono);
+    color: var(--lilac);
+  }
+  .stage {
+    position:absolute; inset:0; width:960px; height:720px;
+    transform-origin: top left; transform: scale(calc(100cqw / 960));
+    display:flex; flex-direction:column; padding:26px 30px; gap:16px;
+  }
+
+  .topbar { display:flex; justify-content:space-between; align-items:flex-start; }
+  .realm { font-size:21px; font-weight:700; color:var(--amber); letter-spacing:.07em; }
+  .realm-sub { font-size:11px; color:var(--dimg); letter-spacing:.1em; margin-top:3px; }
+  .bank { font-size:15px; color:var(--amber); border:1px solid rgba(255,215,94,.45); background:rgba(255,215,94,.09); padding:6px 13px; border-radius:3px; font-variant-numeric:tabular-nums; }
+
+  /* ---------- hub ---------- */
+  .hub { display:grid; grid-template-columns:352px 1fr; gap:22px; flex:1; min-height:0; }
+  .rail { display:flex; flex-direction:column; gap:9px; }
+
+  .track { display:flex; gap:4px; margin-bottom:5px; }
+  .seg { height:6px; flex:1; border-radius:2px; background:rgba(255,255,255,.09); }
+  .seg.on { background:var(--green); }
+  .seg.boss { flex:0 0 38px; background:rgba(224,82,77,.3); }
+  .seg.boss.on { background:var(--red); }
+
+  .row {
+    display:grid; grid-template-columns:28px 1fr auto; gap:12px; align-items:center;
+    padding:12px 14px; border:1px solid rgba(255,255,255,.09);
+    border-left:3px solid transparent; border-radius:3px;
+    background:rgba(255,255,255,.025); cursor:pointer; text-align:left; width:100%;
+    color:inherit; font:inherit;
+  }
+  .row .g { font-size:16px; text-align:center; }
+  .row .o { font-size:9.5px; color:var(--dimg); letter-spacing:.11em; display:block; }
+  .row .n { font-size:13px; color:#e7dff2; display:block; margin-top:1px; }
+  .row .t { font-size:11px; color:var(--dimg); font-variant-numeric:tabular-nums; }
+  .row.cleared { border-left-color:var(--green); }
+  .row.cleared .g { color:var(--green); }
+  .row.locked { opacity:.5; }
+  .row.locked .g { color:var(--dimg); }
+  .row:hover { border-color:rgba(255,255,255,.24); background:rgba(255,255,255,.05); }
+  .row[aria-current="true"] {
+    background:rgba(255,215,94,.14); border-color:rgba(255,215,94,.55); border-left-color:var(--amber);
+    box-shadow:0 0 0 1px rgba(255,215,94,.22), 0 6px 20px rgba(0,0,0,.55);
+    opacity:1;
+  }
+  .row[aria-current="true"] .n { color:#fff; }
+  .row[aria-current="true"] .g { color:var(--amber); }
+  .row.locked[aria-current="true"] { background:rgba(224,82,77,.12); border-color:rgba(224,82,77,.5); border-left-color:var(--red); box-shadow:0 0 0 1px rgba(224,82,77,.2); }
+  .row.locked[aria-current="true"] .g { color:var(--red); }
+  .row:focus-visible { outline:2px solid var(--cyan); outline-offset:2px; }
+
+  .detail { border:1px solid rgba(255,255,255,.1); border-radius:3px; background:var(--panel); padding:20px; display:flex; flex-direction:column; gap:15px; }
+  .biome { height:104px; border-radius:3px; border:1px solid rgba(255,255,255,.14); display:flex; align-items:flex-end; padding:9px 11px; }
+  .biome span { font-size:9.5px; letter-spacing:.13em; }
+  .dname { font-size:22px; color:var(--parch); font-weight:700; letter-spacing:-.01em; }
+  .meta { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  .stat { display:flex; flex-direction:column; gap:4px; }
+  .stat b { font-size:15px; color:#ede4f6; font-weight:600; font-variant-numeric:tabular-nums; min-height:16px; }
+  .stat i { font-size:9px; font-style:normal; letter-spacing:.11em; color:var(--dimg); }
+  .pips { display:flex; gap:3px; align-items:center; height:16px; }
+  .pip { width:9px; height:9px; border-radius:1px; border:1px solid rgba(255,255,255,.28); }
+  .pip.on { background:var(--amber); border-color:var(--amber); }
+  .pip.g.on { background:var(--green); border-color:var(--green); }
+  .pip.r.on { background:var(--red); border-color:var(--red); }
+  .note { font-size:11.5px; line-height:1.55; border-left:2px solid rgba(100,230,255,.5); padding-left:11px; color:var(--lilac); }
+  .note.bad { border-left-color:rgba(224,82,77,.65); color:#eba9a5; }
+  .cta { margin-top:auto; display:flex; gap:10px; align-items:center; }
+  .btn { padding:11px 19px; border-radius:3px; font-size:13px; letter-spacing:.06em; background:var(--amber); color:#17131f; font-weight:700; border:none; font-family:var(--mono); }
+  .btn.ghost { background:transparent; border:1px solid rgba(255,255,255,.2); color:var(--lilac); font-weight:500; }
+  .btn.dead { background:rgba(255,255,255,.06); color:var(--dimg); }
+
+  /* ---------- results ---------- */
+  .banner { text-align:center; padding:6px 0 13px; border-bottom:1px solid rgba(159,224,106,.3); }
+  .banner b { display:block; font-size:33px; color:var(--green); letter-spacing:.07em; }
+  .banner i { font-style:normal; font-size:11px; color:var(--dimg); letter-spacing:.11em; }
+
+  .tiles { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .tile { border:1px solid rgba(255,255,255,.1); border-radius:3px; background:rgba(255,255,255,.03); padding:11px 13px; display:flex; flex-direction:column; gap:3px; }
+  .tile i { font-style:normal; font-size:9px; letter-spacing:.12em; color:var(--dimg); }
+  .tile b { font-size:23px; font-weight:700; color:var(--parch); font-variant-numeric:tabular-nums; line-height:1.15; }
+  .tile.gold b { color:var(--amber); }
+  .tile small { font-size:9.5px; color:var(--green); }
+  .xp { height:4px; border-radius:2px; background:rgba(255,255,255,.12); overflow:hidden; margin-top:4px; }
+  .xp div { height:100%; background:var(--cyan); }
+
+  .shoprow { display:flex; justify-content:space-between; align-items:center; }
+  .shoprow .lbl { font-size:11px; letter-spacing:.12em; color:var(--dimg); }
+
+  .shop { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .card {
+    border:1px solid rgba(255,255,255,.1); border-radius:3px; background:rgba(255,255,255,.03);
+    padding:12px 13px; display:flex; flex-direction:column; gap:7px; position:relative;
+    cursor:pointer; text-align:left; color:inherit; font:inherit; min-height:96px;
+  }
+  .card:hover { border-color:rgba(255,255,255,.24); }
+  .card:focus-visible { outline:2px solid var(--cyan); outline-offset:2px; }
+  .card .cn { font-size:13px; color:#ede4f6; font-weight:600; }
+  .card .cd { font-size:10.5px; color:var(--dimg); line-height:1.45; }
+  .card .cf { display:flex; justify-content:space-between; align-items:center; margin-top:auto; }
+  .card[aria-current="true"] { border-color:rgba(255,215,94,.65); background:rgba(255,215,94,.12); box-shadow:0 0 0 1px rgba(255,215,94,.28); }
+  .card.cant { opacity:.5; }
+  .card.done { border-color:rgba(159,224,106,.5); background:rgba(159,224,106,.08); }
+  .cost { font-size:11.5px; padding:3px 8px; border-radius:2px; font-variant-numeric:tabular-nums; background:rgba(255,215,94,.16); color:var(--amber); border:1px solid rgba(255,215,94,.35); }
+  .cost.cant { background:rgba(255,255,255,.05); color:var(--dimg); border-color:rgba(255,255,255,.12); }
+  .cost.done { background:rgba(159,224,106,.14); color:var(--green); border-color:rgba(159,224,106,.35); }
+  .kbd { position:absolute; top:-1px; right:-1px; font-size:9px; padding:2px 6px; background:rgba(255,255,255,.09); color:var(--dimg); border-radius:0 3px 0 3px; }
+
+  .fork { border:1px solid rgba(224,82,77,.35); border-radius:3px; padding:13px; background:rgba(224,82,77,.05); display:flex; flex-direction:column; gap:10px; }
+  .fork-h { display:flex; justify-content:space-between; align-items:baseline; }
+  .fork-h b { font-size:11.5px; letter-spacing:.1em; color:#f4b8b4; }
+  .fork-h i { font-style:normal; font-size:10px; color:var(--dimg); }
+  .fork-r { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+  .nav { display:flex; gap:10px; align-items:center; margin-top:auto; padding-top:2px; }
+  .nav .sp { flex:1; }
+  .nav .keys { font-size:10.5px; color:var(--dimg); letter-spacing:.06em; }
+
+  .confirm {
+    position:absolute; inset:0; background:rgba(6,4,10,.82);
+    display:flex; align-items:center; justify-content:center; z-index:5;
+  }
+  .confirm[hidden] { display:none; }
+  .confirm-box { width:470px; border:1px solid rgba(224,82,77,.5); background:var(--panel); border-radius:4px; padding:24px; display:flex; flex-direction:column; gap:14px; }
+  .confirm-box b { font-size:17px; color:#f4b8b4; letter-spacing:.04em; }
+  .confirm-box p { margin:0; font-size:12px; line-height:1.6; color:var(--lilac); }
+  .confirm-box .cta { margin-top:6px; }
+
+  .caption { font-family:var(--mono); font-size:11.5px; color:var(--faint); line-height:1.6; margin:12px 0 0; max-width:80ch; }
+
+  .changes { list-style:none; margin:22px 0 0; padding:0; display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:2px 26px; }
+  .changes li { padding:13px 0; border-top:1px solid var(--edge); }
+  .changes b { display:block; font-weight:650; font-size:15px; margin-bottom:2px; }
+  .changes span { color:var(--dim); font-size:14px; }
+
+  footer { margin-top:72px; padding-top:24px; border-top:1px solid var(--edge); color:var(--faint); font-size:13px; }
+
+  @media (max-width:720px) { .stage { padding:20px 22px; } }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Mockup · Hive Legends</p>
+    <h1>Proposed mission map and results screens</h1>
+    <p class="lede">
+      Both screens rebuilt around one idea: a single cursor over a grid of real cells, driven equally
+      by keys, pad and pointer. These are live — click the rows and cards to drive them.
+    </p>
+  </header>
+
+  <section>
+    <h2>Mission map</h2>
+    <p class="sub">
+      The route becomes a list, because the route is a list. The half of the screen that was
+      decorative honeycomb becomes mission identity, and the lock reason moves onto the card where
+      you can read it before committing.
+    </p>
+
+    <div class="screen">
+      <div class="stage">
+        <div class="topbar">
+          <div>
+            <div class="realm">THE AZURE REACH</div>
+            <div class="realm-sub" id="hubSub">REALM 1 OF 3 · 2 OF 4 NODES CLEARED</div>
+          </div>
+          <div class="bank">◆ 640g</div>
+        </div>
+
+        <div class="hub">
+          <div class="rail" id="rail">
+            <div class="track">
+              <span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg boss"></span>
+            </div>
+          </div>
+          <div class="detail" id="detail"></div>
+        </div>
+      </div>
+    </div>
+    <p class="hint"><b>Try it:</b> click any mission row, including the locked boss.</p>
+
+    <ul class="changes">
+      <li><b>State is stated once</b><span>Glyph and colour on the row; words on the card. <code>READY</code> stops appearing three times.</span></li>
+      <li><b>Lock reasons surface</b><span><code>statusCopy()</code> already writes them — they just move somewhere visible.</span></li>
+      <li><b>Selection is unmissable</b><span>Filled row, amber left edge, raised shadow. Not a 0.10 alpha difference.</span></li>
+      <li><b>The choice has content</b><span>Biome, threat, your best time, mastery pips, and what a first clear pays.</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Results and upgrades</h2>
+    <p class="sub">
+      The run's payoff becomes four tiles instead of a run-on line. The shop becomes cards you can
+      point at. The permanent fork gets its own panel, its own warning, and a confirmation step.
+    </p>
+
+    <div class="screen">
+      <div class="stage">
+        <div class="banner">
+          <b>REALM CLEANSED</b>
+          <i>THE BROOD WARRENS · VANGUARD · 37.0s</i>
+        </div>
+
+        <div class="tiles">
+          <div class="tile gold"><i>GOLD</i><b>318</b><small>+150 first clear</small></div>
+          <div class="tile"><i>KILLS</i><b>25</b></div>
+          <div class="tile"><i>TIME</i><b>37.0s</b><small>new record</small></div>
+          <div class="tile"><i>LEVEL 3</i><b>316<span style="font-size:11px;color:var(--dimg)"> xp</span></b><div class="xp"><div style="width:62%"></div></div></div>
+        </div>
+
+        <div class="shoprow">
+          <span class="lbl">SPEND YOUR SPOILS</span>
+          <span class="bank" id="bank">◆ 250g</span>
+        </div>
+
+        <div class="shop" id="shop"></div>
+
+        <div class="fork">
+          <div class="fork-h">
+            <b>⚠ ABILITY SPECIALIZATION — PERMANENT, CHOOSE ONE</b>
+            <i id="forkNote">replaces Sunder Slam · cannot be undone</i>
+          </div>
+          <div class="fork-r" id="fork"></div>
+        </div>
+
+        <div class="nav">
+          <button class="btn" type="button">NEXT REALM · The Resin Galleries</button>
+          <button class="btn ghost" type="button">Replay</button>
+          <button class="btn ghost" type="button">Hero select</button>
+          <span class="sp"></span>
+          <span class="keys">↑↓←→ select · ENTER buy</span>
+        </div>
+      </div>
+
+      <div class="confirm" id="confirm" hidden>
+        <div class="confirm-box">
+          <b id="confirmTitle">Take Faultline Drive?</b>
+          <p id="confirmBody"></p>
+          <div class="cta">
+            <button class="btn" type="button" id="confirmYes">Yes, permanently</button>
+            <button class="btn ghost" type="button" id="confirmNo">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="hint"><b>Try it:</b> buy an upgrade, then take a specialization and watch the other lock.</p>
+
+    <ul class="changes">
+      <li><b>Payoff reads at a glance</b><span>Four tiles with tabular figures, and an XP bar showing distance to the next level.</span></li>
+      <li><b>Affordability is visible</b><span>Cost badges dim and cards fade when the bank can't cover them.</span></li>
+      <li><b>Rank is a meter</b><span>Five pips instead of <code>(rank 0/5)</code> buried mid-sentence.</span></li>
+      <li><b>The fork is a decision</b><span>Its own panel, its own warning, and a confirm — not one silent keypress.</span></li>
+    </ul>
+  </section>
+
+  <footer>
+    Live mockup, not the shipped build. Screens are 960 × 720 — the game's native resolution — and
+    scale with this page. Palette and copy are the game's own.
+  </footer>
+</div>
+
+<script>
+(function () {
+  var MISSIONS = [
+    { ord:'MISSION 1', name:'The Brood Warrens', state:'cleared', glyph:'✓', best:'22.1s', mastery:2, threat:1,
+      biome:'BROOD RESIN · TUNNELS', tint:'#2a1d12', stripe:'rgba(255,215,94,.12)', line:'#ffd75e',
+      note:'Skitterling swarms from brood nodes. Cleared — replays pay gold but no bounty.' },
+    { ord:'MISSION 2', name:'The Resin Galleries', state:'cleared', glyph:'✓', best:'38.9s', mastery:1, threat:2,
+      biome:'AMBER RESIN · GALLERIES', tint:'#2b2110', stripe:'rgba(255,180,80,.13)', line:'#e0a24d',
+      note:'Husk mounds and narrow resin corridors. Cleared.' },
+    { ord:'MISSION 3', name:'The Cobalt Combs', state:'available', glyph:'▶', best:null, mastery:0, threat:3,
+      biome:'COBALT COMB · CRYSTALLINE', tint:'#16202b', stripe:'rgba(100,230,255,.12)', line:'#64e6ff',
+      note:'Spitter nests and husk mounds, mixed. First clear pays a 150g bounty.' },
+    { ord:'BOSS', name:'The Hollow Throne', state:'locked', glyph:'☠', best:null, mastery:0, threat:4,
+      biome:'THRONE · BONE AND BROOD', tint:'#2a1214', stripe:'rgba(224,82,77,.14)', line:'#e0524d',
+      lock:'LOCKED — clear every mission in the realm',
+      note:'Mireveil, Mother of the Brood. One mission still stands between you and the throne.' }
+  ];
+
+  var cursor = 2;
+  var rail = document.getElementById('rail');
+  var detail = document.getElementById('detail');
+
+  function pips(n, total, cls) {
+    var out = '';
+    for (var i = 0; i < total; i++) out += '<span class="pip ' + (cls||'') + (i < n ? ' on' : '') + '"></span>';
+    return '<span class="pips">' + out + '</span>';
+  }
+
+  function renderRail() {
+    Array.prototype.slice.call(rail.querySelectorAll('.row')).forEach(function (n) { n.remove(); });
+    MISSIONS.forEach(function (m, i) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'row ' + m.state;
+      b.setAttribute('aria-current', i === cursor ? 'true' : 'false');
+      b.innerHTML = '<span class="g">' + m.glyph + '</span>' +
+        '<span><span class="o">' + m.ord + '</span><span class="n">' + m.name + '</span></span>' +
+        '<span class="t">' + (m.best || (m.state === 'locked' ? '—' : '—')) + '</span>';
+      b.addEventListener('click', function () { cursor = i; renderRail(); renderDetail(); });
+      rail.appendChild(b);
+    });
+  }
+
+  function renderDetail() {
+    var m = MISSIONS[cursor];
+    var locked = m.state === 'locked';
+    detail.innerHTML =
+      '<div class="biome" style="background:repeating-linear-gradient(60deg,' + m.stripe + ' 0 12px, rgba(0,0,0,0) 12px 24px),' + m.tint + ';border-color:' + m.line + '33">' +
+        '<span style="color:' + m.line + '">' + m.biome + '</span></div>' +
+      '<div class="dname">' + m.name + '</div>' +
+      '<div class="meta">' +
+        '<div class="stat"><b>' + (m.best || '—') + '</b><i>YOUR BEST</i></div>' +
+        '<div class="stat"><b>' + pips(m.mastery, 4, 'g') + '</b><i>HERO MASTERY ' + m.mastery + '/4</i></div>' +
+        '<div class="stat"><b>' + pips(m.threat, 4, locked ? 'r' : '') + '</b><i>THREAT</i></div>' +
+      '</div>' +
+      (locked ? '<div class="note bad">' + m.lock + '</div>' : '') +
+      '<div class="note">' + m.note + '</div>' +
+      '<div class="cta">' +
+        (locked
+          ? '<span class="btn dead">LOCKED</span>'
+          : '<span class="btn">' + (m.state === 'cleared' ? 'REPLAY · ENTER' : 'DEPLOY · ENTER') + '</span>') +
+        '<span class="btn ghost">Hero select</span>' +
+      '</div>';
+  }
+
+  renderRail();
+  renderDetail();
+
+  /* ---- results ---- */
+
+  var bank = 250;
+  var UPGRADES = [
+    { key:'1', name:'Hearthstone Vigor', desc:'+20 max health per rank', cost:80, rank:0, max:5 },
+    { key:'2', name:'Sharpened Edge', desc:'+4 damage per rank', cost:100, rank:0, max:5 },
+    { key:'3', name:"Warden's Reach", desc:'Weapon tier 2 · longer reach', cost:90, rank:1, max:3 }
+  ];
+  var FORK = [
+    { name:'Faultline Drive', desc:'Rips a 230×64 line ahead instead of bursting around you.', cost:180 },
+    { name:'Echoing Crater', desc:'Bursts again at the cast point after 0.6s for 22 damage.', cost:180 }
+  ];
+  var chosen = -1;
+  var sel = { list:'shop', i:0 };
+  var pending = -1;
+
+  var shopEl = document.getElementById('shop');
+  var forkEl = document.getElementById('fork');
+  var bankEl = document.getElementById('bank');
+  var forkNote = document.getElementById('forkNote');
+  var confirm = document.getElementById('confirm');
+
+  function renderShop() {
+    bankEl.textContent = '◆ ' + bank + 'g';
+    shopEl.innerHTML = '';
+    UPGRADES.forEach(function (u, i) {
+      var maxed = u.rank >= u.max;
+      var cant = !maxed && bank < u.cost;
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'card' + (cant ? ' cant' : '') + (maxed ? ' done' : '');
+      b.setAttribute('aria-current', sel.list === 'shop' && sel.i === i ? 'true' : 'false');
+      b.innerHTML = '<span class="kbd">' + u.key + '</span>' +
+        '<span class="cn">' + u.name + '</span>' +
+        '<span class="cd">' + u.desc + '</span>' +
+        '<span class="cf">' + pips(u.rank, u.max) +
+        '<span class="cost' + (maxed ? ' done' : cant ? ' cant' : '') + '">' +
+        (maxed ? 'MAXED' : cant ? u.cost + 'g · need ' + (u.cost - bank) + 'g' : u.cost + 'g') +
+        '</span></span>';
+      b.addEventListener('click', function () {
+        sel = { list:'shop', i:i };
+        if (!maxed && !cant) { bank -= u.cost; u.rank++; }
+        renderShop(); renderFork();
+      });
+      shopEl.appendChild(b);
+    });
+  }
+
+  function renderFork() {
+    forkEl.innerHTML = '';
+    FORK.forEach(function (f, i) {
+      var isChosen = chosen === i;
+      var isLocked = chosen >= 0 && chosen !== i;
+      var cant = chosen < 0 && bank < f.cost;
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'card' + (isChosen ? ' done' : '') + ((isLocked || cant) ? ' cant' : '');
+      b.setAttribute('aria-current', sel.list === 'fork' && sel.i === i ? 'true' : 'false');
+      var badge = isChosen ? '<span class="cost done">CHOSEN</span>'
+        : isLocked ? '<span class="cost cant">LOCKED</span>'
+        : cant ? '<span class="cost cant">' + f.cost + 'g · need ' + (f.cost - bank) + 'g</span>'
+        : '<span class="cost">' + f.cost + 'g</span>';
+      b.innerHTML = '<span class="cn">' + f.name + '</span><span class="cd">' + f.desc + '</span>' +
+        '<span class="cf"><span></span>' + badge + '</span>';
+      b.addEventListener('click', function () {
+        sel = { list:'fork', i:i };
+        renderShop(); renderFork();
+        if (isChosen || isLocked || cant) return;
+        pending = i;
+        document.getElementById('confirmTitle').textContent = 'Take ' + f.name + '?';
+        document.getElementById('confirmBody').textContent =
+          f.name + ' replaces Sunder Slam for this hero on every future run, and locks ' +
+          FORK[1 - i].name + ' out permanently. It costs ' + f.cost + 'g.';
+        confirm.hidden = false;
+      });
+      forkEl.appendChild(b);
+    });
+    forkNote.textContent = chosen >= 0
+      ? FORK[chosen].name + ' chosen · the other branch is closed'
+      : 'replaces Sunder Slam · cannot be undone';
+  }
+
+  document.getElementById('confirmYes').addEventListener('click', function () {
+    if (pending >= 0) { bank -= FORK[pending].cost; chosen = pending; pending = -1; }
+    confirm.hidden = true;
+    renderShop(); renderFork();
+  });
+  document.getElementById('confirmNo').addEventListener('click', function () {
+    pending = -1; confirm.hidden = true;
+  });
+
+  renderShop();
+  renderFork();
+})();
+</script>
