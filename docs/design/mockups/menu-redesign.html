@@ -73,7 +73,7 @@
   .seg.on { border-color:rgba(159,224,106,.65); background:var(--green); box-shadow:0 0 10px rgba(159,224,106,.18); }
   .seg.boss { flex:0 0 43px; border-color:rgba(224,82,77,.28); background:rgba(224,82,77,.16); }
   .seg.boss.on { background:var(--red); }
-  .row { position:relative; display:grid; grid-template-columns:30px 1fr auto; gap:12px; align-items:center; width:100%; min-height:85px; padding:11px 14px; overflow:hidden; border:1px solid rgba(192,179,206,.18); border-left:4px solid transparent; border-radius:5px; background:linear-gradient(100deg,rgba(34,26,48,.92),rgba(14,12,23,.88)); color:inherit; cursor:pointer; font:inherit; text-align:left; }
+  .row { position:relative; display:grid; grid-template-columns:30px 1fr auto; gap:12px; align-items:center; width:100%; min-height:118px; padding:11px 14px; overflow:hidden; border:1px solid rgba(192,179,206,.18); border-left:4px solid transparent; border-radius:5px; background:linear-gradient(100deg,rgba(34,26,48,.92),rgba(14,12,23,.88)); color:inherit; cursor:pointer; font:inherit; text-align:left; }
   .row::after { content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(110deg,transparent 60%,rgba(168,85,200,.08)); }
   .row:hover { border-color:rgba(100,230,255,.44); transform:translateX(2px); }
   .row[aria-current="true"] { z-index:1; border-color:var(--cyan); border-left-color:var(--cyan); box-shadow:0 0 0 1px rgba(100,230,255,.45),0 8px 22px rgba(0,0,0,.6),0 0 20px rgba(100,230,255,.12); transform:translateX(4px); }
@@ -97,13 +97,13 @@
 
   .detail { position:relative; display:flex; min-height:0; flex-direction:column; gap:13px; padding:18px; overflow:hidden; border:1px solid rgba(192,179,206,.2); border-radius:6px; background:linear-gradient(145deg,rgba(34,26,48,.97),rgba(19,14,29,.97)); box-shadow:inset 0 0 35px rgba(0,0,0,.28); }
   .detail::before,.fork::before { content:""; position:absolute; width:22px; height:22px; border-top:2px solid rgba(168,85,200,.45); border-left:2px solid rgba(168,85,200,.45); top:7px; left:7px; pointer-events:none; }
-  .biome { position:relative; height:198px; flex:0 0 198px; overflow:hidden; border:1px solid color-mix(in srgb,var(--line) 55%,transparent); border-radius:5px; background-color:var(--tint); background-image:linear-gradient(90deg,rgba(6,5,10,.2),rgba(6,5,10,.05) 50%,rgba(6,5,10,.55)),var(--texture); background-position:center; background-size:auto,96px 96px; box-shadow:inset 0 -60px 50px rgba(3,2,7,.72),0 0 20px color-mix(in srgb,var(--line) 10%,transparent); image-rendering:pixelated; }
+  .biome { position:relative; height:236px; flex:0 0 236px; overflow:hidden; border:1px solid color-mix(in srgb,var(--line) 55%,transparent); border-radius:5px; background-color:var(--tint); background-image:linear-gradient(90deg,rgba(6,5,10,.2),rgba(6,5,10,.05) 50%,rgba(6,5,10,.55)),var(--texture); background-position:center; background-size:auto,96px 96px; box-shadow:inset 0 -60px 50px rgba(3,2,7,.72),0 0 20px color-mix(in srgb,var(--line) 10%,transparent); image-rendering:pixelated; }
   .biome::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg,rgba(255,255,255,.025),transparent 45%,rgba(7,5,11,.7)); }
   .biome img { position:absolute; z-index:1; right:34px; bottom:21px; width:108px; height:108px; object-fit:contain; filter:drop-shadow(0 14px 12px rgba(0,0,0,.78)); image-rendering:pixelated; transform:scale(1.15); }
   .biome img.boss-art { right:42px; bottom:8px; width:150px; height:150px; transform:none; }
   .biome-label { position:absolute; z-index:2; left:14px; bottom:12px; color:var(--line); font-size:12px; font-weight:700; letter-spacing:.12em; text-shadow:0 2px 4px #000; }
   .dname { color:var(--parch); font-family:var(--sans); font-size:25px; font-weight:850; letter-spacing:-.01em; line-height:1.05; }
-  .meta { display:grid; grid-template-columns:.85fr 1.25fr 1fr; gap:13px; }
+  .meta { display:grid; grid-template-columns:1fr 1.25fr .9fr; gap:13px; }
   .stat { display:flex; min-width:0; flex-direction:column; gap:4px; }
   .stat b { min-height:19px; color:#eee6f5; font-size:15px; font-weight:650; font-variant-numeric:tabular-nums; }
   .stat i { color:var(--dimg); font-size:10.5px; font-style:normal; letter-spacing:.09em; }
@@ -113,6 +113,9 @@
   .fang { width:10px; height:15px; border:1px solid rgba(192,179,206,.4); clip-path:polygon(0 0,100% 0,50% 100%); background:rgba(255,255,255,.03); }
   .fang.on { border-color:var(--amber); background:var(--amber); }
   .fang.danger.on { border-color:var(--red); background:var(--red); }
+  .roster { display:flex; flex-wrap:wrap; align-items:center; gap:7px; }
+  .roster i { margin-right:2px; color:var(--dimg); font-size:10.5px; font-style:normal; letter-spacing:.09em; }
+  .chip { padding:3px 9px; border:1px solid rgba(192,179,206,.3); border-radius:3px; background:rgba(255,255,255,.035); color:#d8cee4; font-size:11.5px; }
   .note { padding-left:11px; border-left:3px solid rgba(100,230,255,.58); color:var(--lilac); font-size:12.5px; line-height:1.45; }
   .note.bad { border-left-color:var(--red); color:#f0b5b1; font-weight:650; }
   .cta { display:flex; align-items:center; gap:10px; margin-top:auto; }
@@ -131,7 +134,7 @@
   .banner b { display:block; color:var(--green); font-family:var(--sans); font-size:34px; font-weight:900; letter-spacing:.075em; line-height:1.15; text-shadow:0 0 22px rgba(159,224,106,.18); }
   .banner i { color:var(--dimg); font-size:12px; font-style:normal; letter-spacing:.11em; }
   .tiles { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
-  .tile { position:relative; display:grid; grid-template-columns:34px 1fr; grid-template-rows:auto auto; min-height:88px; padding:11px 12px; overflow:hidden; border:1px solid rgba(192,179,206,.2); border-radius:5px; background:linear-gradient(130deg,rgba(34,26,48,.9),rgba(15,12,23,.88)); }
+  .tile { position:relative; display:grid; grid-template-columns:34px 1fr; grid-template-rows:auto auto; min-height:100px; padding:11px 12px; overflow:hidden; border:1px solid rgba(192,179,206,.2); border-radius:5px; background:linear-gradient(130deg,rgba(34,26,48,.9),rgba(15,12,23,.88)); }
   .tile::after { content:""; position:absolute; right:-15px; bottom:-23px; width:70px; height:70px; border:1px solid rgba(168,85,200,.11); transform:rotate(45deg); }
   .tile .tile-icon { grid-row:1/3; align-self:center; color:var(--amber); font-family:var(--sans); font-size:23px; font-weight:900; text-align:center; text-shadow:0 0 12px rgba(255,215,94,.18); }
   .tile img.tile-icon { width:28px; height:28px; object-fit:contain; image-rendering:pixelated; }
@@ -146,7 +149,7 @@
   .bank { display:flex; align-items:center; gap:7px; padding:6px 12px; border:1px solid rgba(255,215,94,.45); border-radius:4px; background:rgba(255,215,94,.09); color:var(--amber); font-size:15px; font-variant-numeric:tabular-nums; }
   .bank img { width:16px; height:16px; image-rendering:pixelated; }
   .shop { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
-  .card { position:relative; display:grid; grid-template-columns:34px 1fr; grid-template-rows:auto 1fr auto; gap:3px 9px; min-height:108px; padding:12px 13px; overflow:hidden; border:1px solid rgba(192,179,206,.2); border-radius:5px; background:linear-gradient(135deg,rgba(32,25,44,.95),rgba(14,12,22,.94)); color:inherit; cursor:pointer; font:inherit; text-align:left; }
+  .card { position:relative; display:grid; grid-template-columns:34px 1fr; grid-template-rows:auto 1fr auto; gap:3px 9px; min-height:136px; padding:12px 13px; overflow:hidden; border:1px solid rgba(192,179,206,.2); border-radius:5px; background:linear-gradient(135deg,rgba(32,25,44,.95),rgba(14,12,22,.94)); color:inherit; cursor:pointer; font:inherit; text-align:left; }
   .card::after { content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(120deg,transparent 58%,rgba(168,85,200,.07)); }
   .card:hover { border-color:rgba(100,230,255,.48); }
   .card:focus-visible { outline:2px solid var(--cyan); outline-offset:2px; }
@@ -172,7 +175,7 @@
   .fork-h b { color:#efc1f8; font-size:12px; letter-spacing:.1em; }
   .fork-h i { color:var(--dimg); font-size:10.5px; font-style:normal; }
   .fork-r { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .fork .card { min-height:115px; grid-template-columns:1fr 92px; grid-template-rows:auto 1fr auto; }
+  .fork .card { min-height:150px; grid-template-columns:1fr 92px; grid-template-rows:auto 1fr auto; }
   .fork .card .cn,.fork .card .cd { grid-column:1; }
   .fork .card .cf { grid-column:1/3; }
   .ability-viz { position:relative; grid-column:2; grid-row:1/3; align-self:stretch; min-height:55px; border:1px solid rgba(168,85,200,.26); border-radius:4px; background:radial-gradient(circle at center,rgba(168,85,200,.14),rgba(8,7,13,.55)); overflow:hidden; }
@@ -243,7 +246,10 @@
             </div>
             <div class="rail-help"><span class="keycap">↑↓</span><span>Choose a mission</span><span class="keycap">A</span><span>Deploy</span></div>
           </div>
-          <div class="detail" id="detail" aria-live="polite"></div>
+          <!-- Not a live region: the panel is rebuilt on every cursor move, so
+               announcing it would re-read biome, stats and both buttons on each
+               arrow press. The row's own accessible name carries the summary. -->
+          <div class="detail" id="detail" role="group" aria-label="Selected mission detail"></div>
         </div>
         <div class="toast" id="hubToast" role="status"></div>
       </div>
@@ -270,7 +276,7 @@
         </div>
 
         <div class="tiles">
-          <div class="tile gold"><img class="tile-icon" src="../../../public/art/ui-icon-gold.png" alt=""><i>GOLD EARNED</i><b>318</b><small>includes +150 first clear</small></div>
+          <div class="tile gold"><img class="tile-icon" src="../../../public/art/ui-icon-gold.png" alt=""><i>GOLD EARNED</i><b>318</b><small>+150 first clear</small></div>
           <div class="tile"><img class="tile-icon" src="../../../public/art/ui-icon-kills.png" alt=""><i>ENEMIES FELLED</i><b>25</b></div>
           <div class="tile"><span class="tile-icon">◷</span><i>CLEAR TIME</i><b>37.0s</b><small>new realm record</small></div>
           <div class="tile"><span class="tile-icon">III</span><i>LEVEL 3 · 316 XP</i><b>62%</b><div class="xp" aria-label="62 percent to level 4"><div style="width:62%"></div></div></div>
@@ -278,7 +284,7 @@
 
         <div class="shoprow">
           <span class="lbl">SPEND YOUR SPOILS</span>
-          <span class="bank" id="bank"><img src="../../../public/art/ui-icon-gold.png" alt="">250g BANKED</span>
+          <span class="bank" id="bank"><img src="../../../public/art/ui-icon-gold.png" alt="">318g BANKED</span>
         </div>
         <div class="shop" id="shop"></div>
 
@@ -334,10 +340,10 @@
   var ART = '../../../public/art/';
   var HEROES = ['V','A','R','S'];
   var MISSIONS = [
-    { ord:'MISSION 1', name:'The Brood Warrens', state:'cleared', glyph:'✓', best:'22.1s', mastery:2, threat:1, threatLabel:'LOW', biome:'BROOD RESIN · TUNNELS', texture:ART+'tile-floor-0.png', subject:ART+'generator-brood-node-0.png', tint:'#211627', line:'#b07fe6', rowNote:'Cleared · replayable', note:'Skitterling swarms pour from brood nodes. Replays award gold, but the first-clear bounty is already claimed.' },
-    { ord:'MISSION 2', name:'The Resin Galleries', state:'cleared', glyph:'✓', best:'38.9s', mastery:1, threat:2, threatLabel:'GUARDED', biome:'AMBER RESIN · GALLERIES', texture:ART+'tile-amber-resin-floor-0.png', subject:ART+'generator-husk-mound-0.png', tint:'#2b2110', line:'#e0a24d', rowNote:'Cleared · replayable', note:'Husk mounds crowd narrow resin galleries. Bring control or enough toughness to hold the corridor.' },
-    { ord:'MISSION 3', name:'The Cobalt Combs', state:'available', glyph:'▶', best:null, mastery:0, threat:3, threatLabel:'DANGEROUS', biome:'COBALT COMB · CRYSTALLINE', texture:ART+'tile-cobalt-combs-floor-0.png', subject:ART+'generator-spitter-nest-0.png', tint:'#101d2a', line:'#64e6ff', rowNote:'Ready · 150g first-clear bounty', note:'Spitter nests and husk mounds create mixed-range pressure. The first clear awards a 150g bounty.' },
-    { ord:'BOSS', name:'The Hollow Throne', state:'locked', glyph:'☠', best:null, mastery:0, threat:4, threatLabel:'BOSS', biome:'THRONE · BONE AND BROOD', texture:ART+'tile-hollow-throne-floor-0.png', subject:ART+'boss-mireveil-0.png', subjectClass:'boss-art', tint:'#2a1214', line:'#e0524d', rowNote:'Clear Mission 3 to unlock', lock:'LOCKED — clear The Cobalt Combs', note:'Mireveil, Mother of the Brood, waits beyond the last Azure Reach mission.' }
+    { ord:'MISSION 1', name:'The Brood Warrens', state:'cleared', glyph:'✓', best:'22.1s', bounty:100, mastery:2, threat:1, threatLabel:'LOW', biome:'BROOD RESIN · TUNNELS', texture:ART+'tile-floor-0.png', subject:ART+'generator-brood-node-0.png', tint:'#211627', line:'#b07fe6', encounters:['Skitterlings','Brood nodes'], rowNote:'Cleared · replayable', note:'Skitterling swarms pour from brood nodes. Replays award gold, but the first-clear bounty is already claimed.' },
+    { ord:'MISSION 2', name:'The Resin Galleries', state:'cleared', glyph:'✓', best:'38.9s', bounty:125, mastery:1, threat:2, threatLabel:'GUARDED', biome:'AMBER RESIN · GALLERIES', texture:ART+'tile-amber-resin-floor-0.png', subject:ART+'generator-husk-mound-0.png', tint:'#2b2110', line:'#e0a24d', encounters:['Husks','Husk mounds'], rowNote:'Cleared · replayable', note:'Husk mounds crowd narrow resin galleries. Bring control or enough toughness to hold the corridor.' },
+    { ord:'MISSION 3', name:'The Cobalt Combs', state:'available', glyph:'▶', best:null, bounty:150, mastery:0, threat:3, threatLabel:'DANGEROUS', biome:'COBALT COMB · CRYSTALLINE', texture:ART+'tile-cobalt-combs-floor-0.png', subject:ART+'generator-spitter-nest-0.png', tint:'#101d2a', line:'#64e6ff', encounters:['Spitters','Husks','Spitter nests'], rowNote:'Ready · 150g first-clear bounty', note:'Spitter nests and husk mounds create mixed-range pressure. The first clear awards a 150g bounty.' },
+    { ord:'BOSS', name:'The Hollow Throne', state:'locked', glyph:'☠', best:null, bounty:300, mastery:0, threat:4, threatLabel:'EXTREME', biome:'THRONE · BONE AND BROOD', texture:ART+'tile-hollow-throne-floor-0.png', subject:ART+'boss-mireveil-0.png', subjectClass:'boss-art', tint:'#2a1214', line:'#e0524d', encounters:['Mireveil','Husk elites','Brood nodes'], rowNote:'Locked · clear The Cobalt Combs', lock:'Clearing The Cobalt Combs opens the throne.', note:'Mireveil, Mother of the Brood, waits beyond the last Azure Reach mission.' }
   ];
 
   var hubCursor = 2;
@@ -373,7 +379,10 @@
       b.className = 'row ' + m.state;
       b.dataset.hubIndex = String(i);
       b.setAttribute('aria-current',i === hubCursor ? 'true' : 'false');
-      if (m.state === 'locked') b.setAttribute('aria-disabled','true');
+      /* A locked row is still a real target — selecting it is how you read why
+         it is locked — so it is never aria-disabled. Its name carries the
+         prerequisite instead. */
+      b.setAttribute('aria-label',m.ord + ': ' + m.name + '. ' + m.rowNote + (m.best ? '. Best ' + m.best : ''));
       b.innerHTML = '<span class="g" aria-hidden="true">' + m.glyph + '</span>' +
         '<span class="rowcopy"><span class="o">' + m.ord + '</span><span class="n">' + m.name + '</span><span class="rs">' + m.rowNote + '</span></span>' +
         (m.best ? '<span class="t">' + m.best + '<small>best</small></span>' : '<span></span>');
@@ -387,7 +396,7 @@
   function renderDetail() {
     var m = MISSIONS[hubCursor];
     var locked = m.state === 'locked';
-    var firstStat = m.best ? '<b>' + m.best + '</b><i>PERSONAL BEST</i>' : locked ? '<b>FINAL</b><i>REALM ENCOUNTER</i>' : '<b>150g</b><i>FIRST-CLEAR BOUNTY</i>';
+    var firstStat = m.best ? '<b>' + m.best + '</b><i>PERSONAL BEST</i>' : '<b>' + m.bounty + 'g</b><i>FIRST-CLEAR BOUNTY</i>';
     detail.innerHTML =
       '<div class="biome" style="--texture:url(\'' + m.texture + '\');--tint:' + m.tint + ';--line:' + m.line + '">' +
         '<img class="' + (m.subjectClass || '') + '" src="' + m.subject + '" alt=""><span class="biome-label">' + m.biome + '</span></div>' +
@@ -395,6 +404,7 @@
       '<div class="meta"><div class="stat">' + firstStat + '</div>' +
         '<div class="stat"><b>' + heroMarks(m.mastery) + '</b><i>HEROES WHO MASTERED IT</i></div>' +
         '<div class="stat"><b>' + threatMarks(m.threat,locked) + '</b><i>' + m.threatLabel + ' THREAT</i></div></div>' +
+      '<div class="roster"><i>ENCOUNTERS</i>' + m.encounters.map(function (e) { return '<span class="chip">' + e + '</span>'; }).join('') + '</div>' +
       (locked ? '<div class="note bad">' + m.lock + '</div>' : '') +
       '<div class="note">' + m.note + '</div>' +
       '<div class="cta"><button class="btn ' + (locked ? 'dead' : 'primary') + '" type="button" data-map-action="deploy"' + (locked ? ' aria-disabled="true"' : '') + '>' + (locked ? 'LOCKED' : m.state === 'cleared' ? 'REPLAY · ENTER' : 'DEPLOY · ENTER') + '</button><button class="btn ghost" type="button" data-map-action="heroes">Hero select</button></div>';
@@ -431,11 +441,14 @@
   });
 
   /* Results */
-  var bank = 250;
+  /* ResultsScene banks the run's gold on scene entry, before anything can be
+     spent, so the opening bank is never below the gold this run earned. */
+  var STARTING_BANK = 318;
+  var bank = STARTING_BANK;
   var UPGRADES = [
     { key:'1', icon:'♥', name:'Hearthstone Vigor', desc:'+20 maximum health each rank', cost:80, rank:0, max:5 },
     { key:'2', icon:'✦', name:'Sharpened Edge', desc:'+4 basic-attack damage each rank', cost:100, rank:0, max:5 },
-    { key:'3', icon:'⇥', name:"Warden’s Reach", desc:'Tier 2 weapon · longer strike reach', cost:90, rank:1, max:3 }
+    { key:'3', icon:'⇥', name:"Warden’s Reach", desc:'Tier 2 weapon · longer reach', cost:90, rank:1, max:3 }
   ];
   var FORK = [
     { name:'Faultline Drive', desc:'Drive a long fracture through enemies in front of you.', detail:'Replaces the circular Sunder Slam with a focused 230×64 line attack.', cost:180, viz:'line' },
@@ -489,7 +502,7 @@
         selectResult(0,i,false);
         if (maxed) showToast(resultToast,u.name + ' is already maxed');
         else if (cant) showToast(resultToast,'Need ' + (u.cost-bank) + 'g more');
-        else { bank -= u.cost; u.rank++; showToast(resultToast,u.name + ' upgraded'); renderResults(); }
+        else { bank -= u.cost; u.rank++; showToast(resultToast,u.name + ' upgraded'); renderResults(true); }
       });
       shopEl.appendChild(b);
     });
@@ -506,7 +519,7 @@
       b.className = 'card' + (isChosen ? ' done' : '') + ((isLocked || cant) ? ' cant' : '');
       if (isChosen || isLocked || cant) b.setAttribute('aria-disabled','true');
       var badge = isChosen ? '<span class="cost done">CHOSEN</span>' : isLocked ? '<span class="cost cant">BRANCH CLOSED</span>' : cant ? '<span class="cost cant">SHORT ' + (f.cost-bank) + 'g</span>' : '<span class="cost">PREVIEW · ' + f.cost + 'g</span>';
-      b.innerHTML = '<span class="cn">' + f.name + '</span><span class="cd">' + f.desc + '</span><span class="ability-viz ' + f.viz + '" aria-hidden="true"><span class="hero-dot"></span></span><span class="cf"><span></span>' + badge + '</span>';
+      b.innerHTML = '<span class="kbd">' + (i + 4) + '</span><span class="cn">' + f.name + '</span><span class="cd">' + f.desc + '</span><span class="ability-viz ' + f.viz + '" aria-hidden="true"><span class="hero-dot"></span></span><span class="cf"><span></span>' + badge + '</span>';
       bindResultTarget(b,1,i);
       b.addEventListener('click',function () {
         selectResult(1,i,false);
@@ -527,8 +540,12 @@
     });
   }
 
-  function renderResults() {
-    renderShop(); renderFork(); syncResultSelection(false);
+  /* Every mutation rebuilds the shop and fork markup, which destroys the button
+     holding DOM focus. Because the key handler is bound to #resultsStage, focus
+     falling back to <body> silently kills arrow and Enter input for the rest of
+     the session — so a re-render that follows a state change must reclaim it. */
+  function renderResults(keepFocus) {
+    renderShop(); renderFork(); syncResultSelection(keepFocus === true);
   }
 
   function selectResult(row,col,focus) {
@@ -571,11 +588,28 @@
 
   function chooseSpecialization(i) {
     if (chosen < 0 && bank >= FORK[i].cost) { bank -= FORK[i].cost; chosen = i; }
-    pending = -1; confirm.hidden = true; renderResults();
+    /* Hiding the dialog while focus still sits inside it strands focus on a
+       display:none element, so hand the cursor back to the fork card first. */
+    pending = -1; confirm.hidden = true; renderResults(true);
+  }
+
+  function cancelConfirm() { pending = -1; confirm.hidden = true; syncResultSelection(true); }
+
+  /* The dialog is a two-button choice; left/right swap between them and the
+     safe option keeps focus on open. */
+  function moveConfirmFocus() {
+    var yes = document.getElementById('confirmYes');
+    (document.activeElement === yes ? document.getElementById('confirmNo') : yes).focus();
+  }
+
+  function activateConfirm() {
+    var yes = document.getElementById('confirmYes');
+    var no = document.getElementById('confirmNo');
+    (document.activeElement === yes ? yes : no).click();
   }
 
   document.getElementById('confirmYes').addEventListener('click',function () { if (pending >= 0) chooseSpecialization(pending); });
-  document.getElementById('confirmNo').addEventListener('click',function () { pending = -1; confirm.hidden = true; syncResultSelection(true); });
+  document.getElementById('confirmNo').addEventListener('click',cancelConfirm);
 
   renderResults();
   renderNav();
@@ -586,13 +620,19 @@
     if (!confirm.hidden) return;
     if (/^Arrow(Up|Down|Left|Right)$/.test(event.key)) { event.preventDefault(); moveResult(event.key); }
     else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activateResult(); }
+    /* The number badges are a promise: 1-3 buy upgrades, 4-5 open a
+       specialization preview. They move the cursor too, so the shortcut and the
+       cursor never disagree about what is selected. */
+    else if (/^[1-5]$/.test(event.key)) {
+      event.preventDefault();
+      var n = Number(event.key) - 1;
+      selectResult(n < 3 ? 0 : 1,n < 3 ? n : n - 3,true);
+      activateResult();
+    }
   });
   confirm.addEventListener('keydown',function (event) {
-    if (event.key === 'Escape') { event.preventDefault(); document.getElementById('confirmNo').click(); }
-    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-      event.preventDefault();
-      (document.activeElement === document.getElementById('confirmYes') ? document.getElementById('confirmNo') : document.getElementById('confirmYes')).focus();
-    }
+    if (event.key === 'Escape') { event.preventDefault(); cancelConfirm(); }
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); moveConfirmFocus(); }
   });
 
   document.getElementById('hubScreen').addEventListener('pointerenter',function () { activeScreen = 'hub'; });
@@ -605,14 +645,24 @@
     if (pad) {
       var pressed = pad.buttons.map(function (b) { return b.pressed; });
       var map = [{i:12,key:'ArrowUp'},{i:13,key:'ArrowDown'},{i:14,key:'ArrowLeft'},{i:15,key:'ArrowRight'}];
+      /* The dialog is modal for the pad exactly as it is for the keyboard: while
+         it is open the D-pad swaps between its two buttons and A activates the
+         focused one, rather than reaching the card underneath. */
+      var modal = !confirm.hidden;
       map.forEach(function (entry) {
-        if (pressed[entry.i] && !previousPad[entry.i]) {
-          if (activeScreen === 'hub' && (entry.key === 'ArrowUp' || entry.key === 'ArrowDown')) selectHub((hubCursor + (entry.key === 'ArrowDown' ? 1 : -1) + MISSIONS.length) % MISSIONS.length,true);
-          else if (activeScreen === 'results') moveResult(entry.key);
-        }
+        if (!pressed[entry.i] || previousPad[entry.i]) return;
+        if (modal) {
+          if (entry.key === 'ArrowLeft' || entry.key === 'ArrowRight') moveConfirmFocus();
+        } else if (activeScreen === 'hub') {
+          if (entry.key === 'ArrowUp' || entry.key === 'ArrowDown') selectHub((hubCursor + (entry.key === 'ArrowDown' ? 1 : -1) + MISSIONS.length) % MISSIONS.length,true);
+        } else moveResult(entry.key);
       });
-      if (pressed[0] && !previousPad[0]) activeScreen === 'hub' ? confirmHub() : activateResult();
-      if (pressed[1] && !previousPad[1] && !confirm.hidden) document.getElementById('confirmNo').click();
+      if (pressed[0] && !previousPad[0]) {
+        if (modal) activateConfirm();
+        else if (activeScreen === 'hub') confirmHub();
+        else activateResult();
+      }
+      if (pressed[1] && !previousPad[1] && modal) cancelConfirm();
       previousPad = pressed;
     } else previousPad = [];
     window.requestAnimationFrame(pollPad);
@@ -623,7 +673,7 @@
     selectHub:function (i) { selectHub(i,false); },
     openFork:function (i) { requestSpecialization(i); },
     chooseFork:function (i) { chooseSpecialization(i); },
-    resetResults:function () { bank=250; chosen=-1; pending=-1; UPGRADES[0].rank=0; UPGRADES[1].rank=0; UPGRADES[2].rank=1; confirm.hidden=true; resultCursor={row:0,col:0}; renderResults(); }
+    resetResults:function () { bank=STARTING_BANK; chosen=-1; pending=-1; UPGRADES[0].rank=0; UPGRADES[1].rank=0; UPGRADES[2].rank=1; confirm.hidden=true; resultCursor={row:0,col:0}; renderResults(); }
   };
 })();
 </script>
