@@ -1,0 +1,681 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hive Legends — proposed menu screens</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --page:#f4f1f7;
+    --card:#ffffff;
+    --edge:#ddd5e6;
+    --text:#1d1728;
+    --dim:#5c5170;
+    --faint:#8a7fa0;
+    --accent:#8a5a00;
+
+    /* Game palette. The screens are fixed dark-theme game captures. */
+    --void:#080811;
+    --ink:#100b18;
+    --panel:#1a1526;
+    --panel-hi:#221a30;
+    --amber:#ffd75e;
+    --cyan:#64e6ff;
+    --green:#9fe06a;
+    --red:#e0524d;
+    --violet:#a855c8;
+    --lilac:#c0b3ce;
+    --dimg:#a194b3;
+    --parch:#f4e3b2;
+
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+
+  @media (prefers-color-scheme:dark) {
+    :root { --page:#0e0b14; --card:#17121f; --edge:#2c2338; --text:#ece7f2; --dim:#a89bb8; --faint:#776a8c; --accent:#ffd75e; }
+  }
+  :root[data-theme="dark"] { --page:#0e0b14; --card:#17121f; --edge:#2c2338; --text:#ece7f2; --dim:#a89bb8; --faint:#776a8c; --accent:#ffd75e; }
+  :root[data-theme="light"] { --page:#f4f1f7; --card:#fff; --edge:#ddd5e6; --text:#1d1728; --dim:#5c5170; --faint:#8a7fa0; --accent:#8a5a00; }
+
+  *,*::before,*::after { box-sizing:border-box; }
+  body { margin:0; background:var(--page); color:var(--text); font-family:var(--sans); font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  button { -webkit-tap-highlight-color:transparent; }
+  .wrap { max-width:1180px; margin:0 auto; padding:0 24px 96px; }
+  header { padding:64px 0 36px; border-bottom:1px solid var(--edge); display:flex; flex-direction:column; gap:16px; }
+  .eyebrow { margin:0; font-family:var(--mono); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); }
+  h1 { margin:0; max-width:18ch; font-size:clamp(30px,5vw,50px); font-weight:800; letter-spacing:-.035em; line-height:1.04; text-wrap:balance; }
+  .lede { margin:0; max-width:68ch; color:var(--dim); font-size:17px; }
+  section { padding-top:64px; }
+  h2 { margin:0 0 8px; font-size:clamp(24px,3.4vw,34px); font-weight:800; letter-spacing:-.025em; line-height:1.12; }
+  .sub { margin:0 0 26px; max-width:70ch; color:var(--dim); }
+  code { font-family:var(--mono); font-size:.87em; background:color-mix(in srgb,var(--text) 8%,transparent); padding:1px 5px; border-radius:3px; }
+  .hint { display:flex; align-items:center; gap:8px; margin:12px 0 0; font-family:var(--mono); font-size:12px; letter-spacing:.03em; color:var(--faint); }
+  .hint b { color:var(--accent); font-weight:650; }
+
+  /* Native 960×720 game frame. */
+  .screen { position:relative; overflow:hidden; aspect-ratio:4/3; border:1px solid var(--edge); border-radius:5px; background:var(--void); color:var(--lilac); font-family:var(--mono); container-type:inline-size; }
+  .screen::before { content:""; position:absolute; inset:0; background-image:linear-gradient(110deg,rgba(8,8,17,.78) 25%,rgba(8,8,17,.94) 72%),url('../../../public/art/tile-floor-0.png'); background-size:auto,96px 96px; opacity:.28; image-rendering:pixelated; }
+  .screen::after { content:""; position:absolute; inset:0; pointer-events:none; box-shadow:inset 0 0 90px 20px rgba(0,0,0,.78),inset 0 0 0 1px rgba(168,85,200,.14); }
+  .stage { position:absolute; z-index:1; inset:0; width:960px; height:720px; transform-origin:top left; transform:scale(calc(100cqw / 960)); display:flex; flex-direction:column; gap:15px; padding:26px 30px; }
+  .topbar { display:flex; justify-content:space-between; align-items:flex-start; min-height:51px; }
+  .realm { color:var(--amber); font-family:var(--sans); font-size:23px; font-weight:850; letter-spacing:.07em; }
+  .realm-sub { margin-top:2px; color:var(--dimg); font-size:12px; letter-spacing:.1em; }
+  .realm-mark { display:flex; align-items:center; gap:9px; color:var(--dimg); font-size:11.5px; letter-spacing:.08em; }
+  .realm-mark::before { content:""; width:29px; height:25px; border:2px solid rgba(100,230,255,.55); clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); box-shadow:0 0 16px rgba(100,230,255,.18); }
+
+  /* Hub */
+  .hub { display:grid; grid-template-columns:366px 1fr; gap:20px; flex:1; min-height:0; }
+  .rail { display:flex; min-height:0; flex-direction:column; gap:9px; }
+  .track { display:flex; gap:5px; padding:0 1px 3px; }
+  .seg { height:7px; flex:1; border:1px solid rgba(255,255,255,.08); border-radius:2px; background:rgba(255,255,255,.08); }
+  .seg.on { border-color:rgba(159,224,106,.65); background:var(--green); box-shadow:0 0 10px rgba(159,224,106,.18); }
+  .seg.boss { flex:0 0 43px; border-color:rgba(224,82,77,.28); background:rgba(224,82,77,.16); }
+  .seg.boss.on { background:var(--red); }
+  .row { position:relative; display:grid; grid-template-columns:30px 1fr auto; gap:12px; align-items:center; width:100%; min-height:118px; padding:11px 14px; overflow:hidden; border:1px solid rgba(192,179,206,.18); border-left:4px solid transparent; border-radius:5px; background:linear-gradient(100deg,rgba(34,26,48,.92),rgba(14,12,23,.88)); color:inherit; cursor:pointer; font:inherit; text-align:left; }
+  .row::after { content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(110deg,transparent 60%,rgba(168,85,200,.08)); }
+  .row:hover { border-color:rgba(100,230,255,.44); transform:translateX(2px); }
+  .row[aria-current="true"] { z-index:1; border-color:var(--cyan); border-left-color:var(--cyan); box-shadow:0 0 0 1px rgba(100,230,255,.45),0 8px 22px rgba(0,0,0,.6),0 0 20px rgba(100,230,255,.12); transform:translateX(4px); }
+  .row[aria-current="true"]::before { content:""; position:absolute; right:0; top:0; width:8px; height:100%; background:linear-gradient(180deg,transparent,var(--cyan),transparent); opacity:.6; }
+  .row:focus-visible { outline:2px solid var(--cyan); outline-offset:2px; }
+  .row .g { z-index:1; color:var(--amber); font-size:18px; text-align:center; }
+  .row.cleared { border-left-color:var(--green); }
+  .row.cleared .g { color:var(--green); }
+  .row.locked { background:repeating-linear-gradient(120deg,rgba(224,82,77,.055) 0 8px,rgba(14,12,23,.9) 8px 16px); }
+  .row.locked .g { color:var(--red); }
+  .rowcopy { z-index:1; min-width:0; }
+  .row .o { display:block; color:var(--dimg); font-size:11px; letter-spacing:.11em; }
+  .row .n { display:block; margin-top:1px; color:#eee7f4; font-family:var(--sans); font-size:15px; font-weight:700; }
+  .row .rs { display:block; margin-top:1px; color:var(--dimg); font-size:11.5px; line-height:1.25; }
+  .row.cleared .rs { color:#b2df91; }
+  .row.locked .rs { color:#eaa7a3; }
+  .row .t { z-index:1; display:flex; flex-direction:column; align-items:flex-end; color:#c8bdd3; font-size:13px; font-variant-numeric:tabular-nums; }
+  .row .t small { color:var(--dimg); font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; }
+  .rail-help { display:flex; align-items:center; gap:8px; margin-top:auto; padding:11px 12px; border:1px solid rgba(100,230,255,.14); border-radius:4px; background:rgba(10,10,18,.6); color:var(--dimg); font-size:11.5px; line-height:1.35; }
+  .keycap { min-width:21px; padding:2px 5px; border:1px solid rgba(192,179,206,.34); border-bottom-width:2px; border-radius:3px; color:#ddd4e6; text-align:center; }
+
+  .detail { position:relative; display:flex; min-height:0; flex-direction:column; gap:13px; padding:18px; overflow:hidden; border:1px solid rgba(192,179,206,.2); border-radius:6px; background:linear-gradient(145deg,rgba(34,26,48,.97),rgba(19,14,29,.97)); box-shadow:inset 0 0 35px rgba(0,0,0,.28); }
+  .detail::before,.fork::before { content:""; position:absolute; width:22px; height:22px; border-top:2px solid rgba(168,85,200,.45); border-left:2px solid rgba(168,85,200,.45); top:7px; left:7px; pointer-events:none; }
+  .biome { position:relative; height:236px; flex:0 0 236px; overflow:hidden; border:1px solid color-mix(in srgb,var(--line) 55%,transparent); border-radius:5px; background-color:var(--tint); background-image:linear-gradient(90deg,rgba(6,5,10,.2),rgba(6,5,10,.05) 50%,rgba(6,5,10,.55)),var(--texture); background-position:center; background-size:auto,96px 96px; box-shadow:inset 0 -60px 50px rgba(3,2,7,.72),0 0 20px color-mix(in srgb,var(--line) 10%,transparent); image-rendering:pixelated; }
+  .biome::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg,rgba(255,255,255,.025),transparent 45%,rgba(7,5,11,.7)); }
+  .biome img { position:absolute; z-index:1; right:34px; bottom:21px; width:108px; height:108px; object-fit:contain; filter:drop-shadow(0 14px 12px rgba(0,0,0,.78)); image-rendering:pixelated; transform:scale(1.15); }
+  .biome img.boss-art { right:42px; bottom:8px; width:150px; height:150px; transform:none; }
+  .biome-label { position:absolute; z-index:2; left:14px; bottom:12px; color:var(--line); font-size:12px; font-weight:700; letter-spacing:.12em; text-shadow:0 2px 4px #000; }
+  .dname { color:var(--parch); font-family:var(--sans); font-size:25px; font-weight:850; letter-spacing:-.01em; line-height:1.05; }
+  .meta { display:grid; grid-template-columns:1fr 1.25fr .9fr; gap:13px; }
+  .stat { display:flex; min-width:0; flex-direction:column; gap:4px; }
+  .stat b { min-height:19px; color:#eee6f5; font-size:15px; font-weight:650; font-variant-numeric:tabular-nums; }
+  .stat i { color:var(--dimg); font-size:10.5px; font-style:normal; letter-spacing:.09em; }
+  .hero-marks,.threat-marks { display:flex; align-items:center; height:19px; gap:4px; }
+  .hero-mark { display:grid; width:18px; height:18px; place-items:center; border:1px solid rgba(192,179,206,.35); border-radius:50%; color:#8d819d; font-family:var(--sans); font-size:8px; font-weight:800; }
+  .hero-mark.on { border-color:var(--green); background:rgba(159,224,106,.18); color:var(--green); box-shadow:0 0 8px rgba(159,224,106,.14); }
+  .fang { width:10px; height:15px; border:1px solid rgba(192,179,206,.4); clip-path:polygon(0 0,100% 0,50% 100%); background:rgba(255,255,255,.03); }
+  .fang.on { border-color:var(--amber); background:var(--amber); }
+  .fang.danger.on { border-color:var(--red); background:var(--red); }
+  .roster { display:flex; flex-wrap:wrap; align-items:center; gap:7px; }
+  .roster i { margin-right:2px; color:var(--dimg); font-size:10.5px; font-style:normal; letter-spacing:.09em; }
+  .chip { padding:3px 9px; border:1px solid rgba(192,179,206,.3); border-radius:3px; background:rgba(255,255,255,.035); color:#d8cee4; font-size:11.5px; }
+  .note { padding-left:11px; border-left:3px solid rgba(100,230,255,.58); color:var(--lilac); font-size:12.5px; line-height:1.45; }
+  .note.bad { border-left-color:var(--red); color:#f0b5b1; font-weight:650; }
+  .cta { display:flex; align-items:center; gap:10px; margin-top:auto; }
+  .btn { padding:11px 18px; border:1px solid transparent; border-radius:4px; background:rgba(255,215,94,.11); color:var(--amber); cursor:pointer; font-family:var(--mono); font-size:13px; font-weight:750; letter-spacing:.055em; }
+  .btn:hover { border-color:rgba(100,230,255,.55); }
+  .btn.primary { border-color:rgba(255,215,94,.48); }
+  .btn.ghost { border-color:rgba(192,179,206,.3); background:rgba(14,11,22,.45); color:var(--lilac); font-weight:550; }
+  .btn.dead { border-color:rgba(224,82,77,.24); background:repeating-linear-gradient(120deg,rgba(224,82,77,.08) 0 6px,rgba(255,255,255,.03) 6px 12px); color:#d69a98; cursor:not-allowed; }
+  .btn[aria-current="true"] { border-color:var(--cyan); background:var(--cyan); color:#10131a; box-shadow:0 0 0 1px rgba(100,230,255,.38),0 0 18px rgba(100,230,255,.18); }
+  .toast { position:absolute; z-index:8; left:50%; bottom:19px; padding:8px 13px; transform:translateX(-50%); border:1px solid rgba(100,230,255,.45); border-radius:4px; background:#151020; color:#dcecf1; font-size:12px; opacity:0; pointer-events:none; transition:opacity 140ms ease; }
+  .toast.show { opacity:1; }
+
+  /* Results */
+  .results-stage { gap:13px; padding-top:20px; padding-bottom:20px; }
+  .banner { padding:4px 0 12px; border-bottom:1px solid rgba(159,224,106,.36); text-align:center; }
+  .banner b { display:block; color:var(--green); font-family:var(--sans); font-size:34px; font-weight:900; letter-spacing:.075em; line-height:1.15; text-shadow:0 0 22px rgba(159,224,106,.18); }
+  .banner i { color:var(--dimg); font-size:12px; font-style:normal; letter-spacing:.11em; }
+  .tiles { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .tile { position:relative; display:grid; grid-template-columns:34px 1fr; grid-template-rows:auto auto; min-height:100px; padding:11px 12px; overflow:hidden; border:1px solid rgba(192,179,206,.2); border-radius:5px; background:linear-gradient(130deg,rgba(34,26,48,.9),rgba(15,12,23,.88)); }
+  .tile::after { content:""; position:absolute; right:-15px; bottom:-23px; width:70px; height:70px; border:1px solid rgba(168,85,200,.11); transform:rotate(45deg); }
+  .tile .tile-icon { grid-row:1/3; align-self:center; color:var(--amber); font-family:var(--sans); font-size:23px; font-weight:900; text-align:center; text-shadow:0 0 12px rgba(255,215,94,.18); }
+  .tile img.tile-icon { width:28px; height:28px; object-fit:contain; image-rendering:pixelated; }
+  .tile i { color:var(--dimg); font-size:10.5px; font-style:normal; letter-spacing:.11em; }
+  .tile b { color:var(--parch); font-size:24px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.08; }
+  .tile.gold b { color:var(--amber); }
+  .tile small { grid-column:2; color:var(--green); font-size:10.5px; }
+  .xp { grid-column:2; height:5px; margin-top:5px; overflow:hidden; border-radius:3px; background:rgba(255,255,255,.13); }
+  .xp div { height:100%; background:var(--cyan); box-shadow:0 0 8px rgba(100,230,255,.35); }
+  .shoprow { display:flex; align-items:center; justify-content:space-between; }
+  .shoprow .lbl { color:var(--dimg); font-size:12px; font-weight:650; letter-spacing:.12em; }
+  .bank { display:flex; align-items:center; gap:7px; padding:6px 12px; border:1px solid rgba(255,215,94,.45); border-radius:4px; background:rgba(255,215,94,.09); color:var(--amber); font-size:15px; font-variant-numeric:tabular-nums; }
+  .bank img { width:16px; height:16px; image-rendering:pixelated; }
+  .shop { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .card { position:relative; display:grid; grid-template-columns:34px 1fr; grid-template-rows:auto 1fr auto; gap:3px 9px; min-height:136px; padding:12px 13px; overflow:hidden; border:1px solid rgba(192,179,206,.2); border-radius:5px; background:linear-gradient(135deg,rgba(32,25,44,.95),rgba(14,12,22,.94)); color:inherit; cursor:pointer; font:inherit; text-align:left; }
+  .card::after { content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(120deg,transparent 58%,rgba(168,85,200,.07)); }
+  .card:hover { border-color:rgba(100,230,255,.48); }
+  .card:focus-visible { outline:2px solid var(--cyan); outline-offset:2px; }
+  .card[aria-current="true"],.nav .btn[aria-current="true"] { z-index:1; border-color:var(--cyan); box-shadow:0 0 0 1px rgba(100,230,255,.42),0 7px 20px rgba(0,0,0,.52),0 0 18px rgba(100,230,255,.12); transform:translateY(-2px); }
+  .card-icon { z-index:1; grid-row:1/3; display:grid; width:30px; height:30px; place-items:center; border:1px solid rgba(255,215,94,.3); border-radius:4px; background:rgba(255,215,94,.08); color:var(--amber); font-family:var(--sans); font-size:17px; font-weight:900; }
+  .card .cn { z-index:1; color:#f0e8f5; font-family:var(--sans); font-size:15px; font-weight:760; }
+  .card .cd { z-index:1; color:var(--lilac); font-size:11.5px; line-height:1.38; }
+  .card .cf { z-index:1; grid-column:1/3; display:flex; align-items:center; justify-content:space-between; margin-top:4px; }
+  .card.cant { border-color:rgba(192,179,206,.14); background:repeating-linear-gradient(120deg,rgba(192,179,206,.035) 0 7px,rgba(13,11,20,.94) 7px 14px); }
+  .card.cant .cn,.card.cant .cd { color:#a69aad; }
+  .card.cant .card-icon { border-color:rgba(192,179,206,.22); background:rgba(192,179,206,.06); color:#9b8fa7; }
+  .card.done { border-color:rgba(159,224,106,.52); background:linear-gradient(135deg,rgba(159,224,106,.11),rgba(15,18,15,.94)); }
+  .cost { padding:3px 8px; border:1px solid rgba(255,215,94,.38); border-radius:3px; background:rgba(255,215,94,.14); color:var(--amber); font-size:11.5px; font-variant-numeric:tabular-nums; }
+  .cost.cant { border-color:rgba(192,179,206,.23); background:rgba(192,179,206,.06); color:#b5a9c0; }
+  .cost.done { border-color:rgba(159,224,106,.38); background:rgba(159,224,106,.14); color:var(--green); }
+  .rank { display:flex; gap:4px; }
+  .rank span { width:10px; height:10px; border:1px solid rgba(192,179,206,.45); border-radius:2px; }
+  .rank span.on { border-color:var(--amber); background:var(--amber); }
+  .kbd { position:absolute; z-index:2; top:-1px; right:-1px; padding:2px 7px; border-radius:0 4px 0 4px; background:rgba(192,179,206,.12); color:#b9aec4; font-size:10px; }
+
+  .fork { position:relative; display:flex; flex-direction:column; gap:9px; padding:12px; border:1px solid rgba(168,85,200,.42); border-radius:6px; background:linear-gradient(140deg,rgba(168,85,200,.08),rgba(29,17,34,.9)); }
+  .fork-h { display:flex; align-items:baseline; justify-content:space-between; padding-left:4px; }
+  .fork-h b { color:#efc1f8; font-size:12px; letter-spacing:.1em; }
+  .fork-h i { color:var(--dimg); font-size:10.5px; font-style:normal; }
+  .fork-r { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .fork .card { min-height:150px; grid-template-columns:1fr 92px; grid-template-rows:auto 1fr auto; }
+  .fork .card .cn,.fork .card .cd { grid-column:1; }
+  .fork .card .cf { grid-column:1/3; }
+  .ability-viz { position:relative; grid-column:2; grid-row:1/3; align-self:stretch; min-height:55px; border:1px solid rgba(168,85,200,.26); border-radius:4px; background:radial-gradient(circle at center,rgba(168,85,200,.14),rgba(8,7,13,.55)); overflow:hidden; }
+  .ability-viz .hero-dot { position:absolute; left:13px; top:50%; width:12px; height:12px; transform:translateY(-50%); border:2px solid var(--cyan); border-radius:50%; box-shadow:0 0 8px rgba(100,230,255,.4); }
+  .ability-viz.line::after { content:""; position:absolute; left:31px; right:9px; top:50%; height:16px; transform:translateY(-50%); clip-path:polygon(0 35%,82% 35%,82% 0,100% 50%,82% 100%,82% 65%,0 65%); background:linear-gradient(90deg,rgba(255,215,94,.35),var(--amber)); filter:drop-shadow(0 0 5px rgba(255,215,94,.36)); }
+  .ability-viz.echo::before,.ability-viz.echo::after { content:""; position:absolute; left:50%; top:50%; border:2px solid var(--violet); border-radius:50%; transform:translate(-50%,-50%); }
+  .ability-viz.echo::before { width:28px; height:28px; box-shadow:0 0 9px rgba(168,85,200,.45); }
+  .ability-viz.echo::after { width:54px; height:54px; border-style:dashed; opacity:.8; }
+  .ability-viz.echo .hero-dot { left:50%; transform:translate(-50%,-50%); }
+
+  .nav { display:flex; align-items:center; gap:10px; margin-top:auto; padding-top:1px; }
+  .nav .btn { min-height:43px; }
+  .nav .sp { flex:1; }
+  .nav .keys { display:flex; align-items:center; gap:6px; color:var(--dimg); font-size:11px; letter-spacing:.04em; }
+  .nav .btn[aria-current="true"] { background:var(--cyan); color:#10131a; }
+
+  .confirm { position:absolute; z-index:10; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,3,9,.88); backdrop-filter:blur(2px); }
+  .confirm[hidden] { display:none; }
+  .confirm-box { width:510px; padding:24px; border:1px solid rgba(255,215,94,.6); border-radius:6px; background:linear-gradient(145deg,#21182e,#15101f); box-shadow:0 20px 70px rgba(0,0,0,.72),0 0 28px rgba(255,215,94,.08); }
+  .confirm-head { display:grid; grid-template-columns:1fr 110px; gap:18px; }
+  .confirm-copy b { display:block; color:var(--parch); font-family:var(--sans); font-size:22px; font-weight:850; }
+  .confirm-copy p { margin:9px 0 0; color:var(--lilac); font-size:12.5px; line-height:1.5; }
+  .confirm-box .ability-viz { width:110px; height:78px; }
+  .confirm-warning { margin-top:14px; padding:9px 11px; border-left:3px solid var(--red); background:rgba(224,82,77,.08); color:#f0b5b1; font-size:11.5px; }
+  .confirm-box .cta { margin-top:17px; }
+  .confirm-box .btn.primary { background:var(--amber); color:#17131f; }
+  .confirm-box .btn:focus { outline:2px solid var(--cyan); outline-offset:3px; }
+
+  .caption { max-width:82ch; margin:12px 0 0; color:var(--faint); font-family:var(--mono); font-size:12px; line-height:1.6; }
+  .changes { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:2px 26px; margin:22px 0 0; padding:0; list-style:none; }
+  .changes li { padding:13px 0; border-top:1px solid var(--edge); }
+  .changes b { display:block; margin-bottom:2px; font-size:15px; font-weight:650; }
+  .changes span { color:var(--dim); font-size:14px; }
+  footer { margin-top:72px; padding-top:24px; border-top:1px solid var(--edge); color:var(--faint); font-size:13px; }
+
+  @keyframes cursorGlow { 0%,100% { filter:brightness(1); } 50% { filter:brightness(1.13); } }
+  [aria-current="true"] { animation:cursorGlow 1.4s ease-in-out infinite; }
+  @media (max-width:720px) { .stage { padding-left:25px; padding-right:25px; } }
+  @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Mockup · Hive Legends</p>
+    <h1>Proposed mission map and results screens</h1>
+    <p class="lede">Both screens use one visible cursor across real controls, driven by pointer, arrows, keyboard confirm, or gamepad. Realm artwork and state colors remain distinct from focus.</p>
+  </header>
+
+  <section>
+    <h2>Mission map</h2>
+    <p class="sub">The route remains a readable list, while the selected mission becomes a destination through the game’s existing realm textures, encounter art, and clearer progression language.</p>
+
+    <div class="screen" id="hubScreen">
+      <div class="stage" id="hubStage" tabindex="0" aria-label="Mission map prototype">
+        <div class="topbar">
+          <div>
+            <div class="realm">THE AZURE REACH</div>
+            <div class="realm-sub">REALM 1 OF 3 · ROUTE IN PROGRESS</div>
+          </div>
+          <div class="realm-mark">HIVE FRONTIER</div>
+        </div>
+
+        <div class="hub">
+          <div class="rail" id="rail">
+            <div class="track" aria-label="Two missions cleared; one mission and the boss remain">
+              <span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg boss"></span>
+            </div>
+            <div class="rail-help"><span class="keycap">↑↓</span><span>Choose a mission</span><span class="keycap">A</span><span>Deploy</span></div>
+          </div>
+          <!-- Not a live region: the panel is rebuilt on every cursor move, so
+               announcing it would re-read biome, stats and both buttons on each
+               arrow press. The row's own accessible name carries the summary. -->
+          <div class="detail" id="detail" role="group" aria-label="Selected mission detail"></div>
+        </div>
+        <div class="toast" id="hubToast" role="status"></div>
+      </div>
+    </div>
+    <p class="hint"><b>Try it:</b> hover or use ↑↓ to move the same cursor; click or press Enter to confirm.</p>
+
+    <ul class="changes">
+      <li><b>Realm identity is artwork</b><span>Existing tiles and encounter sprites replace placeholder stripes.</span></li>
+      <li><b>State and focus are separate</b><span>Green/red status survives beneath the cyan universal cursor.</span></li>
+      <li><b>Locks explain themselves</b><span>The blocked row names its prerequisite before selection.</span></li>
+      <li><b>Mastery is concrete</b><span>Hero emblems communicate which roster members have cleared the mission.</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Results and upgrades</h2>
+    <p class="sub">The payoff remains glanceable, but the selection system now includes purchases and exit actions. Disabled cards stay readable, and the permanent fork shows its combat shape before asking for confirmation.</p>
+
+    <div class="screen" id="resultsScreen">
+      <div class="stage results-stage" id="resultsStage" tabindex="0" aria-label="Results and upgrades prototype">
+        <div class="banner">
+          <b>REALM CLEANSED</b>
+          <i>THE BROOD WARRENS · VANGUARD</i>
+        </div>
+
+        <div class="tiles">
+          <div class="tile gold"><img class="tile-icon" src="../../../public/art/ui-icon-gold.png" alt=""><i>GOLD EARNED</i><b>318</b><small>+150 first clear</small></div>
+          <div class="tile"><img class="tile-icon" src="../../../public/art/ui-icon-kills.png" alt=""><i>ENEMIES FELLED</i><b>25</b></div>
+          <div class="tile"><span class="tile-icon">◷</span><i>CLEAR TIME</i><b>37.0s</b><small>new realm record</small></div>
+          <div class="tile"><span class="tile-icon">III</span><i>LEVEL 3 · 316 XP</i><b>62%</b><div class="xp" aria-label="62 percent to level 4"><div style="width:62%"></div></div></div>
+        </div>
+
+        <div class="shoprow">
+          <span class="lbl">SPEND YOUR SPOILS</span>
+          <span class="bank" id="bank"><img src="../../../public/art/ui-icon-gold.png" alt="">318g BANKED</span>
+        </div>
+        <div class="shop" id="shop"></div>
+
+        <div class="fork">
+          <div class="fork-h">
+            <b>◆ ABILITY SPECIALIZATION — PERMANENT CHOICE</b>
+            <i id="forkNote">replaces Sunder Slam · cannot be undone</i>
+          </div>
+          <div class="fork-r" id="fork"></div>
+        </div>
+
+        <div class="nav" id="resultNav">
+          <button class="btn primary" type="button" data-action="next">NEXT REALM · Resin Galleries</button>
+          <button class="btn ghost" type="button" data-action="replay">Replay</button>
+          <button class="btn ghost" type="button" data-action="heroes">Hero select</button>
+          <span class="sp"></span>
+          <span class="keys"><span class="keycap">↑↓←→</span> move <span class="keycap">A</span> confirm</span>
+        </div>
+        <div class="toast" id="resultToast" role="status"></div>
+      </div>
+
+      <div class="confirm" id="confirm" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" hidden>
+        <div class="confirm-box">
+          <div class="confirm-head">
+            <div class="confirm-copy"><b id="confirmTitle">Choose Faultline Drive?</b><p id="confirmBody"></p></div>
+            <div class="ability-viz line" id="confirmViz" aria-hidden="true"><span class="hero-dot"></span></div>
+          </div>
+          <div class="confirm-warning" id="confirmWarning"></div>
+          <div class="cta">
+            <button class="btn primary" type="button" id="confirmYes">Choose permanently · 180g</button>
+            <button class="btn ghost" type="button" id="confirmNo">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="hint"><b>Try it:</b> move through every row with arrows, buy an upgrade, then preview and confirm a specialization.</p>
+
+    <ul class="changes">
+      <li><b>One cursor means one target</b><span>Shop, specialization, and exit actions never appear selected simultaneously.</span></li>
+      <li><b>Unavailable stays legible</b><span>Hatching and explicit badges replace whole-card opacity.</span></li>
+      <li><b>The fork shows behavior</b><span>Line and echo diagrams make the permanent choice understandable at a glance.</span></li>
+      <li><b>Metrics have one home</b><span>Time, gold earned, bank balance, and XP progress are no longer repeated.</span></li>
+    </ul>
+  </section>
+
+  <footer>Live mockup, not the shipped build. Screens are 960 × 720 at the game’s native resolution and use existing repository artwork.</footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var ART = '../../../public/art/';
+  var HEROES = ['V','A','R','S'];
+  var MISSIONS = [
+    { ord:'MISSION 1', name:'The Brood Warrens', state:'cleared', glyph:'✓', best:'22.1s', bounty:100, mastery:2, threat:1, threatLabel:'LOW', biome:'BROOD RESIN · TUNNELS', texture:ART+'tile-floor-0.png', subject:ART+'generator-brood-node-0.png', tint:'#211627', line:'#b07fe6', encounters:['Skitterlings','Brood nodes'], rowNote:'Cleared · replayable', note:'Skitterling swarms pour from brood nodes. Replays award gold, but the first-clear bounty is already claimed.' },
+    { ord:'MISSION 2', name:'The Resin Galleries', state:'cleared', glyph:'✓', best:'38.9s', bounty:125, mastery:1, threat:2, threatLabel:'GUARDED', biome:'AMBER RESIN · GALLERIES', texture:ART+'tile-amber-resin-floor-0.png', subject:ART+'generator-husk-mound-0.png', tint:'#2b2110', line:'#e0a24d', encounters:['Husks','Husk mounds'], rowNote:'Cleared · replayable', note:'Husk mounds crowd narrow resin galleries. Bring control or enough toughness to hold the corridor.' },
+    { ord:'MISSION 3', name:'The Cobalt Combs', state:'available', glyph:'▶', best:null, bounty:150, mastery:0, threat:3, threatLabel:'DANGEROUS', biome:'COBALT COMB · CRYSTALLINE', texture:ART+'tile-cobalt-combs-floor-0.png', subject:ART+'generator-spitter-nest-0.png', tint:'#101d2a', line:'#64e6ff', encounters:['Spitters','Husks','Spitter nests'], rowNote:'Ready · 150g first-clear bounty', note:'Spitter nests and husk mounds create mixed-range pressure. The first clear awards a 150g bounty.' },
+    { ord:'BOSS', name:'The Hollow Throne', state:'locked', glyph:'☠', best:null, bounty:300, mastery:0, threat:4, threatLabel:'EXTREME', biome:'THRONE · BONE AND BROOD', texture:ART+'tile-hollow-throne-floor-0.png', subject:ART+'boss-mireveil-0.png', subjectClass:'boss-art', tint:'#2a1214', line:'#e0524d', encounters:['Mireveil','Husk elites','Brood nodes'], rowNote:'Locked · clear The Cobalt Combs', lock:'Clearing The Cobalt Combs opens the throne.', note:'Mireveil, Mother of the Brood, waits beyond the last Azure Reach mission.' }
+  ];
+
+  var hubCursor = 2;
+  var rail = document.getElementById('rail');
+  var detail = document.getElementById('detail');
+  var hubToast = document.getElementById('hubToast');
+  var activeScreen = 'hub';
+  var toastTimer = 0;
+
+  function heroMarks(n) {
+    return '<span class="hero-marks">' + HEROES.map(function (h,i) { return '<span class="hero-mark' + (i < n ? ' on' : '') + '" title="' + ['Vanguard','Arcanist','Ranger','Sentinel'][i] + '">' + h + '</span>'; }).join('') + '</span>';
+  }
+
+  function threatMarks(n, danger) {
+    var out = '';
+    for (var i=0;i<4;i++) out += '<span class="fang' + (i<n ? ' on' : '') + (danger ? ' danger' : '') + '"></span>';
+    return '<span class="threat-marks">' + out + '</span>';
+  }
+
+  function showToast(el,text) {
+    window.clearTimeout(toastTimer);
+    el.textContent = text;
+    el.classList.add('show');
+    toastTimer = window.setTimeout(function () { el.classList.remove('show'); },1200);
+  }
+
+  function renderRail() {
+    rail.querySelectorAll('.row').forEach(function (n) { n.remove(); });
+    var help = rail.querySelector('.rail-help');
+    MISSIONS.forEach(function (m,i) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'row ' + m.state;
+      b.dataset.hubIndex = String(i);
+      b.setAttribute('aria-current',i === hubCursor ? 'true' : 'false');
+      /* A locked row is still a real target — selecting it is how you read why
+         it is locked — so it is never aria-disabled. Its name carries the
+         prerequisite instead. */
+      b.setAttribute('aria-label',m.ord + ': ' + m.name + '. ' + m.rowNote + (m.best ? '. Best ' + m.best : ''));
+      b.innerHTML = '<span class="g" aria-hidden="true">' + m.glyph + '</span>' +
+        '<span class="rowcopy"><span class="o">' + m.ord + '</span><span class="n">' + m.name + '</span><span class="rs">' + m.rowNote + '</span></span>' +
+        (m.best ? '<span class="t">' + m.best + '<small>best</small></span>' : '<span></span>');
+      b.addEventListener('pointerenter',function () { selectHub(i,true); });
+      b.addEventListener('focus',function () { selectHub(i,false); });
+      b.addEventListener('click',function () { confirmHub(); });
+      rail.insertBefore(b,help);
+    });
+  }
+
+  function renderDetail() {
+    var m = MISSIONS[hubCursor];
+    var locked = m.state === 'locked';
+    var firstStat = m.best ? '<b>' + m.best + '</b><i>PERSONAL BEST</i>' : '<b>' + m.bounty + 'g</b><i>FIRST-CLEAR BOUNTY</i>';
+    detail.innerHTML =
+      '<div class="biome" style="--texture:url(\'' + m.texture + '\');--tint:' + m.tint + ';--line:' + m.line + '">' +
+        '<img class="' + (m.subjectClass || '') + '" src="' + m.subject + '" alt=""><span class="biome-label">' + m.biome + '</span></div>' +
+      '<div class="dname">' + m.name + '</div>' +
+      '<div class="meta"><div class="stat">' + firstStat + '</div>' +
+        '<div class="stat"><b>' + heroMarks(m.mastery) + '</b><i>HEROES WHO MASTERED IT</i></div>' +
+        '<div class="stat"><b>' + threatMarks(m.threat,locked) + '</b><i>' + m.threatLabel + ' THREAT</i></div></div>' +
+      '<div class="roster"><i>ENCOUNTERS</i>' + m.encounters.map(function (e) { return '<span class="chip">' + e + '</span>'; }).join('') + '</div>' +
+      (locked ? '<div class="note bad">' + m.lock + '</div>' : '') +
+      '<div class="note">' + m.note + '</div>' +
+      '<div class="cta"><button class="btn ' + (locked ? 'dead' : 'primary') + '" type="button" data-map-action="deploy"' + (locked ? ' aria-disabled="true"' : '') + '>' + (locked ? 'LOCKED' : m.state === 'cleared' ? 'REPLAY · ENTER' : 'DEPLOY · ENTER') + '</button><button class="btn ghost" type="button" data-map-action="heroes">Hero select</button></div>';
+    detail.querySelectorAll('[data-map-action]').forEach(function (b) {
+      b.addEventListener('click',function () {
+        if (b.dataset.mapAction === 'deploy') confirmHub(); else showToast(hubToast,'Hero select would open here');
+      });
+    });
+  }
+
+  function selectHub(i,focus) {
+    hubCursor = Math.max(0,Math.min(MISSIONS.length-1,i));
+    rail.querySelectorAll('.row').forEach(function (row,index) { row.setAttribute('aria-current',index === hubCursor ? 'true' : 'false'); });
+    renderDetail();
+    if (focus) rail.querySelector('[data-hub-index="' + hubCursor + '"]').focus({preventScroll:true});
+  }
+
+  function confirmHub() {
+    var m = MISSIONS[hubCursor];
+    showToast(hubToast,m.state === 'locked' ? m.rowNote : (m.state === 'cleared' ? 'Replay ' : 'Deploy to ') + m.name);
+  }
+
+  renderRail();
+  renderDetail();
+
+  document.getElementById('hubStage').addEventListener('keydown',function (event) {
+    activeScreen = 'hub';
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      selectHub((hubCursor + (event.key === 'ArrowDown' ? 1 : -1) + MISSIONS.length) % MISSIONS.length,true);
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault(); confirmHub();
+    }
+  });
+
+  /* Results */
+  /* ResultsScene banks the run's gold on scene entry, before anything can be
+     spent, so the opening bank is never below the gold this run earned. */
+  var STARTING_BANK = 318;
+  var bank = STARTING_BANK;
+  var UPGRADES = [
+    { key:'1', icon:'♥', name:'Hearthstone Vigor', desc:'+20 maximum health each rank', cost:80, rank:0, max:5 },
+    { key:'2', icon:'✦', name:'Sharpened Edge', desc:'+4 basic-attack damage each rank', cost:100, rank:0, max:5 },
+    { key:'3', icon:'⇥', name:"Warden’s Reach", desc:'Tier 2 weapon · longer reach', cost:90, rank:1, max:3 }
+  ];
+  var FORK = [
+    { name:'Faultline Drive', desc:'Drive a long fracture through enemies in front of you.', detail:'Replaces the circular Sunder Slam with a focused 230×64 line attack.', cost:180, viz:'line' },
+    { name:'Echoing Crater', desc:'Leave an echo that bursts again at the cast point.', detail:'The second burst triggers after 0.6 seconds and deals 22 damage.', cost:180, viz:'echo' }
+  ];
+  var chosen = -1;
+  var resultCursor = { row:0,col:0 };
+  var pending = -1;
+  var shopEl = document.getElementById('shop');
+  var forkEl = document.getElementById('fork');
+  var bankEl = document.getElementById('bank');
+  var forkNote = document.getElementById('forkNote');
+  var confirm = document.getElementById('confirm');
+  var resultToast = document.getElementById('resultToast');
+  var ROW_LENGTHS = [3,2,3];
+
+  function rankPips(rank,max) {
+    var out = '<span class="rank" aria-label="Rank ' + rank + ' of ' + max + '">';
+    for (var i=0;i<max;i++) out += '<span class="' + (i<rank ? 'on' : '') + '"></span>';
+    return out + '</span>';
+  }
+
+  function bindResultTarget(button,row,col) {
+    button.dataset.focusRow = String(row);
+    button.dataset.focusCol = String(col);
+    button.addEventListener('pointerenter',function () { selectResult(row,col,true); });
+    button.addEventListener('focus',function () { selectResult(row,col,false); });
+  }
+
+  function syncResultSelection(focus) {
+    document.querySelectorAll('#resultsStage [data-focus-row]').forEach(function (button) {
+      var current = Number(button.dataset.focusRow) === resultCursor.row && Number(button.dataset.focusCol) === resultCursor.col;
+      button.setAttribute('aria-current',current ? 'true' : 'false');
+      if (current && focus) button.focus({preventScroll:true});
+    });
+  }
+
+  function renderShop() {
+    bankEl.innerHTML = '<img src="' + ART + 'ui-icon-gold.png" alt="">' + bank + 'g BANKED';
+    shopEl.innerHTML = '';
+    UPGRADES.forEach(function (u,i) {
+      var maxed = u.rank >= u.max;
+      var cant = !maxed && bank < u.cost;
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'card' + (cant ? ' cant' : '') + (maxed ? ' done' : '');
+      if (cant || maxed) b.setAttribute('aria-disabled','true');
+      b.innerHTML = '<span class="kbd">' + u.key + '</span><span class="card-icon" aria-hidden="true">' + u.icon + '</span><span class="cn">' + u.name + '</span><span class="cd">' + u.desc + '</span><span class="cf">' + rankPips(u.rank,u.max) + '<span class="cost ' + (maxed ? 'done' : cant ? 'cant' : '') + '">' + (maxed ? 'MAXED' : cant ? 'SHORT ' + (u.cost-bank) + 'g' : 'BUY ' + u.cost + 'g') + '</span></span>';
+      bindResultTarget(b,0,i);
+      b.addEventListener('click',function () {
+        selectResult(0,i,false);
+        if (maxed) showToast(resultToast,u.name + ' is already maxed');
+        else if (cant) showToast(resultToast,'Need ' + (u.cost-bank) + 'g more');
+        else { bank -= u.cost; u.rank++; showToast(resultToast,u.name + ' upgraded'); renderResults(true); }
+      });
+      shopEl.appendChild(b);
+    });
+  }
+
+  function renderFork() {
+    forkEl.innerHTML = '';
+    FORK.forEach(function (f,i) {
+      var isChosen = chosen === i;
+      var isLocked = chosen >= 0 && chosen !== i;
+      var cant = chosen < 0 && bank < f.cost;
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'card' + (isChosen ? ' done' : '') + ((isLocked || cant) ? ' cant' : '');
+      if (isChosen || isLocked || cant) b.setAttribute('aria-disabled','true');
+      var badge = isChosen ? '<span class="cost done">CHOSEN</span>' : isLocked ? '<span class="cost cant">BRANCH CLOSED</span>' : cant ? '<span class="cost cant">SHORT ' + (f.cost-bank) + 'g</span>' : '<span class="cost">PREVIEW · ' + f.cost + 'g</span>';
+      b.innerHTML = '<span class="kbd">' + (i + 4) + '</span><span class="cn">' + f.name + '</span><span class="cd">' + f.desc + '</span><span class="ability-viz ' + f.viz + '" aria-hidden="true"><span class="hero-dot"></span></span><span class="cf"><span></span>' + badge + '</span>';
+      bindResultTarget(b,1,i);
+      b.addEventListener('click',function () {
+        selectResult(1,i,false);
+        if (isChosen) showToast(resultToast,f.name + ' is equipped');
+        else if (isLocked) showToast(resultToast,'The other specialization is permanent');
+        else if (cant) showToast(resultToast,'Need ' + (f.cost-bank) + 'g more');
+        else requestSpecialization(i);
+      });
+      forkEl.appendChild(b);
+    });
+    forkNote.textContent = chosen >= 0 ? FORK[chosen].name + ' equipped · alternate branch closed' : 'preview both shapes before choosing';
+  }
+
+  function renderNav() {
+    document.querySelectorAll('#resultNav button').forEach(function (b,i) {
+      bindResultTarget(b,2,i);
+      b.onclick = function () { selectResult(2,i,false); showToast(resultToast,b.textContent.trim() + ' selected'); };
+    });
+  }
+
+  /* Every mutation rebuilds the shop and fork markup, which destroys the button
+     holding DOM focus. Because the key handler is bound to #resultsStage, focus
+     falling back to <body> silently kills arrow and Enter input for the rest of
+     the session — so a re-render that follows a state change must reclaim it. */
+  function renderResults(keepFocus) {
+    renderShop(); renderFork(); syncResultSelection(keepFocus === true);
+  }
+
+  function selectResult(row,col,focus) {
+    resultCursor.row = Math.max(0,Math.min(2,row));
+    resultCursor.col = Math.max(0,Math.min(ROW_LENGTHS[resultCursor.row]-1,col));
+    syncResultSelection(focus);
+  }
+
+  function moveResult(key) {
+    if (key === 'ArrowLeft' || key === 'ArrowRight') {
+      var length = ROW_LENGTHS[resultCursor.row];
+      resultCursor.col = (resultCursor.col + (key === 'ArrowRight' ? 1 : -1) + length) % length;
+    } else {
+      var oldLength = ROW_LENGTHS[resultCursor.row];
+      var ratio = oldLength === 1 ? 0 : resultCursor.col / (oldLength-1);
+      resultCursor.row = (resultCursor.row + (key === 'ArrowDown' ? 1 : -1) + ROW_LENGTHS.length) % ROW_LENGTHS.length;
+      resultCursor.col = Math.round(ratio * (ROW_LENGTHS[resultCursor.row]-1));
+    }
+    syncResultSelection(true);
+  }
+
+  function activateResult() {
+    var target = document.querySelector('#resultsStage [data-focus-row="' + resultCursor.row + '"][data-focus-col="' + resultCursor.col + '"]');
+    if (target) target.click();
+  }
+
+  function requestSpecialization(i) {
+    selectResult(1,i,false);
+    pending = i;
+    var f = FORK[i];
+    var other = FORK[1-i];
+    document.getElementById('confirmTitle').textContent = 'Choose ' + f.name + '?';
+    document.getElementById('confirmBody').textContent = f.detail + ' This choice costs ' + f.cost + 'g and applies to this hero on every future run.';
+    document.getElementById('confirmWarning').textContent = other.name + ' will close permanently. This cannot be undone.';
+    document.getElementById('confirmYes').textContent = 'Choose permanently · ' + f.cost + 'g';
+    document.getElementById('confirmViz').className = 'ability-viz ' + f.viz;
+    confirm.hidden = false;
+    window.setTimeout(function () { document.getElementById('confirmNo').focus({preventScroll:true}); },0);
+  }
+
+  function chooseSpecialization(i) {
+    if (chosen < 0 && bank >= FORK[i].cost) { bank -= FORK[i].cost; chosen = i; }
+    /* Hiding the dialog while focus still sits inside it strands focus on a
+       display:none element, so hand the cursor back to the fork card first. */
+    pending = -1; confirm.hidden = true; renderResults(true);
+  }
+
+  function cancelConfirm() { pending = -1; confirm.hidden = true; syncResultSelection(true); }
+
+  /* The dialog is a two-button choice; left/right swap between them and the
+     safe option keeps focus on open. */
+  function moveConfirmFocus() {
+    var yes = document.getElementById('confirmYes');
+    (document.activeElement === yes ? document.getElementById('confirmNo') : yes).focus();
+  }
+
+  function activateConfirm() {
+    var yes = document.getElementById('confirmYes');
+    var no = document.getElementById('confirmNo');
+    (document.activeElement === yes ? yes : no).click();
+  }
+
+  document.getElementById('confirmYes').addEventListener('click',function () { if (pending >= 0) chooseSpecialization(pending); });
+  document.getElementById('confirmNo').addEventListener('click',cancelConfirm);
+
+  renderResults();
+  renderNav();
+  syncResultSelection(false);
+
+  document.getElementById('resultsStage').addEventListener('keydown',function (event) {
+    activeScreen = 'results';
+    if (!confirm.hidden) return;
+    if (/^Arrow(Up|Down|Left|Right)$/.test(event.key)) { event.preventDefault(); moveResult(event.key); }
+    else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activateResult(); }
+    /* The number badges are a promise: 1-3 buy upgrades, 4-5 open a
+       specialization preview. They move the cursor too, so the shortcut and the
+       cursor never disagree about what is selected. */
+    else if (/^[1-5]$/.test(event.key)) {
+      event.preventDefault();
+      var n = Number(event.key) - 1;
+      selectResult(n < 3 ? 0 : 1,n < 3 ? n : n - 3,true);
+      activateResult();
+    }
+  });
+  confirm.addEventListener('keydown',function (event) {
+    if (event.key === 'Escape') { event.preventDefault(); cancelConfirm(); }
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); moveConfirmFocus(); }
+  });
+
+  document.getElementById('hubScreen').addEventListener('pointerenter',function () { activeScreen = 'hub'; });
+  document.getElementById('resultsScreen').addEventListener('pointerenter',function () { activeScreen = 'results'; });
+
+  /* Same semantic verbs as the game: D-pad moves, A confirms, B cancels. */
+  var previousPad = [];
+  function pollPad() {
+    var pad = navigator.getGamepads && navigator.getGamepads()[0];
+    if (pad) {
+      var pressed = pad.buttons.map(function (b) { return b.pressed; });
+      var map = [{i:12,key:'ArrowUp'},{i:13,key:'ArrowDown'},{i:14,key:'ArrowLeft'},{i:15,key:'ArrowRight'}];
+      /* The dialog is modal for the pad exactly as it is for the keyboard: while
+         it is open the D-pad swaps between its two buttons and A activates the
+         focused one, rather than reaching the card underneath. */
+      var modal = !confirm.hidden;
+      map.forEach(function (entry) {
+        if (!pressed[entry.i] || previousPad[entry.i]) return;
+        if (modal) {
+          if (entry.key === 'ArrowLeft' || entry.key === 'ArrowRight') moveConfirmFocus();
+        } else if (activeScreen === 'hub') {
+          if (entry.key === 'ArrowUp' || entry.key === 'ArrowDown') selectHub((hubCursor + (entry.key === 'ArrowDown' ? 1 : -1) + MISSIONS.length) % MISSIONS.length,true);
+        } else moveResult(entry.key);
+      });
+      if (pressed[0] && !previousPad[0]) {
+        if (modal) activateConfirm();
+        else if (activeScreen === 'hub') confirmHub();
+        else activateResult();
+      }
+      if (pressed[1] && !previousPad[1] && modal) cancelConfirm();
+      previousPad = pressed;
+    } else previousPad = [];
+    window.requestAnimationFrame(pollPad);
+  }
+  window.requestAnimationFrame(pollPad);
+
+  window.mockup = {
+    selectHub:function (i) { selectHub(i,false); },
+    openFork:function (i) { requestSpecialization(i); },
+    chooseFork:function (i) { chooseSpecialization(i); },
+    resetResults:function () { bank=STARTING_BANK; chosen=-1; pending=-1; UPGRADES[0].rank=0; UPGRADES[1].rank=0; UPGRADES[2].rank=1; confirm.hidden=true; resultCursor={row:0,col:0}; renderResults(); }
+  };
+})();
+</script>
+</body>
+</html>
