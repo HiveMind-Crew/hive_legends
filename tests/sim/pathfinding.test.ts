@@ -50,6 +50,13 @@ const HOOK_TRAP: LevelDef = {
   id: 'hook-trap',
   name: 'Hook Trap',
   tileSize: 32,
+  mission: {
+    biomeLabel: 'TEST · HOOK TRAP',
+    threatRating: 1,
+    threatLabel: 'TEST',
+    encounters: ['Test enemy'],
+    description: 'A test-only barrier.'
+  },
   walls: [
     '###########',
     '#.........#',

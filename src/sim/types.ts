@@ -559,10 +559,24 @@ export interface LevelTheme {
   accent?: number;
 }
 
+/** Player-facing mission identity, authored with the level rather than a scene. */
+export interface LevelMissionMeta {
+  /** Short environment label shown on the selected mission artwork. */
+  biomeLabel: string;
+  /** One-based threat glyph count and its authored wording. */
+  threatRating: number;
+  threatLabel: string;
+  /** Encounter/objective names used by the mission detail card. */
+  encounters: readonly string[];
+  /** One short description of the mission's pressure and objective. */
+  description: string;
+}
+
 export interface LevelDef {
   id: string;
   name: string;
   tileSize: number;
+  mission: LevelMissionMeta;
   /** Optional environment treatment; omit for the base violet tiles. */
   theme?: LevelTheme;
   /** One string per row; '#' = wall, '.' = floor. All rows equal length. */

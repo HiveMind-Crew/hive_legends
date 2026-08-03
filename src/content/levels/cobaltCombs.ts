@@ -23,6 +23,13 @@ export const COBALT_COMBS: LevelDef = {
   id: 'cobalt-combs',
   name: 'The Cobalt Combs',
   tileSize: 32,
+  mission: {
+    biomeLabel: 'COBALT COMB · CRYSTALLINE',
+    threatRating: 3,
+    threatLabel: 'DANGEROUS',
+    encounters: ['Bile Spitters', 'Carapace Husks', 'All three nest types'],
+    description: 'Cobalt comb-work fields every enemy family at once. Break the mixed-range nests, survive the elite guardian, and leave through the south hall.'
+  },
   // Dedicated cold, hard comb-work replaces the former blue tint over the
   // Warrens tiles. This is the blue the Azure Reach is named for.
   theme: { tileSet: 'cobalt-combs', accent: 0x4aa3ff },

@@ -20,6 +20,21 @@ import { DECOR_KINDS, ENEMY_FAMILIES, ENEMY_TIERS, type LevelTheme } from '../sr
  * texture generator composes frames from exactly these keys.
  */
 describe('content validity', () => {
+  it('every authored level owns complete, valid mission presentation metadata', () => {
+    expect(Object.keys(LEVELS).length).toBeGreaterThan(0);
+    for (const level of Object.values(LEVELS)) {
+      const meta = level.mission;
+      expect(meta.biomeLabel, `${level.id} biome label`).toMatch(/\S/);
+      expect(meta.threatRating, `${level.id} threat rating`).toBeGreaterThanOrEqual(1);
+      expect(meta.threatRating, `${level.id} threat rating`).toBeLessThanOrEqual(5);
+      expect(meta.threatLabel, `${level.id} threat label`).toMatch(/\S/);
+      expect(meta.encounters.length, `${level.id} encounters`).toBeGreaterThan(0);
+      expect(new Set(meta.encounters).size, `${level.id} distinct encounters`).toBe(meta.encounters.length);
+      for (const encounter of meta.encounters) expect(encounter, `${level.id} encounter`).toMatch(/\S/);
+      expect(meta.description, `${level.id} description`).toMatch(/\S/);
+    }
+  });
+
   it('ability specializations form same-kind, mutually exclusive hero branches', () => {
     const groups = new Map<string, typeof CONTENT.abilitySpecializations[string][]>();
     for (const [id, def] of Object.entries(CONTENT.abilitySpecializations)) {

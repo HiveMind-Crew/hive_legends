@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { ABILITY_SPECIALIZATIONS } from '../src/content/abilitySpecializations';
 import { actionToKeys, getState, WarrensBot, type BotAction } from './bot';
 
 /**
@@ -13,7 +14,7 @@ import { actionToKeys, getState, WarrensBot, type BotAction } from './bot';
  */
 
 /** Standard-mapping indices, mirroring `src/game/padMapping.ts`. */
-const BUTTON = { a: 0, b: 1, x: 2, y: 3, start: 9 } as const;
+const BUTTON = { a: 0, b: 1, x: 2, y: 3, start: 9, dpadUp: 12, dpadDown: 13, dpadLeft: 14, dpadRight: 15 } as const;
 
 declare global {
   interface Window {
@@ -169,6 +170,29 @@ test('a gamepad can navigate the shell and clear The Brood Warrens', async ({ pa
   expect(profile.missionsCompleted).toBeGreaterThanOrEqual(1);
   expect(profile.clearedLevels).toContain('brood-warrens');
   await page.screenshot({ path: 'test-results/08-gamepad-results.png' });
+
+  // Results uses the same ragged-grid cursor. Move down to the first
+  // specialization card, open its modal, cancel with B, then reopen and
+  // confirm by moving from the safe Cancel target to Confirm.
+  const specializationCost = ABILITY_SPECIALIZATIONS['vanguard-faultline']!.cost;
+  expect(profile.bank).toBeGreaterThanOrEqual(specializationCost);
+  const bankBeforeModal = profile.bank;
+  await driver.tap(BUTTON.dpadDown);
+  await driver.tap(BUTTON.a);
+  await expect
+    .poll(async () => page.evaluate(() => ((globalThis as { __hiveResults?: { getState: () => { modalOpen: boolean; selectedRow: number; selectedCol: number } } }).__hiveResults?.getState() ?? null)), { timeout: 5_000 })
+    .toMatchObject({ modalOpen: true, selectedRow: 0, selectedCol: 1 });
+  await driver.tap(BUTTON.b);
+  await expect
+    .poll(async () => page.evaluate(() => ((globalThis as { __hiveResults?: { getState: () => { modalOpen: boolean; bank: number } } }).__hiveResults?.getState() ?? null)), { timeout: 5_000 })
+    .toMatchObject({ modalOpen: false, bank: bankBeforeModal });
+  await driver.tap(BUTTON.a);
+  await driver.tap(BUTTON.dpadLeft);
+  await driver.tap(BUTTON.a);
+  await expect
+    .poll(async () => page.evaluate(() => ((globalThis as { __hiveResults?: { getState: () => { modalOpen: boolean; bank: number; chosenSpecialization: string | null } } }).__hiveResults?.getState() ?? null)), { timeout: 5_000 })
+    .toMatchObject({ modalOpen: false, bank: bankBeforeModal - specializationCost, chosenSpecialization: 'vanguard-faultline' });
+  await page.screenshot({ path: 'test-results/08b-gamepad-specialization.png' });
 
   // And the shell answers the pad on the way back out: (B) leaves results for
   // the wheel, and (A) there deploys the node the clear just unlocked. The

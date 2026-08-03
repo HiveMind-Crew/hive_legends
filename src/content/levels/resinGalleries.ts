@@ -17,6 +17,13 @@ export const RESIN_GALLERIES: LevelDef = {
   id: 'resin-galleries',
   name: 'The Resin Galleries',
   tileSize: 32,
+  mission: {
+    biomeLabel: 'AMBER RESIN · GALLERIES',
+    threatRating: 2,
+    threatLabel: 'GUARDED',
+    encounters: ['Skitterlings', 'Carapace Husks', 'Brood nodes'],
+    description: 'Tight amber galleries turn husk bruisers and brood nodes into a corridor fight. Clear the three spawners before the south-west exit opens.'
+  },
   // Dedicated amber-resin art replaces the old tint of the violet tiles:
   // pooled floors, luminous fissures, embedded inclusions, and layered walls.
   theme: { tileSet: 'amber-resin', accent: 0xffb020 },

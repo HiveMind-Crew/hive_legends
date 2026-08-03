@@ -13,8 +13,9 @@ import type Phaser from 'phaser';
  */
 export const FULLSCREEN_HINT = 'Fullscreen F';
 
-export function bindFullscreenToggle(scene: Phaser.Scene): void {
+export function bindFullscreenToggle(scene: Phaser.Scene, canToggle: () => boolean = () => true): void {
   scene.input.keyboard?.on('keydown-F', () => {
+    if (!canToggle()) return;
     // `scale.fullscreen.available` is false headless (and in the e2e run), in
     // which case this is a no-op rather than an error.
     if (!scene.scale.fullscreen.available) return;

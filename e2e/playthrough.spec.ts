@@ -159,19 +159,88 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   expect(profile.bestClearTicks['brood-warrens']).toBeGreaterThan(0);
   expect(Object.keys(profile.bestClearTicks)).toEqual(['brood-warrens']);
 
-  // Buy one permanent ability branch through the real Results control. The
-  // sibling is mutually locked in meta; replay below proves the resolved
-  // ability, not the profile, is what crosses into the next sim.
+  // Dynamic Results art must be rebuilt to a stable count as the shared cursor
+  // moves; specialization visualization marks are part of that lifecycle.
+  const initialResults = await page.evaluate(() =>
+    ((globalThis as { __hiveResults?: { getState: () => { dynamicObjectCount: number } } }).__hiveResults?.getState() ?? null)
+  );
+  expect(initialResults?.dynamicObjectCount).toBeGreaterThan(0);
+  await page.keyboard.press('ArrowRight');
+  await expect
+    .poll(
+      async () => page.evaluate(() => ((globalThis as { __hiveResults?: { getState: () => { dynamicObjectCount: number } } }).__hiveResults?.getState() ?? null)),
+      { timeout: 5_000 }
+    )
+    .toMatchObject({ selectedRow: 0, selectedCol: 1, dynamicObjectCount: initialResults!.dynamicObjectCount });
+  await page.keyboard.press('ArrowLeft');
+
+  // Pointer hover/click selects the same specialization target as the
+  // keyboard path. Opening is modal and cancellation must not spend gold.
   const aftershock = ABILITY_SPECIALIZATIONS['vanguard-aftershock']!;
   const bank: number = profile.bank;
   expect(bank).toBeGreaterThanOrEqual(aftershock.cost);
+  await page.mouse.move(700, 520);
+  await page.waitForTimeout(100);
+  await page.mouse.click(700, 520);
+  await expect
+    .poll(async () => page.evaluate(() => (globalThis as { __hiveResults?: unknown }).__hiveResults ? true : false))
+    .toBe(true);
+  await expect
+    .poll(
+      async () => page.evaluate(() => ((globalThis as { __hiveResults?: { getState: () => unknown } }).__hiveResults?.getState() ?? null)),
+      { timeout: 5_000 }
+    )
+    .toMatchObject({ modalOpen: true, selectedRow: 0, selectedCol: 1 });
+  const modalBeforeShortcut = await page.evaluate(() =>
+    ((globalThis as { __hiveResults?: { getState: () => { modalOpen: boolean; selectedRow: number; selectedCol: number; bank: number; scenePaused: boolean } } }).__hiveResults?.getState() ?? null)
+  );
+  await page.keyboard.press('o');
+  await expect
+    .poll(
+      async () => page.evaluate(() => ((globalThis as { __hiveResults?: { getState: () => unknown } }).__hiveResults?.getState() ?? null)),
+      { timeout: 5_000 }
+    )
+    .toMatchObject({
+      modalOpen: true,
+      selectedRow: modalBeforeShortcut!.selectedRow,
+      selectedCol: modalBeforeShortcut!.selectedCol,
+      bank: modalBeforeShortcut!.bank,
+      scenePaused: false
+    });
+  await page.screenshot({ path: 'test-results/issue139-results-confirm.png' });
+  await page.mouse.click(560, 462); // safe default: Cancel
+  await expect
+    .poll(
+      async () => page.evaluate(() => ((globalThis as { __hiveResults?: { getState: () => unknown } }).__hiveResults?.getState() ?? null)),
+      { timeout: 5_000 }
+    )
+    .toMatchObject({ modalOpen: false, bank });
+  const afterCancel = await page.evaluate(() => JSON.parse(localStorage.getItem('hive-legends-profile-v1') ?? 'null'));
+  expect(afterCancel.abilitySpecializations[aftershock.groupId]).toBeUndefined();
+
+  // Keyboard legacy shortcut first moves the shared cursor, then opens the
+  // same modal. Escape cancels; the second attempt moves from safe Cancel to
+  // Confirm before the shared confirm action spends exactly once.
   await page.keyboard.press('6');
+  await expect
+    .poll(
+      async () => page.evaluate(() => ((globalThis as { __hiveResults?: { getState: () => unknown } }).__hiveResults?.getState() ?? null)),
+      { timeout: 5_000 }
+    )
+    .toMatchObject({ modalOpen: true, selectedRow: 0, selectedCol: 1 });
+  await page.keyboard.press('Escape');
+  const cancelledBank = await page.evaluate(() => JSON.parse(localStorage.getItem('hive-legends-profile-v1') ?? 'null'));
+  expect(cancelledBank.bank).toBe(bank);
+  await page.keyboard.press('6');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('Enter');
   await page.waitForTimeout(300);
   const afterSpecialization = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('hive-legends-profile-v1') ?? 'null')
   );
   expect(afterSpecialization.abilitySpecializations[aftershock.groupId]).toBe(aftershock.id);
   expect(afterSpecialization.bank).toBe(bank - aftershock.cost);
+  await page.screenshot({ path: 'test-results/issue139-results-chosen.png' });
   await page.screenshot({ path: 'test-results/04b-results-specialized.png' });
 
   // Buy a persistent upgrade in the results shop (Hearthstone Vigor, 80g).
