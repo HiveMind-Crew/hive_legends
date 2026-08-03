@@ -54,6 +54,11 @@ interface WheelNode {
   accent: number;
 }
 
+interface RenderedNodeCounts {
+  labelCount: number;
+  stateCount: number;
+}
+
 export class MissionHubScene extends Phaser.Scene {
   private profile!: Profile;
   private layout!: HubMapLayout;
@@ -67,6 +72,7 @@ export class MissionHubScene extends Phaser.Scene {
   private infoAction!: Phaser.GameObjects.Text;
   /** Cells, glyphs, labels, and the selection mark are redrawn on refresh. */
   private dynamicObjects: Phaser.GameObjects.GameObject[] = [];
+  private renderedNodeCounts = new Map<string, RenderedNodeCounts>();
 
   constructor() {
     super('mission-hub');
@@ -82,6 +88,9 @@ export class MissionHubScene extends Phaser.Scene {
     this.drawAmbient(width, height);
     this.drawMapBackground();
     this.drawTeasers();
+    // Phaser reuses this scene instance across scene.start(), so authored
+    // nodes must be rebuilt from scratch for each visit.
+    this.nodes = [];
     this.drawSpokes();
     this.drawHub();
     this.drawEndOfContent();
@@ -95,6 +104,28 @@ export class MissionHubScene extends Phaser.Scene {
     this.drawChrome(width, height);
     this.refresh();
     this.bindKeys();
+
+    const hubDebugHandle = {
+      getState: () => {
+        const node = this.nodes[this.cursor];
+        const counts = node ? this.renderedNodeCounts.get(node.levelId) : undefined;
+        return {
+          authoredNodeCount: CONTENT.spokes.reduce((total, spoke) => total + spoke.missions.length + 1, 0),
+          nodeCount: this.nodes.length,
+          selectedIndex: this.cursor,
+          selectedLevelId: node?.levelId ?? null,
+          selectedLabel: this.infoName.text,
+          selectedStatus: this.infoStatus.text,
+          selectedAction: this.infoAction.text,
+          selectedLabelCount: counts?.labelCount ?? 0,
+          selectedStateCount: counts?.stateCount ?? 0
+        };
+      }
+    };
+    (globalThis as Record<string, unknown>).__hiveHub = hubDebugHandle;
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      if ((globalThis as Record<string, unknown>).__hiveHub === hubDebugHandle) delete (globalThis as Record<string, unknown>).__hiveHub;
+    });
   }
 
   // --- drawing -------------------------------------------------------------
@@ -322,6 +353,7 @@ export class MissionHubScene extends Phaser.Scene {
   private refresh(): void {
     for (const object of this.dynamicObjects) object.destroy();
     this.dynamicObjects = [];
+    this.renderedNodeCounts.clear();
 
     this.nodes.forEach((node, index) => this.drawNode(node, index === this.cursor));
 
@@ -399,6 +431,11 @@ export class MissionHubScene extends Phaser.Scene {
       })
       .setOrigin(labelSide > 0 ? 0 : 1, 0.5);
     this.dynamicObjects.push(state);
+
+    const counts = this.renderedNodeCounts.get(node.levelId) ?? { labelCount: 0, stateCount: 0 };
+    counts.labelCount += 1;
+    counts.stateCount += 1;
+    this.renderedNodeCounts.set(node.levelId, counts);
   }
 
   // --- input ---------------------------------------------------------------
