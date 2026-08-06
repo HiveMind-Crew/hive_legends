@@ -58,7 +58,7 @@ export const HOLLOW_THRONE: LevelDef = {
   ],
   // The boss is the objective; this realm has no spawners of its own.
   generators: [],
-  boss: { typeId: 'mireveil', tx: 15, ty: 8 },
+  boss: { id: 'mireveil', typeId: 'mireveil', tx: 15, ty: 8 },
   pickups: [
     // Relief tucked into the corners, so topping up costs you ground.
     { kind: 'health', amount: 30, tx: 2, ty: 2 },

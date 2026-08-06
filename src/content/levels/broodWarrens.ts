@@ -53,9 +53,9 @@ export const BROOD_WARRENS: LevelDef = {
     { tx: 6, ty: 5 }
   ],
   generators: [
-    { typeId: 'brood-node', tx: 24, ty: 5 }, // skitterling swarm (north-east)
-    { typeId: 'husk-mound', tx: 24, ty: 15 }, // tanky husk bruisers (mid-east)
-    { typeId: 'spitter-nest', tx: 27, ty: 18 } // ranged spitters (south-east)
+    { id: 'north-brood-node', typeId: 'brood-node', tx: 24, ty: 5 }, // skitterling swarm (north-east)
+    { id: 'mid-husk-mound', typeId: 'husk-mound', tx: 24, ty: 15 }, // tanky husk bruisers (mid-east)
+    { id: 'south-spitter-nest', typeId: 'spitter-nest', tx: 27, ty: 18 } // ranged spitters (south-east)
   ],
   pickups: [
     { kind: 'gold', amount: 10, tx: 8, ty: 3 },

@@ -147,7 +147,7 @@ export function createSim(config: SimConfig): Sim {
   });
   if (!players.some((p) => p.slot === 0)) throw new Error('player slot 0 must start joined');
 
-  const generators: GeneratorState[] = level.generators.map((g) => {
+  const generators: GeneratorState[] = level.generators.map((g, index) => {
     const def = content.generators[g.typeId];
     if (!def) throw new Error(`unknown generator: ${g.typeId}`);
     return {
@@ -158,7 +158,10 @@ export function createSim(config: SimConfig): Sim {
       maxHp: def.maxHp,
       spawnCooldown: 30, // brief grace period, then the horde starts
       enrageTriggered: false,
-      enrageTicksLeft: 0
+      enrageTicksLeft: 0,
+      objectiveId: g.id ?? `generator-${index + 1}`,
+      active: g.encounterId === undefined,
+      encounterId: g.encounterId
     };
   });
 
@@ -220,7 +223,10 @@ export function createSim(config: SimConfig): Sim {
       chargeDir: { x: 0, y: 1 },
       chargeSpeed: 0,
       chargeDamage: 0,
-      touchCooldown: 0
+      touchCooldown: 0,
+      objectiveId: level.boss.id ?? 'boss',
+      active: level.boss.encounterId === undefined,
+      encounterId: level.boss.encounterId
     };
   }
 
@@ -235,6 +241,15 @@ export function createSim(config: SimConfig): Sim {
       rewards: { gold: 0, xp: 0 },
       enemies: [],
       generators,
+      encounters: (level.encounters ?? []).map((encounter) => ({
+        id: encounter.id,
+        active: false,
+        cleared: false,
+        activatedTick: null,
+        clearedTick: null
+      })),
+      generatorClearOrder: [],
+      maxConcurrentEnemies: 0,
       pickups,
       props,
       gates,
@@ -257,8 +272,10 @@ export function simTick(sim: Sim, inputs: readonly InputCommand[]): SimEvent[] {
     return events;
   }
   updateParticipation(sim, inputs, events);
+  updateEncounterActivations(sim, events);
   updatePendingBlasts(sim, events);
   updatePlayers(sim, inputs, events);
+  updateEncounterActivations(sim, events);
   updateProjectiles(sim, events);
   updateEnemies(sim, events);
   separateEnemies(sim);
@@ -266,6 +283,8 @@ export function simTick(sim: Sim, inputs: readonly InputCommand[]): SimEvent[] {
   updateTeammateRevives(sim, inputs, events);
   updatePressure(sim, events);
   updateGenerators(sim, events);
+  s.maxConcurrentEnemies = Math.max(s.maxConcurrentEnemies, s.enemies.length);
+  updateEncounterClears(sim, events);
   collectPickups(sim, events);
   updateGates(sim, events);
   updateObjective(sim, events);
@@ -506,7 +525,7 @@ function performMeleeAttack(sim: Sim, p: PlayerState, atk: AttackDef, events: Si
     damageEnemy(sim, e, damage, dir, atk.knockback, p.id, events);
   }
   for (const g of sim.state.generators) {
-    if (g.hp <= 0) continue;
+    if (!g.active || g.hp <= 0) continue;
     const gdef = content.generators[g.typeId];
     if (!gdef) continue;
     const d = sub(g.pos, p.pos);
@@ -650,7 +669,7 @@ function performCircularBlast(
     damageEnemy(sim, e, damage, dir, knockback, p.id, events);
   }
   for (const g of [...sim.state.generators]) {
-    if (g.hp <= 0) continue;
+    if (!g.active || g.hp <= 0) continue;
     const gdef = content.generators[g.typeId];
     if (!gdef) continue;
     const dist = Math.hypot(g.pos.x - center.x, g.pos.y - center.y);
@@ -704,7 +723,7 @@ function performFaultlineBlast(
   }
   for (const g of [...sim.state.generators]) {
     const def = content.generators[g.typeId];
-    if (!def || g.hp <= 0 || !hits(g.pos, def.radius)) continue;
+    if (!def || !g.active || g.hp <= 0 || !hits(g.pos, def.radius)) continue;
     damageGenerator(sim, g, damage, p.id, events);
   }
   for (const pr of [...sim.state.props]) {
@@ -772,7 +791,7 @@ function usePotion(sim: Sim, p: PlayerState, events: SimEvent[]): void {
     damageEnemy(sim, e, potion.damage, dir, potion.knockback, p.id, events);
   }
   for (const g of [...sim.state.generators]) {
-    if (g.hp <= 0) continue;
+    if (!g.active || g.hp <= 0) continue;
     const gdef = content.generators[g.typeId];
     if (!gdef) continue;
     if (Math.hypot(g.pos.x - center.x, g.pos.y - center.y) > potion.radius + gdef.radius) continue;
@@ -956,6 +975,7 @@ function damageGenerator(
   byPlayer: EntityId,
   events: SimEvent[]
 ): void {
+  if (!g.active) return;
   const def = sim.config.content.generators[g.typeId];
   g.hp -= damage;
   if (g.hp > 0 && def?.enrage && !g.enrageTriggered && g.hp <= g.maxHp * def.enrage.hpFraction) {
@@ -967,7 +987,8 @@ function damageGenerator(
   }
   if (g.hp <= 0) {
     g.hp = 0;
-    events.push({ type: 'generator-destroyed', generatorId: g.id, pos: { ...g.pos } });
+    sim.state.generatorClearOrder.push(g.objectiveId);
+    events.push({ type: 'generator-destroyed', generatorId: g.id, objectiveId: g.objectiveId, pos: { ...g.pos } });
     awardPartyXp(sim, byPlayer, def?.xp ?? 0, events);
     if (def && def.goldDrop > 0) {
       sim.state.pickups.push({
@@ -1214,7 +1235,7 @@ function updateProjectiles(sim: Sim, events: SimEvent[]): void {
       if (!dead) {
         for (const g of s.generators) {
           const gdef = content.generators[g.typeId];
-          if (!gdef || g.hp <= 0) continue;
+          if (!gdef || !g.active || g.hp <= 0) continue;
           if (Math.hypot(g.pos.x - bolt.pos.x, g.pos.y - bolt.pos.y) > bolt.radius + gdef.radius) continue;
           events.push({ type: 'projectile-hit', projectileId: bolt.id, pos: { ...bolt.pos } });
           damageGenerator(sim, g, bolt.damage, bolt.ownerId, events);
@@ -1808,7 +1829,7 @@ function bossPhaseIndex(def: BossDef, hpFraction: number): number {
 function updateBoss(sim: Sim, events: SimEvent[]): void {
   const s = sim.state;
   const boss = s.boss;
-  if (!boss || boss.hp <= 0) return;
+  if (!boss || !boss.active || boss.hp <= 0) return;
   const { level, content } = sim.config;
   const def = content.bosses[boss.typeId];
   if (!def) return;
@@ -2014,7 +2035,58 @@ function damageBoss(sim: Sim, boss: BossState, damage: number, byPlayer: EntityI
 /** The living boss as a damageable target, or null. */
 function livingBoss(sim: Sim): BossState | null {
   const b = sim.state.boss;
-  return b && b.hp > 0 ? b : null;
+  return b && b.active && b.hp > 0 ? b : null;
+}
+
+/** Permanently wakes every dependency-ready encounter whose trigger contains a living player. */
+function updateEncounterActivations(sim: Sim, events: SimEvent[]): void {
+  const authored = sim.config.level.encounters ?? [];
+  for (const encounter of authored) {
+    const state = sim.state.encounters.find((candidate) => candidate.id === encounter.id);
+    if (!state || state.active || state.cleared) continue;
+    if (
+      (encounter.requires ?? []).some(
+        (dependency) => !sim.state.encounters.find((candidate) => candidate.id === dependency)?.cleared
+      )
+    ) {
+      continue;
+    }
+    const entered = sim.state.players.some((player) => {
+      if (!player.participating || !player.alive) return false;
+      const tx = player.pos.x / sim.config.level.tileSize;
+      const ty = player.pos.y / sim.config.level.tileSize;
+      if (encounter.trigger.kind === 'region') {
+        return (
+          tx >= encounter.trigger.minTx &&
+          tx < encounter.trigger.maxTx + 1 &&
+          ty >= encounter.trigger.minTy &&
+          ty < encounter.trigger.maxTy + 1
+        );
+      }
+      return Math.hypot(tx - (encounter.trigger.tx + 0.5), ty - (encounter.trigger.ty + 0.5)) <= encounter.trigger.radiusTiles;
+    });
+    if (!entered) continue;
+    state.active = true;
+    state.activatedTick = sim.state.tick;
+    for (const generator of sim.state.generators) {
+      if (generator.encounterId === encounter.id) generator.active = true;
+    }
+    if (sim.state.boss?.encounterId === encounter.id) sim.state.boss.active = true;
+    events.push({ type: 'encounter-activated', encounterId: encounter.id, tick: sim.state.tick });
+  }
+}
+
+/** Emits one clear edge after every authored objective in an active encounter falls. */
+function updateEncounterClears(sim: Sim, events: SimEvent[]): void {
+  for (const encounter of sim.state.encounters) {
+    if (!encounter.active || encounter.cleared) continue;
+    const generatorAlive = sim.state.generators.some((generator) => generator.encounterId === encounter.id);
+    const bossAlive = sim.state.boss?.encounterId === encounter.id && sim.state.boss.hp > 0;
+    if (generatorAlive || bossAlive) continue;
+    encounter.cleared = true;
+    encounter.clearedTick = sim.state.tick;
+    events.push({ type: 'encounter-cleared', encounterId: encounter.id, tick: sim.state.tick });
+  }
 }
 
 function updateGenerators(sim: Sim, events: SimEvent[]): void {
@@ -2022,6 +2094,7 @@ function updateGenerators(sim: Sim, events: SimEvent[]): void {
   const { level, content } = sim.config;
 
   for (const g of s.generators) {
+    if (!g.active) continue;
     const def = content.generators[g.typeId];
     if (!def) continue;
     if (g.enrageTicksLeft > 0) g.enrageTicksLeft--;
@@ -2137,7 +2210,7 @@ function updateObjective(sim: Sim, events: SimEvent[]): void {
 
   // The way out opens once every spawner is down AND the level's boss (if any)
   // has fallen — on a boss realm she IS the objective (issue #25).
-  if (s.phase === 'combat' && s.generators.length === 0 && livingBoss(sim) === null) {
+  if (s.phase === 'combat' && s.generators.length === 0 && (!s.boss || s.boss.hp <= 0)) {
     s.phase = 'exit-open';
     events.push({ type: 'exit-opened', pos: { ...s.exitPos } });
   }
@@ -2159,6 +2232,7 @@ function updateObjective(sim: Sim, events: SimEvent[]): void {
 function resolveStaticCircles(sim: Sim, pos: Vec2, radius: number): void {
   const { content } = sim.config;
   for (const g of sim.state.generators) {
+    if (!g.active) continue;
     const gr = content.generators[g.typeId]?.radius ?? 20;
     const d = sub(pos, g.pos);
     const dist = Math.hypot(d.x, d.y);

@@ -64,9 +64,9 @@ export const RESIN_GALLERIES: LevelDef = {
     { tx: 5, ty: 5 }
   ],
   generators: [
-    { typeId: 'brood-node', tx: 16, ty: 4 }, // north-central gallery
-    { typeId: 'husk-mound', tx: 31, ty: 5 }, // north-east chamber
-    { typeId: 'brood-node', tx: 32, ty: 18 } // south-east chamber
+    { id: 'north-brood-node', typeId: 'brood-node', tx: 16, ty: 4 }, // north-central gallery
+    { id: 'east-husk-mound', typeId: 'husk-mound', tx: 31, ty: 5 }, // north-east chamber
+    { id: 'south-brood-node', typeId: 'brood-node', tx: 32, ty: 18 } // south-east chamber
   ],
   pickups: [
     { kind: 'gold', amount: 10, tx: 5, ty: 2 },

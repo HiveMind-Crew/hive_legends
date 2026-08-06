@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BROOD_WARRENS, COBALT_COMBS, HOLLOW_THRONE, LEVELS, MISSION_ORDER, RESIN_GALLERIES } from '../../src/content';
 import { circleHitsWall, moveCircle, tileCenter, validateLevel } from '../../src/sim/level';
+import { measureLevelPacing } from '../../src/sim/levelMetrics';
 import type { LevelDef } from '../../src/sim/types';
 
 const AUTHORED = [BROOD_WARRENS, RESIN_GALLERIES, COBALT_COMBS, HOLLOW_THRONE];
@@ -131,5 +132,22 @@ describe('collision', () => {
     moveCircle(BROOD_WARRENS, pos, 12, -100, 10);
     expect(pos.x).toBeGreaterThanOrEqual(32 + 12); // never inside the border wall
     expect(pos.y).toBe(startY + 10); // y-axis movement still applied
+  });
+});
+
+describe('authored pacing baselines', () => {
+  it.each([
+    [BROOD_WARRENS, { floor: 610, route: 60, exit: 26, pinch: 2 }],
+    [RESIN_GALLERIES, { floor: 537, route: 78, exit: 34, pinch: 1 }],
+    [COBALT_COMBS, { floor: 514, route: 65, exit: 4, pinch: 1 }],
+    [HOLLOW_THRONE, { floor: 528, route: 18, exit: 7, pinch: 10 }]
+  ] as const)('$name reports its pre-expansion route baseline', (level, expected) => {
+    const metrics = measureLevelPacing(level);
+    expect(metrics.walkableFloorCount).toBe(expected.floor);
+    expect(metrics.criticalPathDistanceTiles).toBe(expected.route);
+    expect(metrics.finalObjectiveToExitTiles).toBe(expected.exit);
+    expect(metrics.minCriticalCorridorWidthTiles).toBe(expected.pinch);
+    expect(metrics.pinchPoints.length).toBeGreaterThan(0);
+    expect(metrics.objectiveOrder).toHaveLength(level.generators.length + (level.boss ? 1 : 0));
   });
 });
