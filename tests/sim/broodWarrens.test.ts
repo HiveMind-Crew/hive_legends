@@ -23,7 +23,7 @@ describe('The Brood Warrens west-to-east expansion (#149)', () => {
     ]);
   });
 
-  it('uses four five-tile thresholds and strictly eastward objective reveals', () => {
+  it('uses five-tile thresholds and strictly eastward objective reveals', () => {
     for (const [tx, minTy, maxTy] of [
       [13, 4, 8],
       [24, 20, 24],
@@ -39,6 +39,22 @@ describe('The Brood Warrens west-to-east expansion (#149)', () => {
     expect(objectiveXs).toEqual([...objectiveXs].sort((a, b) => a - b));
     expect(BROOD_WARRENS.exit.tx).toBeGreaterThan(objectiveXs.at(-1)!);
     expect(Math.min(...BROOD_WARRENS.playerSpawns.map((spawn) => spawn.tx))).toBeLessThan(objectiveXs[0]!);
+  });
+
+  it('gives both optional reward branches an open west split and farther-east rejoin', () => {
+    for (const { ty, minTx, maxTx } of [
+      { ty: 14, minTx: 17, maxTx: 21 },
+      { ty: 15, minTx: 28, maxTx: 30 }
+    ]) {
+      const branch = BROOD_WARRENS.walls[ty]!.slice(minTx - 1, maxTx + 2);
+      expect(branch).toBe('.'.repeat(maxTx - minTx + 3));
+    }
+    expect(BROOD_WARRENS.gates).toEqual([{ tx: 19, ty: 13 }]);
+    expect(BROOD_WARRENS.secrets).toEqual([{ tx: 29, ty: 14 }]);
+    expect(BROOD_WARRENS.pickups).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'gold', amount: 40, tx: 19, ty: 12 }),
+      expect.objectContaining({ kind: 'gold', amount: 50, tx: 29, ty: 13 })
+    ]));
   });
 
   it('authors one dependency chain and activates no more than its current objective', () => {

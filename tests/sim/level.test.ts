@@ -121,8 +121,8 @@ describe('level validation', () => {
     const spawn = BROOD_WARRENS.playerSpawns[0]!;
     const gate = BROOD_WARRENS.gates![0]!;
     const secret = BROOD_WARRENS.secrets![0]!;
-    const gateTreasure = { tx: 19, ty: 13 };
-    const secretTreasure = { tx: 10, ty: 25 };
+    const gateTreasure = { tx: 19, ty: 12 };
+    const secretTreasure = { tx: 29, ty: 13 };
 
     const open = reachable(BROOD_WARRENS, spawn);
     expect(open(gateTreasure.tx, gateTreasure.ty)).toBe(true);
@@ -151,7 +151,7 @@ describe('collision', () => {
 
 describe('authored pacing baselines', () => {
   it.each([
-    [BROOD_WARRENS, { floor: 1073, route: 97, exit: 5, pinch: 3 }],
+    [BROOD_WARRENS, { floor: 1069, route: 97, exit: 5, pinch: 3 }],
     [RESIN_GALLERIES, { floor: 537, route: 78, exit: 34, pinch: 1 }],
     [COBALT_COMBS, { floor: 514, route: 65, exit: 4, pinch: 1 }],
     [HOLLOW_THRONE, { floor: 528, route: 18, exit: 7, pinch: 10 }]
