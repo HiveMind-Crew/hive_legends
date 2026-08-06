@@ -8,6 +8,7 @@ import {
   type InputCommand,
   type SimEvent
 } from '../../src/sim/types';
+import { activateAllObjectives } from './fixtures';
 
 /**
  * The Arcanist hero (issue #18): a ranged hex-weaver. These tests drive the
@@ -20,7 +21,7 @@ import {
 const RESIN_CAGE = CONTENT.heroes['arcanist']!.ability as BlastAbilityDef;
 
 function newArcanistSim(seed = 55): Sim {
-  return createSim({ seed, level: BROOD_WARRENS, players: [{ heroId: 'arcanist' }], content: CONTENT });
+  return activateAllObjectives(createSim({ seed, level: BROOD_WARRENS, players: [{ heroId: 'arcanist' }], content: CONTENT }));
 }
 
 function input(partial: Partial<InputCommand>): InputCommand {

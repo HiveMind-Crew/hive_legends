@@ -116,6 +116,20 @@ describe('level validation', () => {
     const sealedSecret = reachable(RESIN_GALLERIES, spawn, [secret]);
     expect(sealedSecret(secretTreasure.tx, secretTreasure.ty)).toBe(false);
   });
+
+  it('The Brood Warrens optional vault rewards stay sealed by their authored mechanics', () => {
+    const spawn = BROOD_WARRENS.playerSpawns[0]!;
+    const gate = BROOD_WARRENS.gates![0]!;
+    const secret = BROOD_WARRENS.secrets![0]!;
+    const gateTreasure = { tx: 19, ty: 13 };
+    const secretTreasure = { tx: 10, ty: 25 };
+
+    const open = reachable(BROOD_WARRENS, spawn);
+    expect(open(gateTreasure.tx, gateTreasure.ty)).toBe(true);
+    expect(open(secretTreasure.tx, secretTreasure.ty)).toBe(true);
+    expect(reachable(BROOD_WARRENS, spawn, [gate])(gateTreasure.tx, gateTreasure.ty)).toBe(false);
+    expect(reachable(BROOD_WARRENS, spawn, [secret])(secretTreasure.tx, secretTreasure.ty)).toBe(false);
+  });
 });
 
 describe('collision', () => {
@@ -137,11 +151,11 @@ describe('collision', () => {
 
 describe('authored pacing baselines', () => {
   it.each([
-    [BROOD_WARRENS, { floor: 610, route: 60, exit: 26, pinch: 2 }],
+    [BROOD_WARRENS, { floor: 1073, route: 97, exit: 5, pinch: 3 }],
     [RESIN_GALLERIES, { floor: 537, route: 78, exit: 34, pinch: 1 }],
     [COBALT_COMBS, { floor: 514, route: 65, exit: 4, pinch: 1 }],
     [HOLLOW_THRONE, { floor: 528, route: 18, exit: 7, pinch: 10 }]
-  ] as const)('$name reports its pre-expansion route baseline', (level, expected) => {
+  ] as const)('$name reports its pinned route baseline', (level, expected) => {
     const metrics = measureLevelPacing(level);
     expect(metrics.walkableFloorCount).toBe(expected.floor);
     expect(metrics.criticalPathDistanceTiles).toBe(expected.route);

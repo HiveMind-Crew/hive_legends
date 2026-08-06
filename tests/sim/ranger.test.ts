@@ -9,6 +9,7 @@ import {
   type InputCommand,
   type SimEvent
 } from '../../src/sim/types';
+import { activateAllObjectives } from './fixtures';
 
 /**
  * The Ranger hero (issue #19): a fast skirmisher with rapid piercing thorn
@@ -20,7 +21,7 @@ import {
 const VOLLEY_STEP = CONTENT.heroes['ranger']!.ability as DashVolleyAbilityDef;
 
 function newRangerSim(seed = 71): Sim {
-  return createSim({ seed, level: BROOD_WARRENS, players: [{ heroId: 'ranger' }], content: CONTENT });
+  return activateAllObjectives(createSim({ seed, level: BROOD_WARRENS, players: [{ heroId: 'ranger' }], content: CONTENT }));
 }
 
 function input(partial: Partial<InputCommand>): InputCommand {

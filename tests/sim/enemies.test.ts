@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BROOD_WARRENS, CONTENT } from '../../src/content';
 import { createSim, hashState, simTick, type Sim } from '../../src/sim/sim';
 import { EMPTY_INPUT, type EnemyState, type InputCommand, type SimEvent } from '../../src/sim/types';
+import { activateAllObjectives } from './fixtures';
 
 /**
  * Enemy roster expansion (issue #23): the Husk (tanky melee bruiser), the
@@ -11,7 +12,7 @@ import { EMPTY_INPUT, type EnemyState, type InputCommand, type SimEvent } from '
  */
 
 function newSim(heroId = 'vanguard', seed = 33): Sim {
-  return createSim({ seed, level: BROOD_WARRENS, players: [{ heroId }], content: CONTENT });
+  return activateAllObjectives(createSim({ seed, level: BROOD_WARRENS, players: [{ heroId }], content: CONTENT }));
 }
 
 function input(partial: Partial<InputCommand>): InputCommand {
@@ -242,9 +243,9 @@ describe('Skitter committed pounce', () => {
     const sim = newSim();
     sim.state.generators = [];
     const p = sim.state.players[0]!;
-    p.pos = { x: c(16), y: c(3) };
+    p.pos = { x: c(14), y: c(3) };
     const beforeHp = p.hp;
-    const skitter = spawnEnemy(sim, 'skitterling', 702, 470, c(3));
+    const skitter = spawnEnemy(sim, 'skitterling', 702, c(13) - 26, c(3));
     const from = { ...skitter.pos };
 
     const events = runTicks(sim, def.attack.windupTicks + 1);
@@ -424,12 +425,12 @@ describe('spitter (ranged zoner)', () => {
     sim.state.generators = [];
     const p = sim.state.players[0]!;
     const before = p.hp;
-    // Put the central wall column (tx 15, solid at ty 3) between the spitter
+    // Put the first threshold wall (tx 13, solid at ty 3) between the spitter
     // (west) and the player (east), within firing range. The eastward shot
     // must die on the wall and never reach the player.
     const c = (t: number): number => t * BROOD_WARRENS.tileSize + BROOD_WARRENS.tileSize / 2;
-    p.pos = { x: c(18), y: c(3) };
-    spawnEnemy(sim, 'bile-spitter', 830, c(13), c(3));
+    p.pos = { x: c(16), y: c(3) };
+    spawnEnemy(sim, 'bile-spitter', 830, c(11), c(3));
     const events = runTicks(sim, 60);
     expect(events.some((e) => e.type === 'enemy-volley')).toBe(true);
     expect(events.some((e) => e.type === 'projectile-expired')).toBe(true);
