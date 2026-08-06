@@ -74,7 +74,17 @@ describe('staged encounters', () => {
   });
 
   it('preserves start-active behavior when encounter metadata is absent', () => {
-    const legacy = createSim({ seed: 1, level: BROOD_WARRENS, players: [{ heroId: 'vanguard' }], content: CONTENT });
+    const legacyLevel: LevelDef = {
+      ...BROOD_WARRENS,
+      encounters: undefined,
+      generators: BROOD_WARRENS.generators.map((generator) => ({
+        id: generator.id,
+        typeId: generator.typeId,
+        tx: generator.tx,
+        ty: generator.ty
+      }))
+    };
+    const legacy = createSim({ seed: 1, level: legacyLevel, players: [{ heroId: 'vanguard' }], content: CONTENT });
     expect(legacy.state.encounters).toEqual([]);
     expect(legacy.state.generators.every((generator) => generator.active)).toBe(true);
     simTick(legacy, [EMPTY_INPUT]);

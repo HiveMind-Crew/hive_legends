@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { ABILITY_SPECIALIZATIONS } from '../src/content/abilitySpecializations';
 import { PROGRESSION } from '../src/content/progression';
 import { levelForXp } from '../src/sim/sim';
-import { actionToKeys, getState, WarrensBot } from './bot';
+import { actionToKeys, getPacingReport, getState, WarrensBot, type MissionPacingReport } from './bot';
 
 /**
  * Full gameplay verification: a bot plays the mission through the real
@@ -93,10 +93,13 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   let screenshotTaken = false;
   let juiceShotTaken = false;
   let damagedNodeShotTaken = false;
+  let finaleShotTaken = false;
+  let pacingReport: MissionPacingReport | null = null;
 
   while (Date.now() < deadline) {
     const state = await getState(page);
     if (!state) break;
+    pacingReport = await getPacingReport(page);
     lastPhase = state.phase;
     if (state.phase === 'complete' || state.phase === 'failed') break;
 
@@ -119,6 +122,11 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
       await page.screenshot({ path: 'test-results/03c-node-damaged.png' });
       damagedNodeShotTaken = true;
     }
+    const finale = state.generators.find((generator) => generator.encounterId === 'spitter-finale' && generator.active);
+    if (!finaleShotTaken && finale && Math.hypot(finale.pos.x - me.pos.x, finale.pos.y - me.pos.y) < 240) {
+      await page.screenshot({ path: 'test-results/issue149-spitter-finale.png' });
+      finaleShotTaken = true;
+    }
     await page.waitForTimeout(90);
   }
   await driver.releaseAll();
@@ -129,6 +137,20 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
     for (const line of bot.trace.slice(-80)) console.log(line);
   }
   expect(lastPhase).toBe('complete');
+  expect(pacingReport).not.toBeNull();
+  expect(pacingReport).toMatchObject({
+    routeDistanceTiles: 97,
+    finalObjectiveToExitTiles: 5,
+    generatorClearOrder: [
+      'west-brood-node',
+      'husk-gallery-mound',
+      'breach-brood-node',
+      'east-spitter-nest'
+    ]
+  });
+  expect(pacingReport!.elapsedMissionTicks).toBeGreaterThan(0);
+  expect(pacingReport!.maxConcurrentEnemies).toBeLessThanOrEqual(15);
+  console.log(`Brood Warrens pacing: ${JSON.stringify(pacingReport)}`);
   // The end-of-mission banner shows first; poll until the results scene has
   // banked the run to the persistent profile rather than sleeping a fixed time.
   // Contextual lessons may create the profile during combat (#97), so mere

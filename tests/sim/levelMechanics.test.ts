@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BROOD_WARRENS, CONTENT } from '../../src/content';
 import { createSim, hashState, simTick, type Sim } from '../../src/sim/sim';
 import { EMPTY_INPUT, type InputCommand, type SimEvent } from '../../src/sim/types';
+import { activateAllObjectives } from './fixtures';
 
 /**
  * Level-mechanics toolkit (issue #17): keys, key-locked gates, and breakable
@@ -11,7 +12,7 @@ import { EMPTY_INPUT, type InputCommand, type SimEvent } from '../../src/sim/typ
  */
 
 function newSim(seed = 51): Sim {
-  return createSim({ seed, level: BROOD_WARRENS, players: [{ heroId: 'vanguard' }], content: CONTENT });
+  return activateAllObjectives(createSim({ seed, level: BROOD_WARRENS, players: [{ heroId: 'vanguard' }], content: CONTENT }));
 }
 
 function input(partial: Partial<InputCommand>): InputCommand {
@@ -79,18 +80,18 @@ describe('secret walls', () => {
     const sim = newSim();
     const p = sim.state.players[0]!;
     const secret = sim.state.secrets[0]!;
-    p.pos = { x: secret.pos.x + 40, y: secret.pos.y };
-    runTicks(sim, 40, input({ moveX: -1 }));
+    p.pos = { x: secret.pos.x, y: secret.pos.y - 40 };
+    runTicks(sim, 40, input({ moveY: 1 }));
     expect(sim.state.secrets).toHaveLength(1); // intact
-    expect(p.pos.x).toBeGreaterThan(secret.pos.x); // blocked
+    expect(p.pos.y).toBeLessThan(secret.pos.y); // blocked
   });
 
   it('crumble under attack and open the tile', () => {
     const sim = newSim();
     const p = sim.state.players[0]!;
     const secret = sim.state.secrets[0]!;
-    p.pos = { x: secret.pos.x + 30, y: secret.pos.y };
-    p.facing = { x: -1, y: 0 };
+    p.pos = { x: secret.pos.x, y: secret.pos.y - 30 };
+    p.facing = { x: 0, y: 1 };
     const events: SimEvent[] = [];
     for (let i = 0; i < 60 && sim.state.secrets.length > 0; i++) {
       p.attackCooldown = 0;
@@ -99,8 +100,8 @@ describe('secret walls', () => {
     expect(sim.state.secrets).toHaveLength(0);
     expect(events.some((e) => e.type === 'secret-revealed')).toBe(true);
     // The passage is walkable now.
-    runTicks(sim, 40, input({ moveX: -1 }));
-    expect(p.pos.x).toBeLessThan(secret.pos.x);
+    runTicks(sim, 40, input({ moveY: 1 }));
+    expect(p.pos.y).toBeGreaterThan(secret.pos.y);
   });
 });
 

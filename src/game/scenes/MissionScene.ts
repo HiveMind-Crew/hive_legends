@@ -270,15 +270,22 @@ export class MissionScene extends Phaser.Scene {
 
     const exitPos = this.sim.state.exitPos;
     const exitAccent = level.theme?.accent ?? 0x64e6ff;
-    this.exitSprite = this.add.image(exitPos.x, exitPos.y, TEX.exit).setDepth(DEPTH_DECAL).setVisible(false);
+    const previewExit = level.previewExit === true;
+    this.exitSprite = this.add
+      .image(exitPos.x, exitPos.y, TEX.exit)
+      .setDepth(DEPTH_DECAL)
+      .setVisible(previewExit)
+      .setAlpha(previewExit ? 0.3 : 1)
+      .setTint(previewExit ? 0x52616d : 0xffffff)
+      .setScale(previewExit ? 0.8 : 1);
     this.exitGlow = this.add
       .image(exitPos.x, exitPos.y, TEX.glow)
       .setBlendMode(Phaser.BlendModes.ADD)
       .setTint(exitAccent)
-      .setAlpha(0.4)
-      .setScale(1.8)
+      .setAlpha(previewExit ? 0.12 : 0.4)
+      .setScale(previewExit ? 1.25 : 1.8)
       .setDepth(DEPTH_DECAL)
-      .setVisible(false);
+      .setVisible(previewExit);
 
     this.cameras.main.setBounds(0, 0, levelWidthPx(level), levelHeightPx(level));
     this.cameras.main.setZoom(1.25);
@@ -583,9 +590,14 @@ export class MissionScene extends Phaser.Scene {
 
     if (this.exitSprite.visible) {
       const t = this.time.now;
-      this.exitSprite.setScale(1 + 0.08 * Math.sin(t / 250));
-      this.exitSprite.setRotation(t / 2000);
-      this.exitGlow.setAlpha(0.32 + 0.12 * Math.sin(t / 300));
+      if (this.sim.state.phase === 'exit-open' || this.sim.state.phase === 'complete') {
+        this.exitSprite.setScale(1 + 0.08 * Math.sin(t / 250));
+        this.exitSprite.setRotation(t / 2000);
+        this.exitGlow.setAlpha(0.32 + 0.12 * Math.sin(t / 300));
+      } else {
+        this.exitSprite.setScale(0.8 + 0.025 * Math.sin(t / 500));
+        this.exitGlow.setAlpha(0.1 + 0.04 * Math.sin(t / 450));
+      }
     }
     for (const glow of this.glows) {
       glow.img.setAlpha(0.24 + 0.1 * Math.sin(this.time.now / 500 + glow.phase));
@@ -843,8 +855,8 @@ export class MissionScene extends Phaser.Scene {
           this.burst(this.dustFx, 2, ev.pos);
           break;
         case 'exit-opened':
-          this.exitSprite.setVisible(true);
-          this.exitGlow.setVisible(true);
+          this.exitSprite.setVisible(true).setAlpha(1).clearTint();
+          this.exitGlow.setVisible(true).setScale(1.8).setAlpha(0.4);
           this.moteFx.setPosition(ev.pos.x, ev.pos.y);
           this.moteFx.start();
           this.floatText(ev.pos, 'THE WAY OPENS', '#64e6ff');

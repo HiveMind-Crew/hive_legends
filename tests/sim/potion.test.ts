@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BROOD_WARRENS, CONTENT } from '../../src/content';
 import { createSim, hashState, simTick, type Sim } from '../../src/sim/sim';
 import { EMPTY_INPUT, type EnemyState, type InputCommand } from '../../src/sim/types';
+import { activateAllObjectives } from './fixtures';
 
 /**
  * Screen-clear potion (issue #41): a carried consumable spent for a wide
@@ -11,7 +12,7 @@ import { EMPTY_INPUT, type EnemyState, type InputCommand } from '../../src/sim/t
  */
 
 function newSim(seed = 55): Sim {
-  return createSim({ seed, level: BROOD_WARRENS, players: [{ heroId: 'vanguard' }], content: CONTENT });
+  return activateAllObjectives(createSim({ seed, level: BROOD_WARRENS, players: [{ heroId: 'vanguard' }], content: CONTENT }));
 }
 
 function input(partial: Partial<InputCommand>): InputCommand {
