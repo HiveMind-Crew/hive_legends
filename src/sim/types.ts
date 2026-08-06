@@ -636,6 +636,8 @@ export interface LevelDef {
   decor?: readonly LevelDecorDef[];
   /** Optional boss; while it lives the exit stays shut (issue #25). */
   boss?: LevelBossDef;
+  /** Render a faint, inert portal landmark before the objective opens it. */
+  previewExit?: boolean;
   exit: { tx: number; ty: number };
 }
 

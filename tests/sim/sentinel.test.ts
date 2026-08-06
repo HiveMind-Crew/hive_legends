@@ -8,6 +8,7 @@ import {
   type InputCommand,
   type SimEvent
 } from '../../src/sim/types';
+import { activateAllObjectives } from './fixtures';
 
 /**
  * The Sentinel hero (issue #20): a bulwark with a great maul and Bastion Wall,
@@ -19,7 +20,7 @@ import {
 const BASTION = CONTENT.heroes['sentinel']!.ability as GuardAbilityDef;
 
 function newSentinelSim(seed = 88): Sim {
-  return createSim({ seed, level: BROOD_WARRENS, players: [{ heroId: 'sentinel' }], content: CONTENT });
+  return activateAllObjectives(createSim({ seed, level: BROOD_WARRENS, players: [{ heroId: 'sentinel' }], content: CONTENT }));
 }
 
 function input(partial: Partial<InputCommand>): InputCommand {

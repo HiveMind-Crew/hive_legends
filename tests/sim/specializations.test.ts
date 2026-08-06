@@ -3,6 +3,7 @@ import { ABILITY_SPECIALIZATIONS, BROOD_WARRENS, CONTENT } from '../../src/conte
 import { buyAbilitySpecialization, defaultProfile, specializedAbility } from '../../src/meta/save';
 import { createSim, hashState, simTick, type Sim } from '../../src/sim/sim';
 import { EMPTY_INPUT, type EnemyState, type InputCommand, type SimEvent } from '../../src/sim/types';
+import { activateAllObjectives } from './fixtures';
 
 function input(partial: Partial<InputCommand>): InputCommand {
   return { ...EMPTY_INPUT, ...partial };
@@ -13,12 +14,12 @@ function specializedSim(specializationId: string, seed = 108): Sim {
   profile.bank = 10_000;
   expect(buyAbilitySpecialization(profile, specializationId)).toBe(true);
   const hero = CONTENT.heroes['vanguard']!;
-  return createSim({
+  return activateAllObjectives(createSim({
     seed,
     level: BROOD_WARRENS,
     players: [{ heroId: hero.id, ability: specializedAbility(profile, hero) }],
     content: CONTENT
-  });
+  }));
 }
 
 function target(sim: Sim, id: number, dx: number, dy: number): EnemyState {

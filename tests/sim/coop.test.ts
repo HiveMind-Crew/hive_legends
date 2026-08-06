@@ -2,16 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { BROOD_WARRENS, CONTENT } from '../../src/content';
 import { activePlayers, createSim, effectiveGeneratorMaxAlive, hashState, simTick, type Sim } from '../../src/sim/sim';
 import { EMPTY_INPUT, type EnemyState, type InputCommand } from '../../src/sim/types';
+import { activateAllObjectives } from './fixtures';
 
 const command = (overrides: Partial<InputCommand> = {}): InputCommand => ({ ...EMPTY_INPUT, ...overrides });
 
 function coopSim(seed = 106): Sim {
-  return createSim({
+  return activateAllObjectives(createSim({
     seed,
     level: BROOD_WARRENS,
     players: [{ heroId: 'vanguard' }, { heroId: 'vanguard', startJoined: false }],
     content: CONTENT
-  });
+  }));
 }
 
 function joinP2(sim: Sim): void {
