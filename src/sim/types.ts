@@ -461,13 +461,21 @@ export interface BossState {
   chargeSpeed: number;
   chargeDamage: number;
   touchCooldown: number;
+  /** Stable authored objective id used by encounter events and pacing telemetry. */
+  objectiveId: string;
+  /** Dormant encounter bosses cannot move, attack, collide, or take damage. */
+  active: boolean;
+  encounterId?: string;
 }
 
 /** Where a level plants its boss. */
 export interface LevelBossDef {
+  /** Stable authored objective id. Required when the boss belongs to an encounter. */
+  id?: string;
   typeId: string;
   tx: number;
   ty: number;
+  encounterId?: string;
 }
 
 /** Small breakable prop: any damage destroys it; drops loot via seeded RNG. */
@@ -518,9 +526,41 @@ export interface LevelPickupDef {
 }
 
 export interface LevelGeneratorDef {
+  /** Stable authored objective id. Required when the generator belongs to an encounter. */
+  id?: string;
   typeId: string;
   tx: number;
   ty: number;
+  encounterId?: string;
+}
+
+/** A living player entering this rectangle permanently activates a ready encounter. */
+export interface EncounterRegionTrigger {
+  kind: 'region';
+  minTx: number;
+  minTy: number;
+  maxTx: number;
+  maxTy: number;
+}
+
+/** A living player approaching this tile permanently activates a ready encounter. */
+export interface EncounterRadiusTrigger {
+  kind: 'radius';
+  tx: number;
+  ty: number;
+  radiusTiles: number;
+}
+
+export type EncounterTrigger = EncounterRegionTrigger | EncounterRadiusTrigger;
+
+/**
+ * One deterministic authored combat stage. Objectives opt in by carrying the
+ * encounter id; dependencies must clear before this trigger can wake it.
+ */
+export interface LevelEncounterDef {
+  id: string;
+  requires?: readonly string[];
+  trigger: EncounterTrigger;
 }
 
 /** A key-locked gate that blocks its tile until a player spends a key. */
@@ -583,6 +623,8 @@ export interface LevelDef {
   walls: readonly string[];
   playerSpawns: readonly { tx: number; ty: number }[];
   generators: readonly LevelGeneratorDef[];
+  /** Optional staged encounters. Omit to preserve start-active legacy behavior. */
+  encounters?: readonly LevelEncounterDef[];
   pickups: readonly LevelPickupDef[];
   /** Breakable props (sim entities). */
   props?: readonly LevelPropDef[];
@@ -886,6 +928,20 @@ export interface GeneratorState {
   /** Enrage fires at most once per generator. */
   enrageTriggered: boolean;
   enrageTicksLeft: number;
+  /** Stable authored objective id used by encounter events and pacing telemetry. */
+  objectiveId: string;
+  /** Dormant generators do not cool down, spawn, enrage, collide, or take damage. */
+  active: boolean;
+  encounterId?: string;
+}
+
+/** Serializable encounter progress; deliberately included in deterministic hashes. */
+export interface EncounterState {
+  id: string;
+  active: boolean;
+  cleared: boolean;
+  activatedTick: number | null;
+  clearedTick: number | null;
 }
 
 export interface PickupState {
@@ -961,6 +1017,11 @@ export interface SimState {
   rewards: { gold: number; xp: number };
   enemies: EnemyState[];
   generators: GeneratorState[];
+  encounters: EncounterState[];
+  /** Stable generator objective ids, in deterministic destruction order. */
+  generatorClearOrder: string[];
+  /** High-water mark used by the pacing/e2e regression harness. */
+  maxConcurrentEnemies: number;
   pickups: PickupState[];
   props: PropState[];
   gates: GateState[];
@@ -1080,7 +1141,9 @@ export type SimEvent =
   | { type: 'boss-died'; bossId: EntityId; pos: Vec2 }
   | { type: 'generator-hit'; generatorId: EntityId; pos: Vec2; damage: number }
   | { type: 'generator-enraged'; generatorId: EntityId; pos: Vec2 }
-  | { type: 'generator-destroyed'; generatorId: EntityId; pos: Vec2 }
+  | { type: 'generator-destroyed'; generatorId: EntityId; objectiveId: string; pos: Vec2 }
+  | { type: 'encounter-activated'; encounterId: string; tick: number }
+  | { type: 'encounter-cleared'; encounterId: string; tick: number }
   | { type: 'prop-destroyed'; propId: EntityId; pos: Vec2 }
   | { type: 'gate-opened'; gateId: EntityId; pos: Vec2 }
   | { type: 'secret-hit'; secretId: EntityId; pos: Vec2; damage: number }

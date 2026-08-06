@@ -11,6 +11,7 @@ import {
   type Profile
 } from '../../meta/save';
 import { levelHeightPx, levelWidthPx } from '../../sim/level';
+import { measureLevelPacing } from '../../sim/levelMetrics';
 import { activePlayers, createSim, effectiveGeneratorMaxAlive, revivePlayer, simTick, type Sim } from '../../sim/sim';
 import {
   POWERUP_KINDS,
@@ -333,7 +334,17 @@ export class MissionScene extends Phaser.Scene {
 
     // Read-only debug handle for automated end-to-end tests.
     (globalThis as Record<string, unknown>).__hive = {
-      getState: () => JSON.parse(JSON.stringify(this.sim.state)) as unknown
+      getState: () => JSON.parse(JSON.stringify(this.sim.state)) as unknown,
+      getMetrics: () => {
+        const pacing = measureLevelPacing(this.sim.config.level);
+        return {
+          elapsedMissionTicks: this.sim.state.tick,
+          routeDistanceTiles: pacing.criticalPathDistanceTiles,
+          finalObjectiveToExitTiles: pacing.finalObjectiveToExitTiles,
+          generatorClearOrder: [...this.sim.state.generatorClearOrder],
+          maxConcurrentEnemies: this.sim.state.maxConcurrentEnemies
+        };
+      }
     };
   }
 
@@ -500,7 +511,7 @@ export class MissionScene extends Phaser.Scene {
           alive: p.alive
         };
       }),
-      generatorsLeft: s.generators.length,
+      generatorsLeft: s.generators.filter((generator) => generator.active).length,
       pressureStage: s.pressureStage,
       boss: this.bossHudInfo(),
       phase: s.phase
@@ -510,7 +521,7 @@ export class MissionScene extends Phaser.Scene {
   /** The finale bar's data, or null when there is no living boss. */
   private bossHudInfo(): HudBossInfo | null {
     const boss = this.sim.state.boss;
-    if (!boss || boss.hp <= 0) return null;
+    if (!boss || !boss.active || boss.hp <= 0) return null;
     const def = CONTENT.bosses[boss.typeId];
     if (!def) return null;
     return {
@@ -635,6 +646,13 @@ export class MissionScene extends Phaser.Scene {
           this.cameraShake(220, 0.006);
           break;
         }
+        case 'encounter-activated':
+          hud.herald('THE HIVE AWAKENS', '#e1a6f0');
+          this.cameraShake(180, 0.006);
+          break;
+        case 'encounter-cleared':
+          hud.herald('ENCOUNTER CLEARED', '#9fe06a');
+          break;
         case 'potion-used':
           this.potionBurst(ev.pos, ev.radius);
           hud.herald('HIVE-FIRE UNLEASHED', '#9fe06a');
@@ -1150,6 +1168,17 @@ export class MissionScene extends Phaser.Scene {
       spr.setTexture(generatorFrame(g.typeId, tier));
       spr.setPosition(g.pos.x, g.pos.y).setDepth(g.pos.y);
 
+      // Dormant objectives read as sealed husks: present in the authored room,
+      // but desaturated, still, smaller, and without a threatening HP bar.
+      if (!g.active) {
+        spr.setTint(0x52616d).setAlpha(0.52).setScale(0.92);
+        this.ensureShadow(g.id, 1.4).setPosition(g.pos.x, g.pos.y + 16).setAlpha(0.35);
+        this.genHpBars.get(g.id)?.setVisible(false);
+        this.rings.get(g.id)?.setVisible(false);
+        continue;
+      }
+      spr.clearTint().setAlpha(1);
+
       // Breathing (faster when enraged), pre-spawn bulge, and spawn squash-pop.
       const enraged = g.enrageTicksLeft > 0;
       const breath = (enraged ? 0.06 : 0.03) * Math.sin(this.time.now / (enraged ? 180 : 400) + g.id);
@@ -1164,7 +1193,7 @@ export class MissionScene extends Phaser.Scene {
       const pop = Math.max(0, 1 - (this.time.now - (this.genPopAt.get(g.id) ?? -Infinity)) / 140);
       spr.setScale(1 + breath + bulge + 0.16 * pop, 1 + breath + bulge - 0.1 * pop);
 
-      this.ensureShadow(g.id, 1.4).setPosition(g.pos.x, g.pos.y + 16);
+      this.ensureShadow(g.id, 1.4).setPosition(g.pos.x, g.pos.y + 16).setAlpha(1);
 
       // Enraged nodes get a pulsing red warning ring.
       let ring = this.rings.get(g.id);
@@ -1184,6 +1213,7 @@ export class MissionScene extends Phaser.Scene {
         bar = this.add.rectangle(g.pos.x, g.pos.y - 30, 40, 5, 0xa855c8).setDepth(DEPTH_FX);
         this.genHpBars.set(g.id, bar);
       }
+      bar.setVisible(true);
       bar.width = 40 * frac;
       bar.setFillStyle(tier === 0 ? 0xa855c8 : tier === 1 ? 0xf0a35e : 0xff5a4d);
     }
@@ -1205,19 +1235,26 @@ export class MissionScene extends Phaser.Scene {
       // unmistakable before anything lands.
       const tel = bdef ? boss.telegraphTicksLeft / Math.max(1, bdef.telegraphTicks) : 0;
       const charging = boss.chargeTicksLeft > 0;
-      if (boss.telegraphTicksLeft > 0) {
+      if (!boss.active) {
+        spr.setTint(0x52616d).setAlpha(0.5).setScale(0.94);
+      } else if (boss.telegraphTicksLeft > 0) {
+        spr.setAlpha(1);
         const swell = 1 + 0.14 * (1 - tel);
         spr.setScale(swell);
         spr.setTint(Phaser.Display.Color.GetColor(255, 190 - Math.round(120 * (1 - tel)), 190 - Math.round(120 * (1 - tel))));
       } else if (charging) {
+        spr.setAlpha(1);
         spr.setScale(1.06);
         spr.setTint(0xff8a7a);
       } else {
+        spr.setAlpha(1);
         spr.setScale(1 + 0.02 * Math.sin(this.time.now / 420));
         spr.clearTint();
       }
 
-      this.ensureShadow(boss.id, 2.6).setPosition(boss.pos.x, boss.pos.y + 26);
+      this.ensureShadow(boss.id, 2.6)
+        .setPosition(boss.pos.x, boss.pos.y + 26)
+        .setAlpha(boss.active ? 1 : 0.35);
 
       // A persistent ground ring marks her footprint; it pulses on the windup.
       let ring = this.rings.get(boss.id);
@@ -1225,10 +1262,10 @@ export class MissionScene extends Phaser.Scene {
         ring = this.add.image(0, 0, TEX.accentRing).setDepth(DEPTH_DECAL).setScale(2.3, 1.3).setTint(0xff5a4d);
         this.rings.set(boss.id, ring);
       }
-      ring.setPosition(boss.pos.x, boss.pos.y + 18).setAlpha(boss.telegraphTicksLeft > 0 ? 0.35 + 0.4 * (1 - tel) : 0.28);
+      ring.setVisible(boss.active).setPosition(boss.pos.x, boss.pos.y + 18).setAlpha(boss.telegraphTicksLeft > 0 ? 0.35 + 0.4 * (1 - tel) : 0.28);
 
       // Charge trail while she barrels forward.
-      if (charging && this.trailCount < MAX_TRAIL_GHOSTS && s.tick % 2 === 0) {
+      if (boss.active && charging && this.trailCount < MAX_TRAIL_GHOSTS && s.tick % 2 === 0) {
         this.trailCount++;
         const ghost = this.add
           .image(boss.pos.x, boss.pos.y, spr.texture.key)

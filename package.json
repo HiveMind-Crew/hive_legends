@@ -13,6 +13,7 @@
     "test:e2e": "playwright test",
     "docs:combat": "UPDATE_DOCS=1 vitest run tests/combatDoc.test.ts",
     "docs:economy": "UPDATE_DOCS=1 vitest run tests/economyDoc.test.ts",
+    "metrics:levels": "vite-node scripts/levelPacing.ts",
     "art:build": "UPDATE_ART=1 vitest run tests/artPack.test.ts",
     "lint": "eslint src tests e2e scripts",
     "typecheck": "tsc --noEmit"

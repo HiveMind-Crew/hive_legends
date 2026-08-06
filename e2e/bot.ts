@@ -84,6 +84,24 @@ export async function getState(page: Page): Promise<SimState> {
   })) as SimState;
 }
 
+export interface MissionPacingReport {
+  elapsedMissionTicks: number;
+  routeDistanceTiles: number | null;
+  finalObjectiveToExitTiles: number | null;
+  generatorClearOrder: string[];
+  maxConcurrentEnemies: number;
+}
+
+/** Read-only completion/pacing report shared by authored-level regression specs. */
+export async function getPacingReport(page: Page): Promise<MissionPacingReport> {
+  return (await page.evaluate(() => {
+    const hive = (globalThis as Record<string, unknown>).__hive as
+      | { getMetrics: () => unknown }
+      | undefined;
+    return hive?.getMetrics() ?? null;
+  })) as MissionPacingReport;
+}
+
 /** Turns a bot action into the keys the keyboard path listens for. */
 export function actionToKeys(action: BotAction): string[] {
   const keys: string[] = [];

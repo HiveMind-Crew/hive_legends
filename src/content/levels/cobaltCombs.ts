@@ -69,9 +69,9 @@ export const COBALT_COMBS: LevelDef = {
   ],
   // All three families, one spawner each — the Combs' signature.
   generators: [
-    { typeId: 'brood-node', tx: 16, ty: 4 }, // north comb: the skitterling swarm
-    { typeId: 'husk-mound', tx: 30, ty: 4 }, // north-east: bruisers, and the realm's elite on death
-    { typeId: 'spitter-nest', tx: 19, ty: 20 } // south hall: ranged pressure, new to the Reach
+    { id: 'north-brood-node', typeId: 'brood-node', tx: 16, ty: 4 }, // north comb: the skitterling swarm
+    { id: 'east-husk-mound', typeId: 'husk-mound', tx: 30, ty: 4 }, // north-east: bruisers, and the realm's elite on death
+    { id: 'south-spitter-nest', typeId: 'spitter-nest', tx: 19, ty: 20 } // south hall: ranged pressure, new to the Reach
   ],
   pickups: [
     { kind: 'gold', amount: 10, tx: 4, ty: 2 },

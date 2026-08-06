@@ -139,5 +139,88 @@ export function validateLevel(level: LevelDef): string[] {
     }
   }
   if (level.playerSpawns.length === 0) problems.push('level has no player spawns');
+
+  const objectiveIds = new Set<string>();
+  const encounterIds = new Set<string>();
+  const encounterObjectives = new Map<string, number>();
+  const addObjective = (what: string, id: string | undefined, encounterId: string | undefined): void => {
+    if (id) {
+      if (objectiveIds.has(id)) problems.push(`level "${level.id}" ${what} has duplicate objective id "${id}"`);
+      objectiveIds.add(id);
+    }
+    if (!encounterId) return;
+    if (!id) problems.push(`level "${level.id}" ${what} in encounter "${encounterId}" needs a stable id`);
+    encounterObjectives.set(encounterId, (encounterObjectives.get(encounterId) ?? 0) + 1);
+  };
+  level.generators.forEach((g, i) => addObjective(`generator[${i}]`, g.id, g.encounterId));
+  if (level.boss) addObjective('boss', level.boss.id, level.boss.encounterId);
+
+  for (const encounter of level.encounters ?? []) {
+    const label = `level "${level.id}" encounter "${encounter.id}"`;
+    if (!encounter.id) problems.push(`${label} has an empty id`);
+    if (encounterIds.has(encounter.id)) problems.push(`${label} has a duplicate id`);
+    encounterIds.add(encounter.id);
+    const trigger = encounter.trigger;
+    if (trigger.kind === 'region') {
+      if (
+        !Number.isInteger(trigger.minTx) ||
+        !Number.isInteger(trigger.minTy) ||
+        !Number.isInteger(trigger.maxTx) ||
+        !Number.isInteger(trigger.maxTy) ||
+        trigger.minTx > trigger.maxTx ||
+        trigger.minTy > trigger.maxTy ||
+        trigger.minTx < 0 ||
+        trigger.minTy < 0 ||
+        trigger.maxTx >= w ||
+        trigger.maxTy >= level.walls.length
+      ) {
+        problems.push(`${label} has an invalid trigger region`);
+      }
+    } else if (
+      !Number.isInteger(trigger.tx) ||
+      !Number.isInteger(trigger.ty) ||
+      !Number.isFinite(trigger.radiusTiles) ||
+      trigger.radiusTiles <= 0 ||
+      trigger.tx < 0 ||
+      trigger.ty < 0 ||
+      trigger.tx >= w ||
+      trigger.ty >= level.walls.length
+    ) {
+      problems.push(`${label} has an invalid radius trigger`);
+    }
+  }
+
+  for (const encounter of level.encounters ?? []) {
+    const label = `level "${level.id}" encounter "${encounter.id}"`;
+    if ((encounterObjectives.get(encounter.id) ?? 0) === 0) problems.push(`${label} has no objective`);
+    for (const dependency of encounter.requires ?? []) {
+      if (!encounterIds.has(dependency)) problems.push(`${label} requires missing encounter "${dependency}"`);
+    }
+  }
+  for (const g of level.generators) {
+    if (g.encounterId && !encounterIds.has(g.encounterId)) {
+      problems.push(`level "${level.id}" generator "${g.id ?? g.typeId}" references missing encounter "${g.encounterId}"`);
+    }
+  }
+  if (level.boss?.encounterId && !encounterIds.has(level.boss.encounterId)) {
+    problems.push(`level "${level.id}" boss "${level.boss.id ?? level.boss.typeId}" references missing encounter "${level.boss.encounterId}"`);
+  }
+
+  // Stable DFS order makes cycle errors deterministic and names the authored stage.
+  const byId = new Map((level.encounters ?? []).map((encounter) => [encounter.id, encounter]));
+  const visited = new Set<string>();
+  const visiting = new Set<string>();
+  const visit = (id: string): void => {
+    if (visited.has(id) || !byId.has(id)) return;
+    if (visiting.has(id)) {
+      problems.push(`level "${level.id}" encounter "${id}" has a dependency cycle`);
+      return;
+    }
+    visiting.add(id);
+    for (const dependency of byId.get(id)?.requires ?? []) visit(dependency);
+    visiting.delete(id);
+    visited.add(id);
+  };
+  for (const encounter of level.encounters ?? []) visit(encounter.id);
   return problems;
 }
