@@ -73,8 +73,8 @@ describe('level validation', () => {
     const gate = COBALT_COMBS.gates![0]!;
     const secret = COBALT_COMBS.secrets![0]!;
     // Treasure tiles sit just inside each south vault.
-    const gateTreasure = { tx: 5, ty: 24 };
-    const secretTreasure = { tx: 32, ty: 24 };
+    const gateTreasure = { tx: 4, ty: 29 };
+    const secretTreasure = { tx: 42, ty: 5 };
 
     // Open (mechanic solved): reachable.
     const open = reachable(COBALT_COMBS, spawn);
@@ -89,11 +89,15 @@ describe('level validation', () => {
     expect(sealedSecret(secretTreasure.tx, secretTreasure.ty)).toBe(false);
   });
 
-  it('The Cobalt Combs fields all three enemy families', () => {
-    // The step up from the Galleries is the enemy mix, not a fourth spawner —
-    // ranged pressure the earlier realms never applied.
-    const families = COBALT_COMBS.generators.map((g) => g.typeId).sort();
-    expect(families).toEqual(['brood-node', 'husk-mound', 'spitter-nest']);
+  it('The Cobalt Combs fields all three enemy families and exactly one elite', () => {
+    // The step up from the Galleries is the enemy mix, not a fourth family —
+    // ranged pressure the earlier realms never applied. The braid (#148) adds a
+    // second Spitter Nest for the breach, but the Husk Mound stays unique
+    // because its wreckage is the realm's only elite.
+    const families = new Set(COBALT_COMBS.generators.map((g) => g.typeId));
+    expect([...families].sort()).toEqual(['brood-node', 'husk-mound', 'spitter-nest']);
+    const mounds = COBALT_COMBS.generators.filter((g) => g.typeId === 'husk-mound');
+    expect(mounds).toHaveLength(1);
   });
 
   it('The Resin Galleries vaults are sealed behind their gate and secret wall', () => {
@@ -153,7 +157,7 @@ describe('authored pacing baselines', () => {
   it.each([
     [BROOD_WARRENS, { floor: 1069, route: 97, exit: 5, pinch: 3 }],
     [RESIN_GALLERIES, { floor: 537, route: 78, exit: 34, pinch: 1 }],
-    [COBALT_COMBS, { floor: 514, route: 65, exit: 4, pinch: 1 }],
+    [COBALT_COMBS, { floor: 755, route: 123, exit: 6, pinch: 3 }],
     [HOLLOW_THRONE, { floor: 528, route: 18, exit: 7, pinch: 10 }]
   ] as const)('$name reports its pinned route baseline', (level, expected) => {
     const metrics = measureLevelPacing(level);

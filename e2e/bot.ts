@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { BROOD_WARRENS } from '../src/content/levels/broodWarrens';
-import type { SimState } from '../src/sim/types';
+import type { LevelDef, SimState } from '../src/sim/types';
 
 /**
  * The Warrens bot, shared by the keyboard and gamepad playthroughs (#98).
@@ -11,7 +11,10 @@ import type { SimState } from '../src/sim/types';
  * not a second, easier bot.
  */
 
-const TILE = BROOD_WARRENS.tileSize;
+/**
+ * The bot navigates whichever authored level it is pointed at. The Warrens stays
+ * the default so the specs that predate multi-level runs read unchanged.
+ */
 
 /** What the bot wants this poll, in the same shape as an `InputCommand`. */
 export interface BotAction {
@@ -21,22 +24,24 @@ export interface BotAction {
   ability: boolean;
 }
 
-export function isWall(tx: number, ty: number): boolean {
-  const row = BROOD_WARRENS.walls[ty];
+export function isWall(tx: number, ty: number, level: LevelDef = BROOD_WARRENS): boolean {
+  const row = level.walls[ty];
   return row === undefined || row[tx] !== '.';
 }
 
 /** BFS shortest tile path; returns the next waypoint's world position. */
 export function nextWaypoint(
   from: { x: number; y: number },
-  to: { x: number; y: number }
+  to: { x: number; y: number },
+  level: LevelDef = BROOD_WARRENS
 ): { x: number; y: number } | null {
-  const start = { tx: Math.floor(from.x / TILE), ty: Math.floor(from.y / TILE) };
-  const goal = { tx: Math.floor(to.x / TILE), ty: Math.floor(to.y / TILE) };
+  const tile = level.tileSize;
+  const start = { tx: Math.floor(from.x / tile), ty: Math.floor(from.y / tile) };
+  const goal = { tx: Math.floor(to.x / tile), ty: Math.floor(to.y / tile) };
   if (start.tx === goal.tx && start.ty === goal.ty) return to;
 
-  const w = BROOD_WARRENS.walls[0]!.length;
-  const h = BROOD_WARRENS.walls.length;
+  const w = level.walls[0]!.length;
+  const h = level.walls.length;
   const key = (tx: number, ty: number) => ty * w + tx;
   const prev = new Map<number, number>();
   const queue = [key(start.tx, start.ty)];
@@ -54,7 +59,7 @@ export function nextWaypoint(
     ] as const) {
       const nx = cx + dx;
       const ny = cy + dy;
-      if (nx < 0 || ny < 0 || nx >= w || ny >= h || isWall(nx, ny)) continue;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h || isWall(nx, ny, level)) continue;
       const nk = key(nx, ny);
       if (prev.has(nk)) continue;
       prev.set(nk, cur);
@@ -74,7 +79,7 @@ export function nextWaypoint(
     step = cur;
     cur = prev.get(cur)!;
   }
-  return { x: (step % w) * TILE + TILE / 2, y: Math.floor(step / w) * TILE + TILE / 2 };
+  return { x: (step % w) * tile + tile / 2, y: Math.floor(step / w) * tile + tile / 2 };
 }
 
 export async function getState(page: Page): Promise<SimState> {
@@ -115,7 +120,7 @@ export function actionToKeys(action: BotAction): string[] {
 }
 
 /**
- * Plays The Brood Warrens: heal when hurt, break the spawners, then leave.
+ * Plays an authored mission: heal when hurt, break the spawners, then leave.
  * Holds the little state its decisions need (heal hysteresis, stuck counter)
  * across polls, so a spec only has to feed it `SimState` and drive the result.
  */
@@ -126,7 +131,10 @@ export class WarrensBot {
   /** Last decision's log line, for the failure dump. */
   readonly trace: string[] = [];
 
-  constructor(private readonly playerSlot = 0) {}
+  constructor(
+    private readonly playerSlot = 0,
+    private readonly level: LevelDef = BROOD_WARRENS
+  ) {}
 
   decide(state: SimState): BotAction {
     const me = state.players.find((player) => player.slot === this.playerSlot)!;
@@ -146,10 +154,25 @@ export class WarrensBot {
     if (this.healMode && (me.hp >= Math.min(100, me.maxHp) || healSpots.length === 0)) this.healMode = false;
     else if (!this.healMode && me.hp <= 55 && healSpots.length > 0) this.healMode = true;
     const needHeal = this.healMode;
+    // A dormant spawner cannot be damaged, and one whose encounter still has
+    // unmet dependencies cannot even be woken — walking at it just oscillates
+    // forever. So: fight what is awake; failing that, go trip the trigger of
+    // something that is actually ready. A linear map always has exactly one
+    // ready stage, but a braid (#148) has two, and a *blocked* stage can be the
+    // nearest thing on the map.
+    const cleared = new Set(state.encounters.filter((e) => e.cleared).map((e) => e.id));
+    const ready = new Set(
+      (this.level.encounters ?? [])
+        .filter((e) => (e.requires ?? []).every((dep) => cleared.has(dep)))
+        .map((e) => e.id)
+    );
+    const live = state.generators.filter((g) => g.active);
+    const wakeable = state.generators.filter((g) => g.encounterId === undefined || ready.has(g.encounterId));
+    const spawners = live.length > 0 ? live : wakeable.length > 0 ? wakeable : state.generators;
     const targets = needHeal
       ? healSpots
-      : state.generators.length > 0
-        ? state.generators.map((g) => g.pos)
+      : spawners.length > 0
+        ? spawners.map((g) => g.pos)
         : [state.exitPos];
     targets.sort(
       (a, b) => Math.hypot(a.x - me.pos.x, a.y - me.pos.y) - Math.hypot(b.x - me.pos.x, b.y - me.pos.y)
@@ -159,10 +182,10 @@ export class WarrensBot {
 
     let moveX: -1 | 0 | 1 = 0;
     let moveY: -1 | 0 | 1 = 0;
-    const inAttackRange = !needHeal && state.generators.length > 0 && distToTarget < 55;
+    const inAttackRange = !needHeal && spawners.length > 0 && distToTarget < 55;
 
     if (!inAttackRange) {
-      const wp = nextWaypoint(me.pos, target) ?? target;
+      const wp = nextWaypoint(me.pos, target, this.level) ?? target;
       const dx = wp.x - me.pos.x;
       const dy = wp.y - me.pos.y;
       // Tolerance must stay under (tileSize/2 - heroRadius) = 4, or the bot
