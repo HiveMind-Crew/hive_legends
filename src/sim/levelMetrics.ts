@@ -30,6 +30,74 @@ interface Search {
   previous: Int32Array;
 }
 
+export interface AuthoredRouteMetrics {
+  /** Cheapest spawn -> the given objectives in that exact order -> exit. */
+  distanceTiles: number;
+  /** Index of the spawn that produced it. */
+  spawnIndex: number;
+  /** Per-leg tile steps, spawn->first, ..., last->exit. */
+  legTiles: number[];
+  minCorridorWidthTiles: number;
+}
+
+/**
+ * Price one *authored* objective order, which `measureLevelPacing` cannot: it
+ * reports only the cheapest permutation, and a braided level's cheapest
+ * permutation is usually one the encounter dependencies forbid. Branch-order
+ * parity budgets (#148) need the cost of an order the player can actually play.
+ *
+ * Returns null when any leg is unreachable or an id is unknown.
+ */
+export function measureAuthoredRoute(
+  level: LevelDef,
+  objectiveIds: readonly string[]
+): AuthoredRouteMetrics | null {
+  const width = level.walls[0]?.length ?? 0;
+  const byId = new Map<string, Tile>();
+  level.generators.forEach((generator, index) => {
+    byId.set(generator.id ?? `generator-${index + 1}`, { tx: generator.tx, ty: generator.ty });
+  });
+  if (level.boss) byId.set(level.boss.id ?? 'boss', { tx: level.boss.tx, ty: level.boss.ty });
+
+  const waypoints: Tile[] = [];
+  for (const id of objectiveIds) {
+    const tile = byId.get(id);
+    if (!tile) return null;
+    waypoints.push(tile);
+  }
+  waypoints.push(level.exit);
+
+  let best: AuthoredRouteMetrics | null = null;
+  for (const [spawnIndex, spawn] of level.playerSpawns.entries()) {
+    const legTiles: number[] = [];
+    const tiles: Tile[] = [];
+    let from: Tile = spawn;
+    let reachable = true;
+    for (const to of waypoints) {
+      const search = searchFrom(level, from);
+      const steps = search.distances[to.ty * width + to.tx] ?? -1;
+      if (steps < 0) {
+        reachable = false;
+        break;
+      }
+      legTiles.push(steps);
+      const segment = reconstructPath(to, search, width);
+      tiles.push(...(tiles.length > 0 ? segment.slice(1) : segment));
+      from = to;
+    }
+    if (!reachable) continue;
+    const distanceTiles = legTiles.reduce((total, leg) => total + leg, 0);
+    if (best && distanceTiles >= best.distanceTiles) continue;
+    best = {
+      distanceTiles,
+      spawnIndex,
+      legTiles,
+      minCorridorWidthTiles: Math.min(...tiles.map((tile) => corridorWidth(level, tile)))
+    };
+  }
+  return best;
+}
+
 /** Phaser-free authored-map measurements used by unit tests and e2e reports. */
 export function measureLevelPacing(level: LevelDef): LevelPacingMetrics {
   const width = level.walls[0]?.length ?? 0;
