@@ -351,7 +351,7 @@ test('The Resin Galleries loads its dedicated amber-resin environment pack', asy
       },
       { timeout: 20_000, intervals: [250] }
     )
-    .toBe(3);
+    .toBe(4);
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'test-results/02b-resin-galleries-art.png' });
 
