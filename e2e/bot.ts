@@ -3,7 +3,7 @@ import { BROOD_WARRENS } from '../src/content/levels/broodWarrens';
 import type { LevelDef, SimState } from '../src/sim/types';
 
 /**
- * The Warrens bot, shared by the keyboard and gamepad playthroughs (#98).
+ * Authored-mission bot shared by the keyboard and gamepad playthroughs.
  *
  * The bot decides in the sim's own vocabulary — a movement direction plus the
  * two action buttons — and each spec's driver turns that into real device
@@ -35,9 +35,9 @@ export function nextWaypoint(
   to: { x: number; y: number },
   level: LevelDef = BROOD_WARRENS
 ): { x: number; y: number } | null {
-  const tile = level.tileSize;
-  const start = { tx: Math.floor(from.x / tile), ty: Math.floor(from.y / tile) };
-  const goal = { tx: Math.floor(to.x / tile), ty: Math.floor(to.y / tile) };
+  const tileSize = level.tileSize;
+  const start = { tx: Math.floor(from.x / tileSize), ty: Math.floor(from.y / tileSize) };
+  const goal = { tx: Math.floor(to.x / tileSize), ty: Math.floor(to.y / tileSize) };
   if (start.tx === goal.tx && start.ty === goal.ty) return to;
 
   const w = level.walls[0]!.length;
@@ -79,7 +79,10 @@ export function nextWaypoint(
     step = cur;
     cur = prev.get(cur)!;
   }
-  return { x: (step % w) * tile + tile / 2, y: Math.floor(step / w) * tile + tile / 2 };
+  return {
+    x: (step % w) * tileSize + tileSize / 2,
+    y: Math.floor(step / w) * tileSize + tileSize / 2
+  };
 }
 
 export async function getState(page: Page): Promise<SimState> {
@@ -154,12 +157,16 @@ export class WarrensBot {
     if (this.healMode && (me.hp >= Math.min(100, me.maxHp) || healSpots.length === 0)) this.healMode = false;
     else if (!this.healMode && me.hp <= 55 && healSpots.length > 0) this.healMode = true;
     const needHeal = this.healMode;
-    // A dormant spawner cannot be damaged, and one whose encounter still has
-    // unmet dependencies cannot even be woken — walking at it just oscillates
-    // forever. So: fight what is awake; failing that, go trip the trigger of
-    // something that is actually ready. A linear map always has exactly one
-    // ready stage, but a braid (#148) has two, and a *blocked* stage can be the
-    // nearest thing on the map.
+    // Two rules, from two different failures.
+    //
+    // #150: finish the room before advancing into the next trigger — mop up
+    // survivors rather than kiting them north, or staged encounters overlap only
+    // because the bot dragged a previous room along.
+    //
+    // #148: a dormant spawner cannot be damaged, and one whose encounter still
+    // has unmet dependencies cannot even be woken, so walking at it oscillates
+    // forever. A linear map always has exactly one ready stage; a braid has two,
+    // and a *blocked* stage can be the nearest thing on the map.
     const cleared = new Set(state.encounters.filter((e) => e.cleared).map((e) => e.id));
     const ready = new Set(
       (this.level.encounters ?? [])
@@ -167,13 +174,16 @@ export class WarrensBot {
         .map((e) => e.id)
     );
     const live = state.generators.filter((g) => g.active);
+    const combatTargets = live.length > 0 ? live.map((g) => g.pos) : state.enemies.map((e) => e.pos);
     const wakeable = state.generators.filter((g) => g.encounterId === undefined || ready.has(g.encounterId));
-    const spawners = live.length > 0 ? live : wakeable.length > 0 ? wakeable : state.generators;
+    const advance = wakeable.length > 0 ? wakeable : state.generators;
     const targets = needHeal
       ? healSpots
-      : spawners.length > 0
-        ? spawners.map((g) => g.pos)
-        : [state.exitPos];
+      : combatTargets.length > 0
+        ? combatTargets
+        : advance.length > 0
+          ? advance.map((g) => g.pos)
+          : [state.exitPos];
     targets.sort(
       (a, b) => Math.hypot(a.x - me.pos.x, a.y - me.pos.y) - Math.hypot(b.x - me.pos.x, b.y - me.pos.y)
     );
@@ -182,7 +192,7 @@ export class WarrensBot {
 
     let moveX: -1 | 0 | 1 = 0;
     let moveY: -1 | 0 | 1 = 0;
-    const inAttackRange = !needHeal && spawners.length > 0 && distToTarget < 55;
+    const inAttackRange = !needHeal && combatTargets.length > 0 && distToTarget < 55;
 
     if (!inAttackRange) {
       const wp = nextWaypoint(me.pos, target, this.level) ?? target;

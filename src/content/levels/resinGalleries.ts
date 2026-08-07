@@ -2,127 +2,173 @@ import type { LevelDef } from '../../sim/types';
 
 /**
  * Mission 2: The Resin Galleries.
- * A larger, winding gallery in warm amber resin — tighter corridors and more
- * chambers than the Warrens. The party starts in the west hall, works through
- * three spawners (two Brood Nodes and a Husk Mound) strung along the northern
- * and eastern galleries, then reaches the south-west exit vault once every
- * spawner is destroyed. Two optional vaults hang off the central-south hall,
- * one behind a key-locked gate and one behind a breakable secret wall (#17),
- * each sealed so its treasure is reachable ONLY through that mechanic.
  *
- * 40 x 28 tiles, '#' = wall, '.' = floor. Layout + reachability/seal are
- * machine-verified; see tests/sim/level.test.ts.
+ * A south-to-north amber-resin expedition with four dependency-staged
+ * landings. Wide combat galleries alternate left and right around short,
+ * offset ascents, while opposite-side reward branches loop forward through
+ * the cross-gallery instead of returning the party to the south staging room.
+ *
+ * 42 x 42 tiles, '#' = wall, '.' = floor.
  */
 export const RESIN_GALLERIES: LevelDef = {
   id: 'resin-galleries',
   name: 'The Resin Galleries',
   tileSize: 32,
   mission: {
-    biomeLabel: 'AMBER RESIN · GALLERIES',
+    biomeLabel: 'AMBER RESIN · ASCENT',
     threatRating: 2,
     threatLabel: 'GUARDED',
-    encounters: ['Skitterlings', 'Carapace Husks', 'Brood nodes'],
-    description: 'Tight amber galleries turn husk bruisers and brood nodes into a corridor fight. Clear the three spawners before the south-west exit opens.'
+    encounters: ['Lower Brood Basin', 'Husk Kiln', 'Upper Brood Gallery', 'Crown Brood Chamber'],
+    description: 'Climb four waking galleries from the south basin to the portal light above the crown brood chamber.'
   },
-  // Dedicated amber-resin art replaces the old tint of the violet tiles:
-  // pooled floors, luminous fissures, embedded inclusions, and layered walls.
   theme: { tileSet: 'amber-resin', accent: 0xffb020 },
   walls: [
-    '########################################',
-    '########################################',
-    '##.......####........####.............##',
-    '##.......####........####.............##',
-    '##...................####.............##',
-    '##.......####.........................##',
-    '##.......####........####.............##',
-    '####.########........####.............##',
-    '####.############.#######.............##',
-    '##.....##########.###############.######',
-    '##.....##########.###############.######',
-    '##.....##########.###############.######',
-    '##.............##.###############.######',
-    '##.....#######.##.##########..........##',
-    '##.....#######...........###..........##',
-    '##.....#######...........###..........##',
-    '##.....#######...........###..........##',
-    '####.#########...........###..........##',
-    '####.#########........................##',
-    '##.........###...........###..........##',
-    '##.......................###..........##',
-    '##.........###...........###..........##',
-    '##........................##..........##',
-    '##........##.############.##############',
-    '##........#....#########...#############',
-    '##........#....#########...#############',
-    '###########....#########...#############',
-    '########################################'
+    '##########################################',
+    '################################.....#####',
+    '################################.....#####',
+    '####################...................###',
+    '####################...................###',
+    '####################...................###',
+    '####################......###..........###',
+    '####################......###..........###',
+    '####################..........###......###',
+    '##################............###......###',
+    '##################.....................###',
+    '##################.....................###',
+    '##################.....................###',
+    '###....................###################',
+    '###....................###################',
+    '###....................###################',
+    '###........###.........###################',
+    '###........###........####################',
+    '###..............................#########',
+    '###...............................########',
+    '###....#...........................#######',
+    '#######................#######....########',
+    '########...............................###',
+    '#########..............................###',
+    '####################...................###',
+    '####################.....###..###......###',
+    '####################.....###..###......###',
+    '####################...................###',
+    '################.......................###',
+    '################.......................###',
+    '################.....#####################',
+    '###..................#####################',
+    '###..................#####################',
+    '###................#######################',
+    '###......####......#######################',
+    '###......####......#######################',
+    '###......####..............###############',
+    '###........................###############',
+    '###........................###############',
+    '###........................###############',
+    '################...........###############',
+    '##########################################'
   ],
   playerSpawns: [
-    { tx: 3, ty: 3 },
-    { tx: 5, ty: 3 },
-    { tx: 3, ty: 5 },
-    { tx: 5, ty: 5 }
+    { tx: 21, ty: 38 },
+    { tx: 23, ty: 38 },
+    { tx: 21, ty: 40 },
+    { tx: 23, ty: 40 }
   ],
   generators: [
-    { id: 'north-brood-node', typeId: 'brood-node', tx: 16, ty: 4 }, // north-central gallery
-    { id: 'east-husk-mound', typeId: 'husk-mound', tx: 31, ty: 5 }, // north-east chamber
-    { id: 'south-brood-node', typeId: 'brood-node', tx: 32, ty: 18 } // south-east chamber
+    { id: 'lower-brood-basin', typeId: 'brood-node', tx: 6, ty: 34, encounterId: 'lower-basin' },
+    { id: 'husk-kiln-mound', typeId: 'husk-mound', tx: 35, ty: 25, encounterId: 'husk-kiln' },
+    { id: 'upper-west-brood', typeId: 'brood-node', tx: 6, ty: 16, encounterId: 'upper-west' },
+    { id: 'crown-brood-node', typeId: 'brood-node', tx: 35, ty: 7, encounterId: 'crown-brood' }
+  ],
+  encounters: [
+    {
+      id: 'lower-basin',
+      trigger: { kind: 'region', minTx: 14, minTy: 33, maxTx: 18, maxTy: 39 }
+    },
+    {
+      id: 'husk-kiln',
+      requires: ['lower-basin'],
+      trigger: { kind: 'region', minTx: 20, minTy: 27, maxTx: 24, maxTy: 29 }
+    },
+    {
+      id: 'upper-west',
+      requires: ['husk-kiln'],
+      trigger: { kind: 'region', minTx: 18, minTy: 18, maxTx: 22, maxTy: 23 }
+    },
+    {
+      id: 'crown-brood',
+      requires: ['upper-west'],
+      trigger: { kind: 'region', minTx: 18, minTy: 10, maxTx: 22, maxTy: 15 }
+    }
   ],
   pickups: [
-    { kind: 'gold', amount: 10, tx: 5, ty: 2 },
-    { kind: 'gold', amount: 10, tx: 15, ty: 3 },
+    // Gold pulls the eye upward through each offset connector and landing.
+    { kind: 'gold', amount: 10, tx: 22, ty: 37 },
+    { kind: 'gold', amount: 10, tx: 15, ty: 33 },
+    { kind: 'gold', amount: 10, tx: 18, ty: 29 },
+    { kind: 'gold', amount: 10, tx: 25, ty: 28 },
+    { kind: 'gold', amount: 10, tx: 35, ty: 23 },
+    { kind: 'gold', amount: 10, tx: 29, ty: 20 },
+    { kind: 'gold', amount: 10, tx: 18, ty: 19 },
+    { kind: 'gold', amount: 10, tx: 14, ty: 15 },
+    { kind: 'gold', amount: 10, tx: 21, ty: 11 },
+    { kind: 'gold', amount: 10, tx: 29, ty: 10 },
     { kind: 'gold', amount: 10, tx: 34, ty: 4 },
-    { kind: 'gold', amount: 10, tx: 34, ty: 16 },
-    { kind: 'gold', amount: 10, tx: 20, ty: 16 },
-    { kind: 'gold', amount: 10, tx: 4, ty: 12 },
-    { kind: 'gold', amount: 10, tx: 8, ty: 24 },
-    { kind: 'health', amount: 30, tx: 30, ty: 3 },
-    { kind: 'health', amount: 30, tx: 35, ty: 20 },
-    { kind: 'health', amount: 30, tx: 16, ty: 20 },
-    // Temporary power-up relics (issue #16), one of each buff, spread wide.
-    { kind: 'powerup', amount: 0, power: 'frenzy', tx: 18, ty: 4 },
-    { kind: 'powerup', amount: 0, power: 'swiftness', tx: 4, ty: 14 },
-    { kind: 'powerup', amount: 0, power: 'ward', tx: 33, ty: 15 },
-    // A single screen-clear potion (issue #41), scarce by design.
-    { kind: 'potion', amount: 1, tx: 6, ty: 14 },
-    // A key on the central hall, opening the gated south vault (issue #17).
-    { kind: 'key', amount: 1, tx: 19, ty: 15 },
-    // Treasure sealed in the two south vaults.
-    { kind: 'gold', amount: 60, tx: 12, ty: 25 }, // behind a key-locked gate
-    { kind: 'gold', amount: 50, tx: 25, ty: 25 } // behind a secret wall
+    // Recovery sits after pressure peaks rather than inside objective pockets.
+    { kind: 'health', amount: 30, tx: 17, ty: 31 },
+    { kind: 'health', amount: 30, tx: 21, ty: 19 },
+    { kind: 'health', amount: 30, tx: 22, ty: 11 },
+    // The cross-gallery key supports the west gate choice on the same ascent.
+    { kind: 'key', amount: 1, tx: 24, ty: 23 },
+    // Opposite optional branches: gated west cache and hidden east cache.
+    { kind: 'gold', amount: 60, tx: 7, ty: 21 },
+    { kind: 'gold', amount: 50, tx: 34, ty: 20 },
+    // Region-specific relics reward reading each landing's side space.
+    { kind: 'powerup', amount: 0, power: 'swiftness', tx: 4, ty: 38 },
+    { kind: 'powerup', amount: 0, power: 'ward', tx: 37, ty: 28 },
+    { kind: 'powerup', amount: 0, power: 'frenzy', tx: 4, ty: 14 },
+    // The potion is collected after the upper-west fight, before the crown.
+    { kind: 'potion', amount: 1, tx: 16, ty: 14 }
   ],
-  // Optional south vaults, off the critical path.
-  gates: [{ tx: 12, ty: 23 }],
-  secrets: [{ tx: 25, ty: 23 }],
+  gates: [{ tx: 7, ty: 21 }],
+  secrets: [{ tx: 33, ty: 20 }],
   props: [
-    { typeId: 'resin-husk', tx: 6, ty: 4 },
-    { typeId: 'resin-husk', tx: 18, ty: 6 },
-    { typeId: 'resin-husk', tx: 28, ty: 7 },
-    { typeId: 'resin-husk', tx: 22, ty: 19 },
-    { typeId: 'resin-husk', tx: 30, ty: 20 },
-    { typeId: 'resin-husk', tx: 4, ty: 22 },
-    { typeId: 'resin-husk', tx: 15, ty: 17 },
-    { typeId: 'amber-clutch', tx: 35, ty: 6 },
-    { typeId: 'amber-clutch', tx: 5, ty: 20 },
-    { typeId: 'amber-clutch', tx: 29, ty: 14 }
+    { typeId: 'resin-husk', tx: 4, ty: 32 },
+    { typeId: 'resin-husk', tx: 15, ty: 38 },
+    { typeId: 'amber-clutch', tx: 17, ty: 32 },
+    { typeId: 'resin-husk', tx: 23, ty: 24 },
+    { typeId: 'resin-husk', tx: 28, ty: 28 },
+    { typeId: 'resin-husk', tx: 37, ty: 23 },
+    { typeId: 'amber-clutch', tx: 34, ty: 28 },
+    { typeId: 'resin-husk', tx: 5, ty: 19 },
+    { typeId: 'resin-husk', tx: 16, ty: 18 },
+    { typeId: 'amber-clutch', tx: 19, ty: 14 },
+    { typeId: 'resin-husk', tx: 23, ty: 5 },
+    { typeId: 'resin-husk', tx: 29, ty: 11 },
+    { typeId: 'resin-husk', tx: 37, ty: 10 },
+    { typeId: 'amber-clutch', tx: 35, ty: 11 }
   ],
   decor: [
-    { kind: 'egg-cluster', tx: 15, ty: 4 },
-    { kind: 'egg-cluster', tx: 33, ty: 4 },
-    { kind: 'egg-cluster', tx: 34, ty: 18 },
-    { kind: 'egg-cluster', tx: 30, ty: 16 },
-    { kind: 'egg-cluster', tx: 17, ty: 14 },
-    { kind: 'resin-web', tx: 2, ty: 2 },
-    { kind: 'resin-web', tx: 37, ty: 2 },
-    { kind: 'resin-web', tx: 13, ty: 2 },
-    { kind: 'resin-web', tx: 24, ty: 14 },
-    { kind: 'resin-web', tx: 2, ty: 24 },
-    { kind: 'spore-patch', tx: 4, ty: 10 },
-    { kind: 'spore-patch', tx: 20, ty: 18 },
-    { kind: 'spore-patch', tx: 33, ty: 21 },
-    { kind: 'spore-patch', tx: 8, ty: 22 },
-    { kind: 'spore-patch', tx: 14, ty: 15 },
-    { kind: 'spore-patch', tx: 36, ty: 13 }
+    // Lower basin: low eggs, pooled spores, and a hard south resin curtain.
+    { kind: 'egg-cluster', tx: 5, ty: 33 },
+    { kind: 'spore-patch', tx: 4, ty: 37 },
+    { kind: 'hanging-sacs', tx: 17, ty: 37 },
+    { kind: 'resin-web', tx: 15, ty: 40, surface: 'wall' },
+    // Husk kiln and cross-gallery: embedded bodies and paired side silhouettes.
+    { kind: 'hanging-sacs', tx: 22, ty: 25 },
+    { kind: 'spent-casings', tx: 28, ty: 23 },
+    { kind: 'spore-patch', tx: 34, ty: 28 },
+    { kind: 'resin-web', tx: 7, ty: 20, surface: 'wall' },
+    { kind: 'resin-web', tx: 35, ty: 20, surface: 'wall' },
+    // Upper west: dense eggs around the cover island.
+    { kind: 'egg-cluster', tx: 5, ty: 14 },
+    { kind: 'egg-cluster', tx: 18, ty: 18 },
+    { kind: 'spent-casings', tx: 9, ty: 18 },
+    { kind: 'spore-patch', tx: 15, ty: 19 },
+    // Crown: brighter open floor and portal-facing resin formations.
+    { kind: 'egg-cluster', tx: 34, ty: 5 },
+    { kind: 'egg-cluster', tx: 36, ty: 8 },
+    { kind: 'hanging-sacs', tx: 22, ty: 11 },
+    { kind: 'resin-web', tx: 31, ty: 2, surface: 'wall' }
   ],
-  exit: { tx: 4, ty: 24 }
+  previewExit: true,
+  exit: { tx: 34, ty: 1 }
 };
