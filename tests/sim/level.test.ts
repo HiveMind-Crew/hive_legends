@@ -101,8 +101,8 @@ describe('level validation', () => {
     const gate = RESIN_GALLERIES.gates![0]!;
     const secret = RESIN_GALLERIES.secrets![0]!;
     // Treasure tiles sit just inside each vault.
-    const gateTreasure = { tx: 12, ty: 25 };
-    const secretTreasure = { tx: 25, ty: 25 };
+    const gateTreasure = { tx: 7, ty: 21 };
+    const secretTreasure = { tx: 34, ty: 20 };
 
     // Open (mechanic solved): reachable.
     const open = reachable(RESIN_GALLERIES, spawn);
@@ -115,6 +115,13 @@ describe('level validation', () => {
     expect(sealedGate(gateTreasure.tx, gateTreasure.ty)).toBe(false);
     const sealedSecret = reachable(RESIN_GALLERIES, spawn, [secret]);
     expect(sealedSecret(secretTreasure.tx, secretTreasure.ty)).toBe(false);
+
+    // Optional mechanics can withhold treasure, never the expedition itself.
+    const sealedVaults = reachable(RESIN_GALLERIES, spawn, [gate, secret]);
+    for (const objective of RESIN_GALLERIES.generators) {
+      expect(sealedVaults(objective.tx, objective.ty), objective.id).toBe(true);
+    }
+    expect(sealedVaults(RESIN_GALLERIES.exit.tx, RESIN_GALLERIES.exit.ty)).toBe(true);
   });
 
   it('The Brood Warrens optional vault rewards stay sealed by their authored mechanics', () => {
@@ -152,7 +159,7 @@ describe('collision', () => {
 describe('authored pacing baselines', () => {
   it.each([
     [BROOD_WARRENS, { floor: 1069, route: 97, exit: 5, pinch: 3 }],
-    [RESIN_GALLERIES, { floor: 537, route: 78, exit: 34, pinch: 1 }],
+    [RESIN_GALLERIES, { floor: 756, route: 140, exit: 7, pinch: 3 }],
     [COBALT_COMBS, { floor: 514, route: 65, exit: 4, pinch: 1 }],
     [HOLLOW_THRONE, { floor: 528, route: 18, exit: 7, pinch: 10 }]
   ] as const)('$name reports its pinned route baseline', (level, expected) => {

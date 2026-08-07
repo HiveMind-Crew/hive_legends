@@ -1,17 +1,15 @@
 import type { Page } from '@playwright/test';
 import { BROOD_WARRENS } from '../src/content/levels/broodWarrens';
-import type { SimState } from '../src/sim/types';
+import type { LevelDef, SimState } from '../src/sim/types';
 
 /**
- * The Warrens bot, shared by the keyboard and gamepad playthroughs (#98).
+ * Authored-mission bot shared by the keyboard and gamepad playthroughs.
  *
  * The bot decides in the sim's own vocabulary — a movement direction plus the
  * two action buttons — and each spec's driver turns that into real device
  * input. One brain, two devices: a gamepad run therefore proves the pad path,
  * not a second, easier bot.
  */
-
-const TILE = BROOD_WARRENS.tileSize;
 
 /** What the bot wants this poll, in the same shape as an `InputCommand`. */
 export interface BotAction {
@@ -21,22 +19,24 @@ export interface BotAction {
   ability: boolean;
 }
 
-export function isWall(tx: number, ty: number): boolean {
-  const row = BROOD_WARRENS.walls[ty];
+export function isWall(tx: number, ty: number, level: LevelDef = BROOD_WARRENS): boolean {
+  const row = level.walls[ty];
   return row === undefined || row[tx] !== '.';
 }
 
 /** BFS shortest tile path; returns the next waypoint's world position. */
 export function nextWaypoint(
   from: { x: number; y: number },
-  to: { x: number; y: number }
+  to: { x: number; y: number },
+  level: LevelDef = BROOD_WARRENS
 ): { x: number; y: number } | null {
-  const start = { tx: Math.floor(from.x / TILE), ty: Math.floor(from.y / TILE) };
-  const goal = { tx: Math.floor(to.x / TILE), ty: Math.floor(to.y / TILE) };
+  const tileSize = level.tileSize;
+  const start = { tx: Math.floor(from.x / tileSize), ty: Math.floor(from.y / tileSize) };
+  const goal = { tx: Math.floor(to.x / tileSize), ty: Math.floor(to.y / tileSize) };
   if (start.tx === goal.tx && start.ty === goal.ty) return to;
 
-  const w = BROOD_WARRENS.walls[0]!.length;
-  const h = BROOD_WARRENS.walls.length;
+  const w = level.walls[0]!.length;
+  const h = level.walls.length;
   const key = (tx: number, ty: number) => ty * w + tx;
   const prev = new Map<number, number>();
   const queue = [key(start.tx, start.ty)];
@@ -54,7 +54,7 @@ export function nextWaypoint(
     ] as const) {
       const nx = cx + dx;
       const ny = cy + dy;
-      if (nx < 0 || ny < 0 || nx >= w || ny >= h || isWall(nx, ny)) continue;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h || isWall(nx, ny, level)) continue;
       const nk = key(nx, ny);
       if (prev.has(nk)) continue;
       prev.set(nk, cur);
@@ -74,7 +74,10 @@ export function nextWaypoint(
     step = cur;
     cur = prev.get(cur)!;
   }
-  return { x: (step % w) * TILE + TILE / 2, y: Math.floor(step / w) * TILE + TILE / 2 };
+  return {
+    x: (step % w) * tileSize + tileSize / 2,
+    y: Math.floor(step / w) * tileSize + tileSize / 2
+  };
 }
 
 export async function getState(page: Page): Promise<SimState> {
@@ -115,7 +118,7 @@ export function actionToKeys(action: BotAction): string[] {
 }
 
 /**
- * Plays The Brood Warrens: heal when hurt, break the spawners, then leave.
+ * Plays an authored generator mission: heal, break the spawners, then leave.
  * Holds the little state its decisions need (heal hysteresis, stuck counter)
  * across polls, so a spec only has to feed it `SimState` and drive the result.
  */
@@ -126,7 +129,10 @@ export class WarrensBot {
   /** Last decision's log line, for the failure dump. */
   readonly trace: string[] = [];
 
-  constructor(private readonly playerSlot = 0) {}
+  constructor(
+    private readonly playerSlot = 0,
+    private readonly level: LevelDef = BROOD_WARRENS
+  ) {}
 
   decide(state: SimState): BotAction {
     const me = state.players.find((player) => player.slot === this.playerSlot)!;
@@ -146,11 +152,21 @@ export class WarrensBot {
     if (this.healMode && (me.hp >= Math.min(100, me.maxHp) || healSpots.length === 0)) this.healMode = false;
     else if (!this.healMode && me.hp <= 55 && healSpots.length > 0) this.healMode = true;
     const needHeal = this.healMode;
+    const activeGenerators = state.generators.filter((generator) => generator.active);
+    // Finish the room before advancing into the next trigger. This mirrors a
+    // readable human clear and ensures staged encounters do not overlap only
+    // because the test bot kited a previous room's survivors northward.
+    const combatTargets =
+      activeGenerators.length > 0
+        ? activeGenerators.map((generator) => generator.pos)
+        : state.enemies.map((enemy) => enemy.pos);
     const targets = needHeal
       ? healSpots
-      : state.generators.length > 0
-        ? state.generators.map((g) => g.pos)
-        : [state.exitPos];
+      : combatTargets.length > 0
+        ? combatTargets
+        : state.generators.length > 0
+          ? state.generators.map((generator) => generator.pos)
+          : [state.exitPos];
     targets.sort(
       (a, b) => Math.hypot(a.x - me.pos.x, a.y - me.pos.y) - Math.hypot(b.x - me.pos.x, b.y - me.pos.y)
     );
@@ -159,10 +175,10 @@ export class WarrensBot {
 
     let moveX: -1 | 0 | 1 = 0;
     let moveY: -1 | 0 | 1 = 0;
-    const inAttackRange = !needHeal && state.generators.length > 0 && distToTarget < 55;
+    const inAttackRange = !needHeal && combatTargets.length > 0 && distToTarget < 55;
 
     if (!inAttackRange) {
-      const wp = nextWaypoint(me.pos, target) ?? target;
+      const wp = nextWaypoint(me.pos, target, this.level) ?? target;
       const dx = wp.x - me.pos.x;
       const dy = wp.y - me.pos.y;
       // Tolerance must stay under (tileSize/2 - heroRadius) = 4, or the bot

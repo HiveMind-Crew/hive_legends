@@ -45,11 +45,11 @@ regenerated from `src/content` and fails tests if it drifts.
 | Level | Static opportunity | First-clear bounty | Modeled first clear |
 | --- | --- | --- | --- |
 | The Brood Warrens | 352 | 150 | 502 |
-| The Resin Galleries | 305.5 | 150 | 455.5 |
+| The Resin Galleries | 390 | 150 | 540 |
 | The Cobalt Combs | 310.5 | 150 | 460.5 |
 | The Hollow Throne | 193 | 250 | 443 |
 
-Modeled Azure Reach income: **1861g** (1161g static opportunity + 700g bounties). Dynamic enemy drops are extra.
+Modeled Azure Reach income: **1945.5g** (1245.5g static opportunity + 700g bounties). Dynamic enemy drops are extra.
 
 | Upgrade track | Curve | Total |
 | --- | --- | --- |
@@ -63,5 +63,5 @@ Modeled Azure Reach income: **1861g** (1161g static opportunity + 700g bounties)
 | All hero recruitment | 500 |
 | **Everything** | **2760** |
 
-Full-roster sink / modeled first-clear income: **1.48×**.
+Full-roster sink / modeled first-clear income: **1.42×**.
 <!-- END GENERATED: economy-tables -->
