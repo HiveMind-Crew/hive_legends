@@ -135,6 +135,9 @@ describe('earning XP in a run', () => {
     });
     const boss = sim.state.boss!;
     const p = sim.state.players[0]!;
+    // Dormant behind the #151 boss threshold until both approach sanctums
+    // clear; force her active for this XP-payout test.
+    boss.active = true;
     boss.hp = 1;
     p.pos = { x: boss.pos.x - 50, y: boss.pos.y };
     p.facing = { x: 1, y: 0 };

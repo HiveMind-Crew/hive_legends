@@ -577,6 +577,7 @@ export function generateTextures(scene: Phaser.Scene): void {
     drawBroodNode(g, tier);
     drawHuskMound(g, tier);
     drawSpitterNest(g, tier);
+    drawSkitterCyst(g, tier);
   }
 
   // Mireveil, Mother of the Brood (issue #25) — same damage-tier language,
@@ -1189,6 +1190,52 @@ function drawBroodNode(g: Phaser.GameObjects.Graphics, tier: number): void {
     g.fillCircle(33, 40, 2);
   }
   gen(generatorFrame('brood-node', tier));
+}
+
+/**
+ * A low cluster of three small blisters rather than one dome — the Skitter
+ * Cyst (#151) is a Brood Node's swarm pressure at a fraction of the
+ * footprint, and its silhouette has to read smaller and huddled, never as a
+ * recolored Brood Node.
+ */
+function drawSkitterCyst(g: Phaser.GameObjects.Graphics, tier: number): void {
+  g.clear();
+  g.fillStyle(0x3d1d49);
+  for (const [cx, cy, r] of [
+    [14, 27, tier === 2 ? 6 : 8],
+    [30, 27, tier === 2 ? 6 : 8],
+    [22, 18, tier === 2 ? 7 : 9]
+  ] as const) {
+    g.fillCircle(cx, cy, r);
+  }
+  g.fillStyle(0x7a3b8f);
+  for (const [cx, cy, r] of [
+    [14, 26, tier === 2 ? 4 : 5],
+    [30, 26, tier === 2 ? 4 : 5],
+    [22, 17, tier === 2 ? 4 : 6]
+  ] as const) {
+    g.fillCircle(cx, cy, r);
+  }
+  g.fillStyle(0xe1a6f0);
+  g.fillCircle(21, 15, tier === 0 ? 3 : 2);
+  if (tier >= 1) {
+    g.lineStyle(2, 0x3d1d49);
+    g.lineBetween(14, 21, 18, 27);
+    g.lineBetween(30, 21, 26, 27);
+    g.fillStyle(0x3d1d49);
+    g.fillCircle(9, 30, 2);
+    g.fillCircle(35, 30, 2);
+  }
+  if (tier === 2) {
+    g.fillStyle(0xe1a6f0);
+    g.fillCircle(22, 24, 5);
+    g.fillStyle(0xfbe3ff);
+    g.fillCircle(21, 23, 2);
+    g.fillStyle(0xcf8fe0);
+    g.fillCircle(12, 40, 2);
+    g.fillCircle(33, 40, 2);
+  }
+  gen(generatorFrame('skitter-cyst', tier));
 }
 
 /** Squat bone-and-chitin mound: a broad, armoured heavy-spawner silhouette. */

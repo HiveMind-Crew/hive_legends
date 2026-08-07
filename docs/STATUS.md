@@ -482,6 +482,20 @@ returning through the wheel so a freshly unlocked node is seen to open.
 `docs/PROGRESSION.md` is the reference, including a walkthrough for adding a
 realm and the invariants that guard it.
 
+The Brood Warrens (#149), The Resin Galleries (#150) and The Cobalt Combs
+(#148) each grew from a single-shape blockout into a multi-encounter map with
+staged activation (#147). The Hollow Throne closes that pattern out (#151):
+the 30 × 22 boss arena is now the north end of a 40 × 36 southern approach —
+a south entry, two dependency-free sanctums (a Husk Mound and a new
+lower-cap `skitter-cyst` swarm spawner, capped so their four-player sum stays
+at 10, under the 15-hostile ceiling), a preparation landing, and a boss
+threshold. Mireveil carries `encounterId: 'boss-threshold'` and starts
+`active: false` — the existing dormancy contract (`BossState.active`,
+`updateBoss`'s early return, `livingBoss()`) needed no engine changes, only
+authoring. The preserved arena is byte-identical to the pre-#151 room so
+`scripts/mireveilBenchmark.ts`'s pinned per-hero TTKs do not move for a
+geometry change alone.
+
 ## Next recommended task
 
 M1 and its original-art track are complete. The next work should start by

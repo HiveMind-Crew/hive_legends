@@ -169,22 +169,88 @@ export class WarrensBot {
     const live = state.generators.filter((g) => g.active);
     const wakeable = state.generators.filter((g) => g.encounterId === undefined || ready.has(g.encounterId));
     const spawners = live.length > 0 ? live : wakeable.length > 0 ? wakeable : state.generators;
+
+    // A boss realm (issue #25) may have no spawners at all once its approach
+    // is clear, or none left once the approach's spawners are down (#151).
+    // An encounter-gated boss (`level.boss.encounterId`) starts dormant and
+    // untargetable — walk to her threshold's trigger region to wake her
+    // first, exactly like a wakeable-but-inactive spawner above.
+    const boss = state.boss;
+    const bossEncounterId = this.level.boss?.encounterId;
+    const bossSpawn = this.level.boss
+      ? { x: (this.level.boss.tx + 0.5) * this.level.tileSize, y: (this.level.boss.ty + 0.5) * this.level.tileSize }
+      : null;
+    let bossTarget: { x: number; y: number } | null = null;
+    let distToBoss = Infinity;
+    if (spawners.length === 0 && boss && boss.hp > 0) {
+      distToBoss = Math.hypot(boss.pos.x - me.pos.x, boss.pos.y - me.pos.y);
+      if (boss.active) {
+        // Navigate toward her *authored* arena position, not her live one:
+        // once awake she chases the player like any boss, and a fight that
+        // starts right at the threshold would otherwise linger there —
+        // outside the arena's own relief, cover and the dais it is staged
+        // around, and outside the "her arena" identity #151 preserves.
+        bossTarget = bossSpawn ?? boss.pos;
+      } else if (bossEncounterId) {
+        const trigger = (this.level.encounters ?? []).find((e) => e.id === bossEncounterId)?.trigger;
+        if (trigger?.kind === 'region') {
+          bossTarget = {
+            x: ((trigger.minTx + trigger.maxTx + 1) / 2) * this.level.tileSize,
+            y: ((trigger.minTy + trigger.maxTy + 1) / 2) * this.level.tileSize
+          };
+        } else if (trigger?.kind === 'radius') {
+          bossTarget = { x: (trigger.tx + 0.5) * this.level.tileSize, y: (trigger.ty + 0.5) * this.level.tileSize };
+        }
+      } else {
+        bossTarget = bossSpawn ?? boss.pos;
+      }
+    }
+    // Whether she can actually be fought right now — independent of the
+    // *navigation* target above, which may be her arena position rather than
+    // her current one.
+    const bossInAttackRange = !!boss && boss.hp > 0 && boss.active && distToBoss < 120;
+
     const targets = needHeal
       ? healSpots
       : spawners.length > 0
         ? spawners.map((g) => g.pos)
-        : [state.exitPos];
+        : bossTarget
+          ? [bossTarget]
+          : [state.exitPos];
     targets.sort(
       (a, b) => Math.hypot(a.x - me.pos.x, a.y - me.pos.y) - Math.hypot(b.x - me.pos.x, b.y - me.pos.y)
     );
     const target = targets[0]!;
     const distToTarget = Math.hypot(target.x - me.pos.x, target.y - me.pos.y);
+    // What to face and swing at: the boss's live position once she's in
+    // range, regardless of where the bot is currently *navigating* to.
+    const faceTarget = bossInAttackRange && boss ? boss.pos : target;
 
     let moveX: -1 | 0 | 1 = 0;
     let moveY: -1 | 0 | 1 = 0;
-    const inAttackRange = !needHeal && spawners.length > 0 && distToTarget < 55;
+    // A boss silhouette is much larger than a generator's, so collision stops
+    // the hero well outside the generic 55px threshold; a bigger reach keeps
+    // the bot facing and swinging instead of endlessly re-pathing.
+    const inAttackRange = !needHeal && ((spawners.length > 0 && distToTarget < 55) || bossInAttackRange);
 
-    if (!inAttackRange) {
+    // "The dodge window is the telegraph" (docs/COMBAT.md): a boss holds
+    // still before every attack, then commits — a lunge keeps dealing contact
+    // damage for the whole dash, past the telegraph that announced it. A
+    // spawner never telegraphs like this, so this only applies while actually
+    // fighting an active boss. Sidestep rather than tanking a hit the tell
+    // gave plenty of warning for.
+    const bossDodging = bossInAttackRange && boss && (boss.telegraphTicksLeft > 0 || boss.chargeTicksLeft > 0);
+    if (bossDodging && boss) {
+      const dx = boss.pos.x - me.pos.x;
+      const dy = boss.pos.y - me.pos.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      // Perpendicular to the boss direction, biased by tick parity so the
+      // bot doesn't dither in place when exactly on-axis.
+      const tangentX = -dy / dist;
+      const tangentY = dx / dist;
+      moveX = (tangentX > 0.1 ? 1 : tangentX < -0.1 ? -1 : state.tick % 2 === 0 ? 1 : -1) as -1 | 0 | 1;
+      moveY = (tangentY > 0.1 ? 1 : tangentY < -0.1 ? -1 : state.tick % 2 === 0 ? -1 : 1) as -1 | 0 | 1;
+    } else if (!inAttackRange) {
       const wp = nextWaypoint(me.pos, target, this.level) ?? target;
       const dx = wp.x - me.pos.x;
       const dy = wp.y - me.pos.y;
@@ -196,14 +262,18 @@ export class WarrensBot {
       if (dy > 3) moveY = 1;
       if (dy < -3) moveY = -1;
     } else {
-      // Face the generator so the melee arc connects.
-      const dx = target.x - me.pos.x;
-      const dy = target.y - me.pos.y;
+      // Face the generator (or the boss) so the melee arc connects.
+      const dx = faceTarget.x - me.pos.x;
+      const dy = faceTarget.y - me.pos.y;
       if (Math.abs(dx) > Math.abs(dy)) moveX = dx > 0 ? 1 : -1;
       else moveY = dy > 0 ? 1 : -1;
     }
 
-    // Swing constantly; drop the Sunder Slam when swarmed.
+    // Swing constantly; drop the Sunder Slam when swarmed. The one exception
+    // is a boss telegraph dodge: nothing is in range to hit during the sidestep
+    // anyway, and holding the swing there (rather than reflexively holding it
+    // through a wide evasive maneuver) cuts down on incidentally shattering an
+    // Amber Clutch — health meant for the fight — while just repositioning.
     const nearbyEnemies = state.enemies.filter(
       (e) => Math.hypot(e.pos.x - me.pos.x, e.pos.y - me.pos.y) < 100
     ).length;
@@ -213,6 +283,7 @@ export class WarrensBot {
     ).length;
     const ability =
       (nearbyEnemies >= 2 || (me.hp <= 45 && touchingEnemies >= 1)) && me.abilityCooldown === 0;
+    const attack = !bossDodging;
 
     // Stuck insurance: if we're holding a direction but not moving, jiggle
     // perpendicular to slide off whatever geometry has us pinned.
@@ -233,11 +304,13 @@ export class WarrensBot {
       }
     }
 
-    const action: BotAction = { moveX, moveY, attack: true, ability };
+    const action: BotAction = { moveX, moveY, attack, ability };
     this.trace.push(
       `t=${state.tick} hp=${Math.round(me.hp)} pos=${Math.round(me.pos.x)},${Math.round(me.pos.y)} ` +
         `gens=${state.generators.map((g) => Math.round(g.hp)).join('/') || '-'} enemies=${state.enemies.length} ` +
-        `kills=${me.kills} heal=${this.healMode} move=${moveX},${moveY} slam=${ability}`
+        `kills=${me.kills} heal=${this.healMode} healSpots=${healSpots.length} boss=${boss ? `${Math.round(boss.pos.x)},${Math.round(boss.pos.y)},act${boss.active ? 1 : 0},tel${boss.telegraphTicksLeft},chg${boss.chargeTicksLeft}` : '-'} ` +
+        `dist=${Math.round(distToTarget)} inRange=${inAttackRange} nearby=${nearbyEnemies} atk=${attack} tgt=${Math.round(target.x)},${Math.round(target.y)} ` +
+        `move=${moveX},${moveY} slam=${ability}`
     );
     return action;
   }

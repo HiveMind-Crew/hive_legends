@@ -141,9 +141,29 @@ export const GENERATORS: Record<string, GeneratorDef> = {
     goldDrop: 30,
     xp: 45,
     // Destroying the mound births its elite guardian — a Gravebound Ravager
-    // claws out of the wreckage (#40). One husk mound per realm, so exactly
-    // one elite per realm. It spawns with an attack grace so it can't ambush.
+    // claws out of the wreckage (#40). A realm may author more than one Husk
+    // Mound — Cobalt Combs' arm and the Hollow Throne approach's sanctum
+    // (#151) both do — and each spawns its own Ravager independently. It
+    // spawns with an attack grace so it can't ambush.
     onDeathSpawn: { enemyId: 'gravebound-ravager' }
+  },
+  'skitter-cyst': {
+    id: 'skitter-cyst',
+    name: 'Skitter Cyst',
+    maxHp: 90,
+    radius: 18,
+    spawnsEnemyId: 'skitterling',
+    spawnIntervalTicks: 30,
+    // A Brood Node's swarm pressure at a fifth of its footprint (issue #151):
+    // 2 + 3x1 = 5 at four players, matched to the Husk Mound's own 5 so a
+    // dependency-free sanctum pair sums to 10, under the 15-hostile ceiling
+    // even when a split party wakes both at once. A full Brood Node (15 at
+    // four players) can never sit on a dependency-free sanctum for the same
+    // reason — see src/content/levels/hollowThrone.ts.
+    maxAlive: 2,
+    maxAlivePerExtraPlayer: 1,
+    goldDrop: 25,
+    xp: 35
   },
   'spitter-nest': {
     id: 'spitter-nest',

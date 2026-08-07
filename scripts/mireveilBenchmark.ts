@@ -1,10 +1,71 @@
 import { HOLLOW_THRONE } from '../src/content/levels/hollowThrone';
 import { createSim, simTick, type Sim } from '../src/sim/sim';
-import { EMPTY_INPUT, TICK_RATE, type BossActionDef, type ContentDb, type HeroDef, type InputCommand } from '../src/sim/types';
+import {
+  EMPTY_INPUT,
+  TICK_RATE,
+  type BossActionDef,
+  type ContentDb,
+  type HeroDef,
+  type InputCommand,
+  type LevelDef
+} from '../src/sim/types';
 
 /** Fixed seed and ceiling make the documented encounter a reproducible sim, not a stopwatch anecdote. */
 export const MIREVEIL_BENCHMARK_SEED = 104;
 export const MIREVEIL_BENCHMARK_MAX_TICKS = TICK_RATE * 90;
+
+/**
+ * Mireveil's arena is embedded inside the larger #151 approach at a fixed
+ * offset (columns 5-34, rows 0-21 — see hollowThrone.ts's header), and she is
+ * dormant there until the boss-threshold encounter fires. This benchmark
+ * measures a pure arena duel, not a playthrough of the approach, so it
+ * rebuilds the original enclosed 30x22 room by trimming the embedded arena
+ * back to its own bounds. Re-walling just the shared south row is not
+ * enough: the Ranger's Volley Step is an intentionally wall-clipped dash (a
+ * single tile's thickness is exactly what it is built to cross —
+ * `performDashVolley` checks only the landing point, not the path), so it
+ * can hop a one-tile reseal straight into the approach's open geometry
+ * beyond. Dropping the rows/columns outside the arena entirely closes that:
+ * `level.walls[ny]?.[nx]` is `undefined`, and `isWallTile` treats an
+ * undefined row as solid, exactly like the original level's own border did
+ * pre-#151. The boss, spawn and exit coordinates below are therefore the
+ * unchanged pre-#151 values, not the embedded ones.
+ */
+const ARENA_OFFSET_X = 5;
+const ARENA_WIDTH = 30;
+// Row 21 of the embedded arena is its south wall with the #151 breach carved
+// through it (columns 18-21) — the live level's connection to the approach.
+// Slicing it as-is would reopen exactly the leak this rebuild exists to
+// close, so only rows 0-20 come from the real level; row 21 is rebuilt solid.
+const ARENA_INTERIOR_HEIGHT = 21;
+const BENCHMARK_ARENA: LevelDef = {
+  ...HOLLOW_THRONE,
+  walls: [
+    ...HOLLOW_THRONE.walls
+      .slice(0, ARENA_INTERIOR_HEIGHT)
+      .map((row) => row.slice(ARENA_OFFSET_X, ARENA_OFFSET_X + ARENA_WIDTH)),
+    '#'.repeat(ARENA_WIDTH)
+  ],
+  playerSpawns: [{ tx: 14, ty: 19 }],
+  generators: [],
+  encounters: [],
+  gates: [],
+  secrets: [],
+  boss: { id: 'mireveil', typeId: 'mireveil', tx: 15, ty: 8 },
+  exit: { tx: 15, ty: 1 },
+  // HOLLOW_THRONE's own prop/pickup lists use the embedded (+5 column) offset
+  // and include the whole approach besides — wrong coordinate space for this
+  // trimmed arena, and props (unlike pickups) are never cleared below. These
+  // are the exact pre-#151 arena props, unshifted, so a hero's swing can
+  // still clip one exactly as it always could.
+  props: [
+    { typeId: 'amber-clutch', tx: 8, ty: 17 },
+    { typeId: 'amber-clutch', tx: 21, ty: 17 },
+    { typeId: 'resin-husk', tx: 8, ty: 3 },
+    { typeId: 'resin-husk', tx: 21, ty: 3 }
+  ],
+  pickups: []
+};
 
 export interface MireveilBenchmarkResult {
   heroId: string;
@@ -100,10 +161,12 @@ export function benchmarkMireveilHero(content: ContentDb, heroId: string): Mirev
   if (!hero) throw new Error(`unknown benchmark hero: ${heroId}`);
   const sim = createSim({
     seed: MIREVEIL_BENCHMARK_SEED,
-    level: HOLLOW_THRONE,
+    level: BENCHMARK_ARENA,
     players: [{ heroId, startXp: 0 }],
     content
   });
+  // BENCHMARK_ARENA's boss carries no `encounterId`, so she starts active
+  // exactly as she did pre-#151 — no override needed.
   // The encounter script measures base kits only. Removing room loot prevents
   // an accidental route over a relic, potion, or heal from changing the run.
   sim.state.pickups = [];

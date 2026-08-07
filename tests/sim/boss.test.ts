@@ -25,7 +25,16 @@ function pendingAction(sim: Sim): BossActionDef | undefined {
 }
 
 function newSim(heroId = 'vanguard', seed = 77): Sim {
-  return createSim({ seed, level: HOLLOW_THRONE, players: [{ heroId }], content: CONTENT });
+  const sim = createSim({ seed, level: HOLLOW_THRONE, players: [{ heroId }], content: CONTENT });
+  // Mireveil is dormant behind the south approach's two sanctums until both
+  // clear (#151; see hollowThrone.ts). These tests are about the fight
+  // itself, already covered end-to-end by tests/sim/hollowThrone.test.ts's
+  // sanctum and dormancy coverage, so start from "both sanctums already
+  // cleared" — her boss-threshold encounter's own precondition — rather than
+  // playing the approach here.
+  sim.state.generators = [];
+  sim.state.boss!.active = true;
+  return sim;
 }
 
 function input(partial: Partial<InputCommand>): InputCommand {
@@ -102,9 +111,15 @@ describe('boss content (#25)', () => {
     expect(MIREVEIL.telegraphTicks).toBeGreaterThanOrEqual(45);
   });
 
-  it('the finale level plants her and authors no spawners', () => {
+  it('the finale level plants her, dormant, behind the two approach sanctums (#151)', () => {
     expect(HOLLOW_THRONE.boss?.typeId).toBe('mireveil');
-    expect(HOLLOW_THRONE.generators).toHaveLength(0);
+    // The approach's staged pre-boss objectives, not Mireveil's own spawners —
+    // she still has none of her own; see tests/sim/hollowThrone.test.ts for
+    // the sanctum cap and dormancy coverage.
+    expect(HOLLOW_THRONE.generators).toHaveLength(2);
+    expect(HOLLOW_THRONE.boss?.encounterId).toBe('boss-threshold');
+    const fresh = createSim({ seed: 77, level: HOLLOW_THRONE, players: [{ heroId: 'vanguard' }], content: CONTENT });
+    expect(fresh.state.boss?.active).toBe(false);
     const sim = newSim();
     expect(sim.state.boss?.hp).toBe(MIREVEIL.maxHp);
   });
@@ -189,12 +204,17 @@ describe('data-authored boss moves (#81)', () => {
   };
 
   function glassWeaverSim(seed: number): Sim {
-    return createSim({
+    const sim = createSim({
       seed,
       level: { ...HOLLOW_THRONE, boss: { ...HOLLOW_THRONE.boss!, typeId: GLASS_WEAVER.id } },
       players: [{ heroId: 'vanguard' }],
       content: { ...CONTENT, bosses: { ...CONTENT.bosses, [GLASS_WEAVER.id]: GLASS_WEAVER } }
     });
+    // Dormant behind the #151 boss threshold like every other sim in this
+    // file — see the comment on newSim() above.
+    sim.state.generators = [];
+    sim.state.boss!.active = true;
+    return sim;
   }
 
   it('runs unfamiliar action ids and presentation copy without sim branches', () => {
