@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { CONTENT } from '../src/content';
 import { BROOD_WARRENS } from '../src/content/levels/broodWarrens';
 import type { LevelDef, SimState } from '../src/sim/types';
 
@@ -182,9 +183,13 @@ export class WarrensBot {
     // across the map and dies on a threat-3 layout; bounded, it still clears the
     // survivors actually chasing it, which is all #150 needs. Below the heal
     // threshold it disengages and advances instead of trading with an elite.
+    // Elites are excluded: with no objective in front of it, standing and
+    // trading with a Ravager is how the bot stalls or dies. Advance instead and
+    // let it follow. The swarm this rule exists to clear is common-tier.
     const canTrade = me.hp > MOP_UP_MIN_HP;
     const nearbyHostiles = canTrade
       ? state.enemies
+          .filter((e) => CONTENT.enemies[e.typeId]?.tier !== 'elite')
           .filter((e) => Math.hypot(e.pos.x - me.pos.x, e.pos.y - me.pos.y) < MOP_UP_RANGE)
           .map((e) => e.pos)
       : [];
