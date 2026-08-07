@@ -16,6 +16,10 @@ import type { LevelDef, SimState } from '../src/sim/types';
  * the default so the specs that predate multi-level runs read unchanged.
  */
 
+/** How far the bot will chase a survivor before advancing, and the HP it needs. */
+const MOP_UP_RANGE = 240;
+const MOP_UP_MIN_HP = 70;
+
 /** What the bot wants this poll, in the same shape as an `InputCommand`. */
 export interface BotAction {
   moveX: -1 | 0 | 1;
@@ -174,7 +178,17 @@ export class WarrensBot {
         .map((e) => e.id)
     );
     const live = state.generators.filter((g) => g.active);
-    const combatTargets = live.length > 0 ? live.map((g) => g.pos) : state.enemies.map((e) => e.pos);
+    // The mop-up is bounded by reach and by health. Unbounded, it hunts strays
+    // across the map and dies on a threat-3 layout; bounded, it still clears the
+    // survivors actually chasing it, which is all #150 needs. Below the heal
+    // threshold it disengages and advances instead of trading with an elite.
+    const canTrade = me.hp > MOP_UP_MIN_HP;
+    const nearbyHostiles = canTrade
+      ? state.enemies
+          .filter((e) => Math.hypot(e.pos.x - me.pos.x, e.pos.y - me.pos.y) < MOP_UP_RANGE)
+          .map((e) => e.pos)
+      : [];
+    const combatTargets = live.length > 0 ? live.map((g) => g.pos) : nearbyHostiles;
     const wakeable = state.generators.filter((g) => g.encounterId === undefined || ready.has(g.encounterId));
     const advance = wakeable.length > 0 ? wakeable : state.generators;
     const targets = needHeal
