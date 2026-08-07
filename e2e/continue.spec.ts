@@ -2,13 +2,13 @@ import { expect, test, type Page } from '@playwright/test';
 import { CONTENT } from '../src/content';
 import type { Profile } from '../src/meta/save';
 import type { SimState } from '../src/sim/types';
+import { nextWaypoint } from './bot';
 
 /**
  * The arcade continue (issue #99), end to end in the real build.
  *
- * The bot does not fight here — it stands still and lets the Warrens kill it,
- * which takes about twenty seconds and is the only reliable way to reach the
- * prompt through the real game. Everything the prompt does is observable
+ * The bot does not fight here — it wakes the first staged encounter, then
+ * stands still and lets the Warrens kill it. Everything the prompt does is observable
  * through the read-only `__hive` handle: the sim stops ticking while the offer
  * is up, and a bought continue puts the hero back on their feet at the revive
  * def's HP.
@@ -26,6 +26,28 @@ async function getState(page: Page): Promise<SimState | null> {
 
 async function savedProfile(page: Page): Promise<Profile> {
   return (await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null'), PROFILE_KEY)) as Profile;
+}
+
+/** Walks through the real input path until the first staged nest wakes. */
+async function wakeFirstEncounter(page: Page): Promise<void> {
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    const state = await getState(page);
+    if (state?.generators.some((generator) => generator.active)) return;
+    const player = state?.players[0];
+    const target = state?.generators[0]?.pos;
+    if (!player || !target) break;
+    const waypoint = nextWaypoint(player.pos, target) ?? target;
+    const dx = waypoint.x - player.pos.x;
+    const dy = waypoint.y - player.pos.y;
+    const key = Math.abs(dx) > Math.abs(dy)
+      ? dx > 0 ? 'ArrowRight' : 'ArrowLeft'
+      : dy > 0 ? 'ArrowDown' : 'ArrowUp';
+    await page.keyboard.down(key);
+    await page.waitForTimeout(120);
+    await page.keyboard.up(key);
+  }
+  expect((await getState(page))?.generators.some((generator) => generator.active)).toBe(true);
 }
 
 /** Stands still until the hive finishes the job. */
@@ -75,6 +97,7 @@ test('a fallen run can buy a continue, and declining still ends it', async ({ pa
     .toBe(true);
 
   // --- fall once ----------------------------------------------------------
+  await wakeFirstEncounter(page);
   await dieHere(page);
 
   // The offer freezes the run: a fallen hero must not accrue mission time

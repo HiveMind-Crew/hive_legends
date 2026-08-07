@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BROOD_WARRENS, CONTENT } from '../../src/content';
 import { createSim, hashState, simTick, type Sim } from '../../src/sim/sim';
 import { EMPTY_INPUT, type InputCommand, type SimEvent } from '../../src/sim/types';
+import { activateAllObjectives } from './fixtures';
 
 /**
  * Level-mechanics toolkit (issue #17): keys, key-locked gates, and breakable
@@ -11,7 +12,7 @@ import { EMPTY_INPUT, type InputCommand, type SimEvent } from '../../src/sim/typ
  */
 
 function newSim(seed = 51): Sim {
-  return createSim({ seed, level: BROOD_WARRENS, players: [{ heroId: 'vanguard' }], content: CONTENT });
+  return activateAllObjectives(createSim({ seed, level: BROOD_WARRENS, players: [{ heroId: 'vanguard' }], content: CONTENT }));
 }
 
 function input(partial: Partial<InputCommand>): InputCommand {
@@ -51,11 +52,11 @@ describe('gates', () => {
     const p = sim.state.players[0]!;
     const gate = sim.state.gates[0]!;
     p.keys = 0;
-    p.pos = { x: gate.pos.x + 40, y: gate.pos.y };
-    runTicks(sim, 60, input({ moveX: -1 }));
+    p.pos = { x: gate.pos.x, y: gate.pos.y + 30 };
+    runTicks(sim, 60, input({ moveY: -1 }));
     expect(gate.locked).toBe(true);
     // Never crossed onto the far (treasure) side of the gate tile.
-    expect(p.pos.x).toBeGreaterThan(gate.pos.x);
+    expect(p.pos.y).toBeGreaterThan(gate.pos.y);
   });
 
   it('touching a gate with a key opens it, spends the key, and lets the player through', () => {
@@ -63,14 +64,14 @@ describe('gates', () => {
     const p = sim.state.players[0]!;
     const gate = sim.state.gates[0]!;
     p.keys = 1;
-    p.pos = { x: gate.pos.x + 40, y: gate.pos.y };
-    const events = runTicks(sim, 12, input({ moveX: -1 }));
+    p.pos = { x: gate.pos.x, y: gate.pos.y + 30 };
+    const events = runTicks(sim, 20, input({ moveY: -1 }));
     expect(gate.locked).toBe(false);
     expect(p.keys).toBe(0);
     expect(events.some((e) => e.type === 'gate-opened')).toBe(true);
     // The way is open now — press on into the vault past the gate tile.
-    runTicks(sim, 40, input({ moveX: -1 }));
-    expect(p.pos.x).toBeLessThan(gate.pos.x);
+    runTicks(sim, 40, input({ moveY: -1 }));
+    expect(p.pos.y).toBeLessThan(gate.pos.y);
   });
 });
 
@@ -79,18 +80,18 @@ describe('secret walls', () => {
     const sim = newSim();
     const p = sim.state.players[0]!;
     const secret = sim.state.secrets[0]!;
-    p.pos = { x: secret.pos.x + 40, y: secret.pos.y };
-    runTicks(sim, 40, input({ moveX: -1 }));
+    p.pos = { x: secret.pos.x, y: secret.pos.y + 30 };
+    runTicks(sim, 40, input({ moveY: -1 }));
     expect(sim.state.secrets).toHaveLength(1); // intact
-    expect(p.pos.x).toBeGreaterThan(secret.pos.x); // blocked
+    expect(p.pos.y).toBeGreaterThan(secret.pos.y); // blocked
   });
 
   it('crumble under attack and open the tile', () => {
     const sim = newSim();
     const p = sim.state.players[0]!;
     const secret = sim.state.secrets[0]!;
-    p.pos = { x: secret.pos.x + 30, y: secret.pos.y };
-    p.facing = { x: -1, y: 0 };
+    p.pos = { x: secret.pos.x, y: secret.pos.y + 30 };
+    p.facing = { x: 0, y: -1 };
     const events: SimEvent[] = [];
     for (let i = 0; i < 60 && sim.state.secrets.length > 0; i++) {
       p.attackCooldown = 0;
@@ -99,8 +100,8 @@ describe('secret walls', () => {
     expect(sim.state.secrets).toHaveLength(0);
     expect(events.some((e) => e.type === 'secret-revealed')).toBe(true);
     // The passage is walkable now.
-    runTicks(sim, 40, input({ moveX: -1 }));
-    expect(p.pos.x).toBeLessThan(secret.pos.x);
+    runTicks(sim, 40, input({ moveY: -1 }));
+    expect(p.pos.y).toBeLessThan(secret.pos.y);
   });
 });
 
@@ -110,14 +111,14 @@ describe('determinism', () => {
       const sim = newSim(707);
       const p = sim.state.players[0]!;
       p.keys = 1;
-      p.pos = { x: sim.state.gates[0]!.pos.x + 40, y: sim.state.gates[0]!.pos.y };
+      p.pos = { x: sim.state.gates[0]!.pos.x, y: sim.state.gates[0]!.pos.y + 30 };
       return sim;
     };
     const a = build();
     const b = build();
     for (let i = 0; i < 200; i++) {
-      simTick(a, [input({ moveX: -1, attack: true })]);
-      simTick(b, [input({ moveX: -1, attack: true })]);
+      simTick(a, [input({ moveY: -1, attack: true })]);
+      simTick(b, [input({ moveY: -1, attack: true })]);
     }
     expect(hashState(a.state)).toBe(hashState(b.state));
   });

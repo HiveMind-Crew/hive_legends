@@ -2,14 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { BROOD_WARRENS, CONTENT } from '../../src/content';
 import { createSim, hashState, simTick, type Sim } from '../../src/sim/sim';
 import { EMPTY_INPUT, TICK_RATE, type InputCommand, type SimEvent } from '../../src/sim/types';
+import { activateAllObjectives } from './fixtures';
 
 function newSim(seed = 1234): Sim {
-  return createSim({
+  return activateAllObjectives(createSim({
     seed,
     level: BROOD_WARRENS,
     players: [{ heroId: 'vanguard' }],
     content: CONTENT
-  });
+  }));
 }
 
 function input(partial: Partial<InputCommand>): InputCommand {

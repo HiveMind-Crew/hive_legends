@@ -17,7 +17,7 @@ declare global {
 
 async function installFakePads(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    const pads = Array.from({ length: 2 }, (_, index) => {
+    const pads = Array.from({ length: 4 }, (_, index) => {
       const pad = {
         id: `Hive Legends Test Pad ${index + 1} (STANDARD GAMEPAD)`,
         index,
@@ -49,12 +49,8 @@ async function installFakePads(page: Page): Promise<void> {
         });
       }
     };
-    navigator.getGamepads = (): (Gamepad | null)[] => [
-      pads[0]!.connected ? (pads[0] as unknown as Gamepad) : null,
-      pads[1]!.connected ? (pads[1] as unknown as Gamepad) : null,
-      null,
-      null
-    ];
+    navigator.getGamepads = (): (Gamepad | null)[] =>
+      pads.map((pad) => (pad.connected ? (pad as unknown as Gamepad) : null));
   });
 }
 
@@ -96,7 +92,7 @@ class PadDriver {
   }
 }
 
-test('two independent gamepads join and clear The Brood Warrens once', async ({ page }) => {
+test('four independent gamepads join and clear The Brood Warrens under the hostile ceiling', async ({ page }) => {
   const consoleErrors: string[] = [];
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text());
@@ -106,8 +102,9 @@ test('two independent gamepads join and clear The Brood Warrens once', async ({ 
   await installFakePads(page);
   await page.goto('/');
   await expect(page.locator('canvas')).toBeVisible({ timeout: 15_000 });
-  const p1 = new PadDriver(page, 0);
-  const p2 = new PadDriver(page, 1);
+  const drivers = Array.from({ length: 4 }, (_, slot) => new PadDriver(page, slot));
+  const p1 = drivers[0]!;
+  const p2 = drivers[1]!;
   await p1.connect();
 
   await expect
@@ -123,12 +120,15 @@ test('two independent gamepads join and clear The Brood Warrens once', async ({ 
 
   // A newly visible device only establishes an input baseline. START is an
   // explicit, replayable join edge after that baseline, never device mutation.
-  await p2.connect();
-  await p2.release();
-  await page.waitForTimeout(250);
-  await p2.tap(BUTTON.start);
-  await expect.poll(async () => (await getState(page)).players.find((p) => p.slot === 1)?.participating).toBe(true);
-  await page.screenshot({ path: 'test-results/14-two-player-joined.png' });
+  for (let slot = 1; slot < drivers.length; slot++) {
+    const driver = drivers[slot]!;
+    await driver.connect();
+    await driver.release();
+    await page.waitForTimeout(250);
+    await driver.tap(BUTTON.start);
+    await expect.poll(async () => (await getState(page)).players.find((p) => p.slot === slot)?.participating).toBe(true);
+  }
+  await page.screenshot({ path: 'test-results/14-four-player-joined.png' });
 
   // Transient loss leaves an idle active body. Only BACK makes it dormant;
   // START rejoins the same state object with its contributions intact.
@@ -144,8 +144,8 @@ test('two independent gamepads join and clear The Brood Warrens once', async ({ 
   await p2.tap(BUTTON.start);
   await expect.poll(async () => (await getState(page)).players.find((p) => p.slot === 1)?.participating).toBe(true);
 
-  // Prove the command streams address different slots before handing both to
-  // the shared playthrough brain.
+  // Prove the command streams address different slots before handing all four
+  // to the shared playthrough brain.
   const before = await getState(page);
   await p1.set([0.85, 0, 0, 0], []);
   await p2.set([0, 0.85, 0, 0], []);
@@ -156,13 +156,14 @@ test('two independent gamepads join and clear The Brood Warrens once', async ({ 
   expect(moved.players.find((p) => p.slot === 0)!.pos.x).toBeGreaterThan(before.players.find((p) => p.slot === 0)!.pos.x);
   expect(moved.players.find((p) => p.slot === 1)!.pos.y).toBeGreaterThan(before.players.find((p) => p.slot === 1)!.pos.y);
 
-  const bots = [new WarrensBot(0), new WarrensBot(1)];
-  const drivers = [p1, p2];
+  const bots = drivers.map((_, slot) => new WarrensBot(slot));
   const deadline = Date.now() + 180_000;
   let terminal = await getState(page);
+  let maxConcurrentEnemies = terminal.enemies.length;
   while (Date.now() < deadline) {
     const state = await getState(page);
     terminal = state;
+    maxConcurrentEnemies = Math.max(maxConcurrentEnemies, state.enemies.length);
     if (!state || state.phase === 'complete' || state.phase === 'failed') break;
     await Promise.all(drivers.map((driver, slot) => driver.play(bots[slot]!.decide(state))));
     await page.waitForTimeout(90);
@@ -176,7 +177,11 @@ test('two independent gamepads join and clear The Brood Warrens once', async ({ 
     }
   }
   expect(terminal?.phase).toBe('complete');
-  expect(terminal!.players).toHaveLength(2);
+  expect(terminal!.players).toHaveLength(4);
+  expect(terminal!.players.every((player) => player.participating)).toBe(true);
+  expect(maxConcurrentEnemies).toBeGreaterThan(0);
+  expect(maxConcurrentEnemies).toBeLessThanOrEqual(15);
+  console.log(`Four-player Brood Warrens hostile peak: ${maxConcurrentEnemies}`);
   expect(terminal!.players.reduce((sum, player) => sum + player.gold, 0)).toBe(terminal!.rewards.gold);
   expect(terminal!.players.reduce((sum, player) => sum + player.xpEarned, 0)).toBe(terminal!.rewards.xp);
 
@@ -197,7 +202,7 @@ test('two independent gamepads join and clear The Brood Warrens once', async ({ 
   expect(profile.bank).toBe(terminal!.rewards.gold + firstClearBonus(BROOD_WARRENS));
   expect(profile.xp).toBe(terminal!.rewards.xp);
   await page.waitForTimeout(1_100); // let the bank count-up settle for visual QA
-  await page.screenshot({ path: 'test-results/15-two-player-results.png' });
+  await page.screenshot({ path: 'test-results/15-four-player-results.png' });
 
   expect(consoleErrors.filter((error) => !error.includes('favicon'))).toEqual([]);
 });

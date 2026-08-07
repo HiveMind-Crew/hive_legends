@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BROOD_WARRENS, CONTENT, HOLLOW_THRONE } from '../../src/content';
 import { createSim, hashState, simTick, type Sim } from '../../src/sim/sim';
 import { EMPTY_INPUT, type EnemyState, type InputCommand, type SimEvent } from '../../src/sim/types';
+import { activateAllObjectives } from './fixtures';
 
 /**
  * Mission time pressure — "the hive rouses" (issue #41). The adapted answer to
@@ -12,7 +13,7 @@ import { EMPTY_INPUT, type EnemyState, type InputCommand, type SimEvent } from '
 const P = CONTENT.pressure;
 
 function newSim(seed = 21, level = BROOD_WARRENS): Sim {
-  return createSim({ seed, level, players: [{ heroId: 'vanguard' }], content: CONTENT });
+  return activateAllObjectives(createSim({ seed, level, players: [{ heroId: 'vanguard' }], content: CONTENT }));
 }
 
 function input(partial: Partial<InputCommand>): InputCommand {
@@ -112,7 +113,9 @@ describe('what a roused hive does', () => {
     sim.state.generators = [];
     sim.state.pressureStage = stage;
     const p = sim.state.players[0]!;
-    const e = spawnEnemy(sim, 'carapace-husk', 500, p.pos.x + 300, p.pos.y);
+    const c = (tile: number): number => tile * BROOD_WARRENS.tileSize + BROOD_WARRENS.tileSize / 2;
+    p.pos = { x: c(3), y: c(6) };
+    const e = spawnEnemy(sim, 'carapace-husk', 500, p.pos.x + 200, p.pos.y);
     const before = Math.hypot(e.pos.x - p.pos.x, e.pos.y - p.pos.y);
     runTicks(sim, 60);
     return before - Math.hypot(e.pos.x - p.pos.x, e.pos.y - p.pos.y);
