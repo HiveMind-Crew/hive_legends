@@ -7,7 +7,7 @@ are deliberate.
 | Level | Dimensions | Walkable floor | Critical route | Final objective → exit | Narrowest critical pinch |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | The Brood Warrens | 46 × 30 | 1,069 tiles | 97 tiles | 5 tiles | 3 tiles |
-| The Resin Galleries | 40 × 28 | 537 tiles | 78 tiles | 34 tiles | 1 tile |
+| The Resin Galleries | 42 × 42 | 756 tiles | 140 tiles | 7 tiles | 3 tiles |
 | The Cobalt Combs | 48 × 36 | 755 tiles | 123 tiles | 6 tiles | 3 tiles |
 | The Hollow Throne | 40 × 36 | 826 tiles | 84 tiles | 7 tiles | 4 tiles |
 
