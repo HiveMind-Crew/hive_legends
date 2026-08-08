@@ -40,7 +40,26 @@ test('four independent gamepads join and clear The Brood Warrens under the hosti
     await driver.tap(BUTTON.start);
     await expect.poll(async () => (await getState(page)).players.find((p) => p.slot === slot)?.participating).toBe(true);
   }
+  await page.waitForTimeout(300); // stable HUD frame for the three visual-QA captures below
   await page.screenshot({ path: 'test-results/14-four-player-joined.png' });
+
+  // The HUD is authored once at 960x720; FIT must preserve that compact
+  // four-player composition when the browser is shorter or substantially
+  // larger. Keep screenshots from all three sizes because native alone hid
+  // both the original canvas-fit bug (#94) and the worst HUD density (#144).
+  for (const viewport of [
+    { name: 'smaller', width: 1024, height: 640 },
+    { name: 'larger', width: 1600, height: 1000 }
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    const expectedScale = Math.min(viewport.width / 960, viewport.height / 720);
+    await expect
+      .poll(async () => (await page.locator('canvas').boundingBox())?.width ?? 0, { timeout: 10_000 })
+      .toBeCloseTo(960 * expectedScale, 0);
+    await page.screenshot({ path: `test-results/issue144-four-player-hud-${viewport.name}.png` });
+  }
+  await page.setViewportSize({ width: 960, height: 720 });
+  await expect.poll(async () => (await page.locator('canvas').boundingBox())?.width ?? 0).toBeCloseTo(960, 0);
 
   // Transient loss leaves an idle active body. Only BACK makes it dormant;
   // START rejoins the same state object with its contributions intact.

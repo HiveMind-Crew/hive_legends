@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { getState } from './bot';
 
 /**
  * Canvas scaling (issue #94).
@@ -107,4 +108,44 @@ test('the canvas re-fits when the window is resized mid-session', async ({ page 
   expect(box.y).toBeGreaterThanOrEqual(-1);
   expect(box.x + box.width).toBeLessThanOrEqual(801);
   expect(box.y + box.height).toBeLessThanOrEqual(601);
+});
+
+test('the solo mission HUD keeps its authored composition through representative FIT sizes', async ({ page }) => {
+  await page.setViewportSize({ width: BASE_W, height: BASE_H });
+  await page.goto('/');
+  await expect(page.locator('canvas')).toBeVisible({ timeout: 15_000 });
+
+  // Retry confirm through hero select and the mission wheel; a press can land
+  // while BootScene is still generating textures on a loaded worker.
+  await expect
+    .poll(
+      async () => {
+        if ((await getState(page)) !== null) return true;
+        await page.keyboard.press('Enter');
+        return false;
+      },
+      { timeout: 20_000, intervals: [250] }
+    )
+    .toBe(true);
+
+  for (const viewport of [
+    { name: 'native', width: BASE_W, height: BASE_H },
+    { name: 'smaller', width: 1024, height: 640 },
+    { name: 'larger', width: 1600, height: 1000 }
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    const expectedScale = Math.min(viewport.width / BASE_W, viewport.height / BASE_H);
+    const canvas = page.locator('canvas');
+    await expect
+      .poll(async () => (await canvas.boundingBox())?.width ?? 0, { timeout: 10_000 })
+      .toBeCloseTo(BASE_W * expectedScale, 0);
+
+    const buffer = await canvas.evaluate((element) => ({
+      width: (element as HTMLCanvasElement).width,
+      height: (element as HTMLCanvasElement).height
+    }));
+    expect(buffer).toEqual({ width: BASE_W, height: BASE_H });
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: `test-results/issue144-solo-hud-${viewport.name}.png` });
+  }
 });
