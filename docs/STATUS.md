@@ -1,6 +1,6 @@
 # Project status
 
-Updated: 2026-08-01 — **local co-op is playable** (issue #106) and the M1
+Updated: 2026-08-08 — **local co-op is playable** (issue #106) and the M1
 vertical slice remains content-complete (boss #25, XP levelling #46,
 combat-feel pass #38/#39/#40, screen-clear potion #41, and the first real art
 pack #44 all landed).
@@ -222,7 +222,8 @@ on any future failure.
 - Enemy pathing routes around geometry (#107). Chasers still steer straight
   while that works — the field only engages once a chase fails to make headway
   — so the tuned approach behaviour is unchanged in the open. The boss keeps
-  its own straight-line and charge movement; its arena is a single open room.
+  its own straight-line and charge movement; the staged throne approach keeps
+  her dormant until the party crosses into the preserved open arena.
 - Phaser bundle is ~1.5 MB (348 kB gzip); fine for now, consider code-splitting
   at content growth.
 

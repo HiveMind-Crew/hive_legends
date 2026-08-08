@@ -1,23 +1,30 @@
 # Level layout direction
 
-Updated: 2026-08-05 · Scope: authored Realm 1 traversal maps and future map guidance
+Updated: 2026-08-08 · Scope: authored Azure Reach maps and future map guidance
 
 ## Outcome
 
-The current traversal missions are valid and readable, but they repeat the same macro-flow: spawn in the west or north-west, clear objectives across the north and east, then turn clockwise toward a southern exit. The repetition is most noticeable in **The Brood Warrens** and **The Resin Galleries**, where the last objective is followed by a long walk back toward the left edge.
-
-Future maps should deliberately rotate their dominant travel direction. For the existing campaign, use this sequence:
+Issue #146's redesign is implemented across the complete Azure Reach. The old
+campaign repeatedly spawned in the west or north-west, swept clockwise, and
+finished near a southern edge. The shipped maps now rotate their dominant travel
+direction and encounter rhythm deliberately:
 
 1. **Brood Warrens — west to east:** a clear introductory push with the portal beyond the final fight.
 2. **Resin Galleries — south to north:** a vertical climb with side vaults that rejoin ahead.
 3. **Cobalt Combs — south-east to north-west:** a diagonal reverse-flow or braided route, visually distinct from the first two.
-4. **Hollow Throne — south to north:** retain the current boss-arena composition; its single-room combat flow already breaks the traversal pattern.
+4. **Hollow Throne — south to north:** a two-order sanctum approach compresses
+   into the preserved circling arena and its short north portal payoff.
 
-The direction itself is not a quality score. The goal is a distinct silhouette and movement rhythm per mission, while keeping the final portal close to the last mandatory encounter.
+The direction itself is not a quality score. The goal is a distinct silhouette
+and movement rhythm per mission while keeping the final portal close to the last
+mandatory encounter. The historical audit below records why the work was
+needed; the as-built comparison records what shipped.
 
-## Current-layout audit
+## Pre-redesign audit (historical baseline)
 
-Distances below are shortest walkable tile routes, using the most efficient order for clearing all generators before reaching the exit.
+These measurements were captured before #147–#151. Distances are shortest
+walkable tile routes using the most efficient order for clearing all generators
+before reaching the exit.
 
 | Level | Efficient macro-route | Total route | Final objective to exit | Assessment |
 | --- | --- | ---: | ---: | --- |
@@ -58,90 +65,100 @@ Five patterns fit Hive Legends particularly well:
 4. **Hub and spokes with a forward finish:** a central landmark organizes two or three objectives, but clearing them opens a new exit beyond the hub rather than at the spawn.
 5. **Set-piece arena:** a single combat space is shaped around cover, circling, hazards, or phases. Hollow Throne already owns this pattern.
 
-## Proposed map mockups
+## Implemented layout comparison
 
-Legend: `S` spawn · `1–3` mandatory generators/encounters · `X` exit · `V` optional vault · `K` key · arrows show the intended critical path.
+`npm run metrics:levels` produces the measurements below. The critical route is
+the shortest spawn → every mandatory objective → exit route; authored-order
+tests separately cover dependency-constrained braids. `docs/LEVEL_PACING.md`
+defines the metric precisely and records the pinned baselines.
 
-### A. Brood Warrens — west-to-east spine
+| Level | Spawn → exit | Critical route | Final leg | Pinch | Branch and encounter rhythm |
+| --- | --- | ---: | ---: | ---: | --- |
+| Brood Warrens | West → east | 97 tiles | 5 tiles | 3 tiles | Four linear stages alternate north/south rooms; gate and secret rewards rejoin farther east. |
+| Resin Galleries | South → north | 140 tiles | 7 tiles | 3 tiles | Four stacked landings zig-zag across the climb; opposite-side vaults rejoin above their departure band. |
+| Cobalt Combs | South-east → north-west | 123 tiles | 6 tiles | 3 tiles | Independent Husk and Spitter arms braid through a mandatory merge, then compress into the breach. |
+| Hollow Throne | South → north | 84 tiles | 7 tiles | 4 tiles | Either sanctum may be cleared first; both feed a preparation landing, dormant-boss threshold, circling arena, and north portal. |
+
+Legend: `S` spawn · `[n]` mandatory encounter · `X` exit · `V` optional vault
+· arrows show dominant flow. These are route silhouettes, not literal tile maps.
+
+### A. Brood Warrens — west-to-east spine (#149)
 
 ```text
-                  ┌── V secret ──┐
-                  │              │
-S ── staging ── [1] ── gallery ── [2] ── breach ── [3] ── X
-                        │                         │
-                        └── K ── V gate ─────────┘
+                  ┌── V gate ────────┐
+S → [1 Brood] → [2 Husk] → [3 Brood] → [4 Spitter] → X
+                         └── V secret ────────────────┘
 ```
 
-Design intent:
+- The party starts at `(3–5, 14–16)` and exits at `(44, 22)`, putting the
+  endpoints in opposite outer thirds.
+- Staged north/south rooms alternate swarm containment, elite circulation,
+  breach pressure, and a ranged finale instead of repeating one box.
+- Gold breadcrumbs and the dimmed portal preview reinforce the eastern finish;
+  optional rewards never send the player back to spawn.
 
-- Teach the campaign's base grammar with unmistakable left-to-right progress.
-- Put the first generator near the first screen edge, not in the start room.
-- Let each chamber introduce one enemy-space relationship: swarm room, cover room, ranged lane.
-- Rejoin both optional branches farther east so exploration never means walking back to the spawn.
-
-Low-cost current-map version: move the exit from `(3,20)` to the open floor at approximately `(30,20)`. With no wall changes, the likely route falls from 64 to about 43 tiles and the last leg falls from 26 to 5 tiles. A later geometry pass can strengthen the spine and forward-rejoining vaults.
-
-### B. Resin Galleries — south-to-north climb
+### B. Resin Galleries — south-to-north climb (#150)
 
 ```text
-                         X
-                         ↑
-                  ┌──── [3] ────┐
-                  │ upper kiln  │
-           V gate ┤             ├─ V secret
-                  └───── ↑ ─────┘
-                        [2]
-                    cross-gallery
-                         ↑
-             ┌── K ──── [1] ──── relief loop ──┐
-             └────────────── S ──────────────────┘
+                              X
+                              ↑
+                     [4 Crown Brood]
+                  ↗                   ↖
+          V gate → [3 Upper Brood] ← V secret
+                              ↑
+                        [2 Husk Kiln]
+                              ↑
+                      [1 Lower Basin]
+                              ↑
+                              S
 ```
 
-Design intent:
+- The party starts at `(21–23, 38–40)` and exits at `(34, 1)`, making the
+  climb legible from authored coordinates as well as dressing.
+- Wide horizontal landings alternate with offset vertical connectors; each
+  stage must clear before the next can wake, preventing off-screen pressure.
+- Gate and secret vaults occupy opposite sides and reconnect at or above their
+  departure height, preserving discovery without a return to the basin.
 
-- Make northward movement the dominant read, using each chamber threshold as a visible rise in intensity.
-- Alternate wide combat landings with short, offset vertical connectors; avoid one long featureless corridor.
-- Place vaults on opposite sides of the upper route so the party makes short horizontal choices inside an overall vertical climb.
-- Reveal the portal or its light from encounter 3, then make it immediately reachable when the objective completes.
-
-Low-cost current-map version: move the exit from `(4,24)` to open floor near `(35,22)`. The likely route falls from 80 to about 53 tiles and the last leg from 34 to 7 tiles. This fixes the reward cadence before the larger vertical rebuild.
-
-### C. Cobalt Combs — diagonal reverse braid
+### C. Cobalt Combs — south-east-to-north-west braid (#148)
 
 ```text
-X ── final bridge ── [3]
-                      ↖
-              ┌──── merge ────┐
-              ↑               ↑
-        [1] close-combat   [2] ranged-combat
-              ↑               ↑
-              └──── choose ───┘
-                         ↖
+X ← [4 Breach] ← [3 Merge]
+                       ↖     ↗
+                 [1 Husk]   [2 Spitter]
+                       ↖     ↗
                           S
 ```
 
-Design intent:
+- The party starts at `(40–42, 30–32)` and exits at `(4, 5)`, reversing both
+  axes used by the first two traversal maps.
+- Husk and Spitter arms are independently wakeable and tactically distinct;
+  both orders remain within 15% route cost and inside the shared camera span.
+- The arms rejoin forward at the Brood merge before the final ranged breach,
+  keeping the branch a braid rather than two mandatory dead ends.
 
-- Start in the south-east and finish in the north-west so the third traversal map does not inherit the established clockwise read.
-- Give the two braid arms different tactical identities, not merely different decorations.
-- Let either first arm remain valid; after both are resolved, open a short diagonal or central bridge to the final encounter.
-- Keep Cobalt's strongest existing trait: the portal should remain within one small room of the final generator.
-
-This is a higher-cost rebuild than the two portal relocations. The existing Cobalt exit cadence is already good, so prioritize changing spawn/objective bands and circulation silhouette, not simply moving its portal.
-
-### D. Future alternate — hub, spokes, then forward reveal
+### D. Hollow Throne — staged approach into arena (#151)
 
 ```text
-                   [1]
-                    │
-S ── overlook ── central landmark ── [2]
-                    │
-                   [3]
-                    │  opens only after 1–3
-                    └─────────────── X
+                              X
+                              ↑
+                       [3 Mireveil arena]
+                              ↑
+                    sealed boss threshold
+                         ↖           ↗
+                 [1 Husk sanctum] [2 Cyst sanctum]
+                         ↖           ↗
+                              S
 ```
 
-Use this sparingly. Returning to a recognizable hub can be satisfying when each return changes the space, enemy composition, or shortcut state. Do not place the exit back at `S`; opening a new edge beyond the hub preserves forward momentum.
+- The party starts at `(18–20, 33–34)`, clears either sanctum order, and
+  crosses the threshold toward Mireveil at `(20, 8)` and the portal at
+  `(20, 1)`.
+- The approach contributes 77 tiles before the boss payoff. The original
+  30 × 22 arena remains embedded so its four-pillar circling and benchmarked
+  boss balance do not change as a side effect of the traversal redesign.
+- The two dependency-free sanctums fit the four-player hostile and camera
+  budgets; Mireveil remains dormant and contained until both clear.
 
 ## Authoring rules for future levels
 
@@ -189,10 +206,24 @@ Before a map is dressed, verify:
 - Can players identify their current region from one landmark or room shape?
 - Does the route remain legible with four players, enemies, pickups, and effects on screen?
 
-## Recommended implementation order
+## Implementation record
 
-1. **Immediate cadence fix:** relocate the Brood and Resin exits to their forward edges and update mission copy/tests.
-2. **Brood blockout pass:** reshape it into the west-to-east spine while preserving its compact tutorial role.
-3. **Resin blockout pass:** rebuild around a south-to-north axis and move the two optional vaults to opposite side branches.
-4. **Cobalt blockout pass:** prototype the reverse diagonal braid; preserve its short final generator-to-portal distance and three-family identity.
-5. **Playtest instrumentation:** log generator-clear order, tile distance traveled after `exit-opened`, time with no enemies nearby, and party spread at doorways. Use those results to tune the numeric targets above.
+The redesign shipped in dependency order:
+
+1. #147 — deterministic staged encounters, authored dependencies, route
+   metrics, test-handle pacing data, and validation.
+2. #149 — The Brood Warrens west-to-east introductory spine.
+3. #150 — The Resin Galleries south-to-north expedition.
+4. #148 — The Cobalt Combs reverse-diagonal braid.
+5. #151 — The Hollow Throne staged pre-boss approach.
+
+Each delivery pins geometry and encounter behavior in its per-map sim suite.
+The real production build is played through by `e2e/playthrough.spec.ts`,
+`e2e/resin-galleries.spec.ts`, `e2e/cobalt-combs.spec.ts`, and
+`e2e/hollow-throne.spec.ts`; those runs exercise the authored direction,
+optional-space reachability, staged pressure, exit payoff, and solo/four-player
+camera behavior rather than validating a disconnected mockup.
+
+This closes the original implementation plan. Future maps should reuse the
+authoring rules and review checklist above, then add new baselines to
+`docs/LEVEL_PACING.md` and `tests/sim/level.test.ts` deliberately.
