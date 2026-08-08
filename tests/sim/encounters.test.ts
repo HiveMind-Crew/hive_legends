@@ -95,8 +95,14 @@ describe('staged encounters', () => {
     const bossLevel: LevelDef = {
       ...HOLLOW_THRONE,
       id: 'staged-boss-test',
+      // This synthetic level isolates the boss's own encounter gating from
+      // the real Hollow Throne's approach sanctums (#151), which are a
+      // separate concern covered by tests/sim/hollowThrone.test.ts.
+      generators: [],
       boss: { ...HOLLOW_THRONE.boss!, id: 'final-queen', encounterId: 'finale' },
-      encounters: [{ id: 'finale', trigger: { kind: 'radius', tx: 15, ty: 8, radiusTiles: 1 } }]
+      encounters: [
+        { id: 'finale', trigger: { kind: 'radius', tx: HOLLOW_THRONE.boss!.tx, ty: HOLLOW_THRONE.boss!.ty, radiusTiles: 1 } }
+      ]
     };
     const sim = createSim({ seed: 11, level: bossLevel, players: [{ heroId: 'vanguard' }], content: CONTENT });
     const boss = sim.state.boss!;

@@ -85,7 +85,7 @@ function buildSpecs(): Record<string, TextureSpec> {
   }
 
   // Generator families (damage tiers), props, pickups, exit.
-  for (const family of ['brood-node', 'husk-mound', 'spitter-nest']) {
+  for (const family of ['brood-node', 'husk-mound', 'spitter-nest', 'skitter-cyst']) {
     for (let t = 0; t < 3; t++) add(`generator-${family}-${t}`, 44, 44);
   }
   // Boss (issue #25): damage tiers like the Brood Nodes, at finale scale.

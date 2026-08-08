@@ -46,6 +46,9 @@ export type WorldObjectKey =
   | 'generator-spitter-nest-0'
   | 'generator-spitter-nest-1'
   | 'generator-spitter-nest-2'
+  | 'generator-skitter-cyst-0'
+  | 'generator-skitter-cyst-1'
+  | 'generator-skitter-cyst-2'
   | 'prop-resin-husk'
   | 'prop-amber-clutch'
   | 'decor-egg-cluster'
@@ -214,6 +217,44 @@ function broodNode(tier: 0 | 1 | 2): Bitmap {
     disc(image, 35, 40, 2, C.ichor, 0xd8);
     disc(image, 5, 38, 2, C.shellLow);
     disc(image, 40, 36, 2, C.shellLow);
+  }
+  return image;
+}
+
+function skitterCyst(tier: 0 | 1 | 2): Bitmap {
+  const image = bitmap(44, 44);
+  // A low cluster of three small blisters rather than one round dome: the
+  // Skitter Cyst (#151) is a Brood Node's swarm pressure at a fraction of the
+  // footprint, and it has to read that way at a glance — smaller, huddled,
+  // no single dominant mass — never as a recolored Brood Node.
+  ellipse(image, 22, 37, 15, 4, C.shadow, 0x70);
+  const bumps: readonly [number, number, number][] = [
+    [14, 27, tier === 2 ? 6 : 8],
+    [30, 27, tier === 2 ? 6 : 8],
+    [22, 18, tier === 2 ? 7 : 9]
+  ];
+  for (const [cx, cy, r] of bumps) {
+    ellipse(image, cx, cy, r, r, C.shellDark);
+    ellipse(image, cx, cy - 1, Math.max(1, r - 3), Math.max(1, r - 3), C.shell);
+    ellipseOutline(image, cx, cy, r, r, C.shellLow);
+  }
+  disc(image, 21, 15, tier === 0 ? 3 : 2, C.broodLight);
+  put(image, 20, 14, C.broodWhite);
+
+  if (tier >= 1) {
+    line(image, 14, 21, 18, 27, C.shellDark);
+    line(image, 30, 21, 26, 27, C.shellDark);
+    line(image, 18, 27, 22, 31, C.broodLight);
+    disc(image, 9, 30, 2, C.shellLow);
+    disc(image, 35, 30, 2, C.shellLow);
+  }
+  if (tier === 2) {
+    ellipse(image, 22, 24, 5, 5, C.broodLight);
+    disc(image, 21, 23, 2, C.broodWhite);
+    line(image, 15, 32, 12, 39, C.ichor);
+    line(image, 29, 32, 33, 39, C.ichor);
+    disc(image, 12, 40, 2, C.ichor, 0xd8);
+    disc(image, 33, 40, 2, C.ichor, 0xd8);
   }
   return image;
 }
@@ -420,6 +461,12 @@ export function worldObjectBitmap(key: WorldObjectKey): Bitmap {
       return spitterNest(1);
     case 'generator-spitter-nest-2':
       return spitterNest(2);
+    case 'generator-skitter-cyst-0':
+      return skitterCyst(0);
+    case 'generator-skitter-cyst-1':
+      return skitterCyst(1);
+    case 'generator-skitter-cyst-2':
+      return skitterCyst(2);
     case 'prop-resin-husk':
       return resinHusk();
     case 'prop-amber-clutch':
@@ -444,6 +491,9 @@ export function buildWorldObjectPack(): ReadonlyMap<WorldObjectKey, Uint8Array> 
     'generator-spitter-nest-0',
     'generator-spitter-nest-1',
     'generator-spitter-nest-2',
+    'generator-skitter-cyst-0',
+    'generator-skitter-cyst-1',
+    'generator-skitter-cyst-2',
     'prop-resin-husk',
     'prop-amber-clutch',
     'decor-egg-cluster',

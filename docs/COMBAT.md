@@ -569,6 +569,7 @@ drop each hero from full — the pressure a single one of these represents, befo
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Brood Node | 120 | Skitterling | 24t | 9 / +2 | ≤50% hp → ×0.6 for 2.50 s | — | 25 | 40 |
 | Husk Mound | 150 | Carapace Husk | 165t | 2 / +1 | — | Gravebound Ravager | 30 | 45 |
+| Skitter Cyst | 90 | Skitterling | 30t | 2 / +1 | — | — | 25 | 35 |
 | Spitter Nest | 110 | Bile Spitter | 150t | 2 / +1 | — | — | 30 | 45 |
 
 ### Mireveil — Mother of the Brood

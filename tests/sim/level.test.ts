@@ -165,7 +165,7 @@ describe('authored pacing baselines', () => {
     [BROOD_WARRENS, { floor: 1069, route: 97, exit: 5, pinch: 3 }],
     [RESIN_GALLERIES, { floor: 756, route: 140, exit: 7, pinch: 3 }],
     [COBALT_COMBS, { floor: 755, route: 123, exit: 6, pinch: 3 }],
-    [HOLLOW_THRONE, { floor: 528, route: 18, exit: 7, pinch: 10 }]
+    [HOLLOW_THRONE, { floor: 826, route: 84, exit: 7, pinch: 4 }]
   ] as const)('$name reports its pinned route baseline', (level, expected) => {
     const metrics = measureLevelPacing(level);
     expect(metrics.walkableFloorCount).toBe(expected.floor);
