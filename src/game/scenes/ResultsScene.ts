@@ -26,7 +26,15 @@ import { FULLSCREEN_HINT, bindFullscreenToggle } from '../fullscreen';
 import { MenuSelection, type SelectionPosition } from '../menuSelection';
 import { bindPadMenu } from '../padMenu';
 import { partyResultLines, partyResultTotals, type PartyResultPlayer } from '../partyResults';
-import { resultsShopCards, specializationCards, xpProgressViewModel, type ShopCard, type SpecializationShopCard } from '../resultsViewModel';
+import {
+  resultsNavigationActions,
+  resultsShopCards,
+  specializationCards,
+  xpProgressViewModel,
+  type ResultsNavigationAction,
+  type ShopCard,
+  type SpecializationShopCard
+} from '../resultsViewModel';
 import { TEX } from '../textures';
 
 interface ResultsData {
@@ -57,7 +65,9 @@ export class ResultsScene extends Phaser.Scene {
   private modalObjects: Phaser.GameObjects.GameObject[] = [];
   private bankText!: Phaser.GameObjects.Text;
   private toastText!: Phaser.GameObjects.Text;
-  private navLabels: string[] = [];
+  private navigationActions: ResultsNavigationAction[] = [];
+  private activatedNavigationCol: number | null = null;
+  private navigationActivating = false;
   private shopCards: ShopCard[] = [];
   private specializationShopCards: SpecializationShopCard[] = [];
 
@@ -67,6 +77,8 @@ export class ResultsScene extends Phaser.Scene {
 
   create(data: ResultsData): void {
     const { width, height } = this.scale;
+    this.activatedNavigationCol = null;
+    this.navigationActivating = false;
     this.victory = data.victory;
     this.players = [...(data.players ?? [])].sort((a, b) => a.slot - b.slot);
     const totals = partyResultTotals(this.players);
@@ -95,6 +107,7 @@ export class ResultsScene extends Phaser.Scene {
 
     this.nextId = data.victory ? nextLevelId(this.levelId, MISSION_ORDER) : null;
     this.nextName = this.nextId ? LEVELS[this.nextId]?.name : undefined;
+    this.navigationActions = resultsNavigationActions(this.nextName);
     const teaser = data.victory && !this.nextId ? nextTeaser(this.profile) : undefined;
 
     this.mainRows = [3, Math.max(1, abilitySpecializationsForHero(this.heroId).length), 3];
@@ -121,6 +134,14 @@ export class ResultsScene extends Phaser.Scene {
         bank: this.profile.bank,
         dynamicObjectCount: this.dynamicObjects.length,
         scenePaused: this.scene.isPaused(),
+        navigationActions: this.navigationActions.map((action, col) => ({
+          ...action,
+          state: this.activatedNavigationCol === col
+            ? 'activated'
+            : this.selection.position.row === 2 && this.selection.position.col === col
+              ? 'focused'
+              : 'default'
+        })),
         chosenSpecialization: this.profile.abilitySpecializations[abilitySpecializationsForHero(this.heroId)[0]?.groupId ?? ''] ?? null
       })
     };
@@ -267,17 +288,65 @@ export class ResultsScene extends Phaser.Scene {
   }
 
   private renderNavigation(): void {
-    this.navLabels = [this.nextName ? `NEXT REALM  ·  ${this.nextName}` : 'WHEEL', 'REPLAY', 'HERO SELECT'];
-    this.navLabels.forEach((label, col) => {
-      const width = col === 0 ? 278 : col === 1 ? 90 : 132;
-      const x = col === 0 ? 31 : col === 1 ? 319 : 419;
-      const background = this.makeTarget(x, 658, width, 43, 2, col, col === 0 ? 'available' : 'available', this.cardSelected(2, col));
-      this.dynamicObjects.push(background);
-      const text = this.add.text(x + width / 2, 658, label, { fontFamily: 'monospace', fontSize: '11px', color: col === 0 ? '#ffd75e' : '#c0b3ce', fontStyle: 'bold' }).setOrigin(0.5);
-      this.dynamicObjects.push(text);
+    const widths = [390, 230, 264] as const;
+    let x = 31;
+    this.navigationActions.forEach((action, col) => {
+      const width = widths[col] ?? 230;
+      const focused = this.cardSelected(2, col);
+      const activated = this.activatedNavigationCol === col;
+      const fill = activated ? 0xffd75e : focused ? 0x17303a : 0x100b18;
+      const stroke = activated ? 0xf4e3b2 : focused ? 0x64e6ff : col === 0 ? 0xffd75e : 0x716280;
+      const titleColor = activated ? '#100b18' : focused ? '#64e6ff' : col === 0 ? '#ffd75e' : '#f4e3b2';
+      const detailColor = activated ? '#21182e' : focused ? '#d9f8ff' : '#a194b3';
+      const hint = activated ? 'CONFIRMED' : focused ? 'ENTER · A' : action.shortcut;
+      const background = this.add
+        .rectangle(x, 646, width, 57, fill, activated ? 1 : 0.96)
+        .setOrigin(0, 0)
+        .setStrokeStyle(focused || activated ? 2 : 1, stroke, focused || activated ? 1 : 0.78)
+        .setInteractive({ useHandCursor: true });
+      background.on('pointerover', () => this.pointerSelect(2, col));
+      background.on('pointerdown', () => {
+        if (this.navigationActivating) return;
+        this.selection.pointer({ row: 2, col });
+        this.activateNavigation(col);
+      });
+
+      const glyph = this.add
+        .text(x + 15, 664, focused ? '▶' : action.glyph, { fontFamily: 'monospace', fontSize: '13px', color: titleColor, fontStyle: 'bold' })
+        .setOrigin(0, 0.5);
+      const title = this.add
+        .text(x + 39, 664, action.label, { fontFamily: 'monospace', fontSize: '12px', color: titleColor, fontStyle: 'bold' })
+        .setOrigin(0, 0.5);
+      const detail = this.add
+        .text(x + 39, 686, activated ? this.navigationActivationCopy(action) : action.detail, {
+          fontFamily: 'monospace',
+          fontSize: '9px',
+          color: detailColor
+        })
+        .setOrigin(0, 0.5);
+      const keyHint = this.add
+        .text(x + width - 12, 664, hint, {
+          fontFamily: 'monospace',
+          fontSize: '9px',
+          color: activated ? '#100b18' : focused ? '#100b18' : '#c0b3ce',
+          backgroundColor: activated ? '#f4e3b2' : focused ? '#64e6ff' : '#21182e',
+          padding: { left: 6, right: 6, top: 3, bottom: 3 }
+        })
+        .setOrigin(1, 0.5);
+      this.dynamicObjects.push(background, glyph, title, detail, keyHint);
+      x += width + 8;
     });
-    const controls = this.add.text(913, 680, `↑↓←→ MOVE     A CONFIRM     ${FULLSCREEN_HINT}`, { fontFamily: 'monospace', fontSize: '10px', color: '#7a6f92' }).setOrigin(1, 0.5);
-    this.dynamicObjects.push(controls);
+
+    const fullscreen = this.add
+      .text(930, 636, FULLSCREEN_HINT, { fontFamily: 'monospace', fontSize: '9px', color: '#716280' })
+      .setOrigin(1, 0.5);
+    this.dynamicObjects.push(fullscreen);
+  }
+
+  private navigationActivationCopy(action: ResultsNavigationAction): string {
+    if (action.id === 'mission-select') return 'OPENING MISSION SELECT…';
+    if (action.id === 'replay') return 'RESTARTING MISSION…';
+    return 'OPENING HERO SELECT…';
   }
 
   private makeTarget(x: number, y: number, width: number, height: number, row: number, col: number, state: string, selected: boolean): Phaser.GameObjects.Rectangle {
@@ -335,7 +404,7 @@ export class ResultsScene extends Phaser.Scene {
   }
 
   private pointerSelect(row: number, col: number): void {
-    if (this.modalOpen) return;
+    if (this.modalOpen || this.navigationActivating) return;
     if (this.selection.position.row === row && this.selection.position.col === col) return;
     this.selection.pointer({ row, col });
     audio.uiTick();
@@ -343,6 +412,7 @@ export class ResultsScene extends Phaser.Scene {
   }
 
   private activateSelected(intent: 'default' | 'cycle' | 'wheel' = 'default'): void {
+    if (this.navigationActivating) return;
     if (this.modalOpen) {
       if (this.selection.position.col === 0) this.confirmSpecialization();
       else this.cancelSpecialization();
@@ -471,22 +541,35 @@ export class ResultsScene extends Phaser.Scene {
     this.renderDynamic();
   }
 
-  private activateNavigation(col: number, intent: 'default' | 'wheel'): void {
-    if (col === 0) {
-      if (intent === 'wheel' || !this.nextId) this.toWheel(this.levelId);
-      else this.toWheel(this.nextId);
-    } else if (col === 1) this.replay();
-    else this.toHeroSelect();
+  private activateNavigation(col: number, intent: 'default' | 'wheel' = 'default'): void {
+    const action = this.navigationActions[col];
+    if (!action || this.modalOpen || this.navigationActivating) return;
+    this.selection.select({ row: 2, col });
+    this.activatedNavigationCol = col;
+    this.navigationActivating = true;
+    audio.uiConfirm();
+    this.renderDynamic();
+    this.time.delayedCall(140, () => {
+      if (action.id === 'mission-select') {
+        const focus = intent === 'wheel' || !this.nextId ? this.levelId : this.nextId;
+        this.scene.start('mission-hub', { heroId: this.heroId, levelId: focus });
+      } else if (action.id === 'replay') {
+        this.scene.start('mission', { heroId: this.heroId, levelId: this.levelId });
+      } else {
+        this.scene.start('hero-select', { heroId: this.heroId });
+      }
+    });
   }
 
   private selectAndActivate(row: number, col: number, intent: 'default' | 'cycle' | 'wheel' = 'default'): void {
-    if (this.modalOpen) return;
+    if (this.modalOpen || this.navigationActivating) return;
     this.selection.select({ row, col });
     this.renderDynamic();
     this.activateSelected(intent);
   }
 
   private move(direction: 'up' | 'down' | 'left' | 'right'): void {
+    if (this.navigationActivating) return;
     if (this.modalOpen) {
       if (direction === 'left' || direction === 'right' || direction === 'up' || direction === 'down') this.selection.select({ row: 0, col: this.selection.position.col === 0 ? 1 : 0 });
       this.renderModal();
@@ -498,25 +581,25 @@ export class ResultsScene extends Phaser.Scene {
   }
 
   private toWheel(focus: string): void {
-    if (this.modalOpen) return;
+    if (this.modalOpen || this.navigationActivating) return;
     audio.uiConfirm();
     this.scene.start('mission-hub', { heroId: this.heroId, levelId: focus });
   }
 
   private replay(): void {
-    if (this.modalOpen) return;
+    if (this.modalOpen || this.navigationActivating) return;
     audio.uiConfirm();
     this.scene.start('mission', { heroId: this.heroId, levelId: this.levelId });
   }
 
   private toHeroSelect(): void {
-    if (this.modalOpen) return;
+    if (this.modalOpen || this.navigationActivating) return;
     audio.uiConfirm();
     this.scene.start('hero-select', { heroId: this.heroId });
   }
 
   private openSettings(): void {
-    if (this.modalOpen) return;
+    if (this.modalOpen || this.navigationActivating) return;
     audio.uiConfirm();
     this.scene.launch('settings', { returnScene: 'results' });
     this.scene.pause();

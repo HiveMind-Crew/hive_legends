@@ -168,6 +168,66 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'test-results/04-results.png' });
 
+  // The results exits form one explicit action bar: destination copy is
+  // observable independently of rendered pixels, while the screenshots guard
+  // its native and FIT-scaled presentation. Keyboard and pointer focus feed
+  // the same ragged-grid cursor used by the shop rows above it.
+  const resultsNavigation = async () =>
+    page.evaluate(() =>
+      ((globalThis as {
+        __hiveResults?: {
+          getState: () => {
+            selectedRow: number;
+            selectedCol: number;
+            navigationActions: { id: string; label: string; detail: string; state: string }[];
+          };
+        };
+      }).__hiveResults?.getState() ?? null)
+    );
+  expect((await resultsNavigation())?.navigationActions).toMatchObject([
+    { id: 'mission-select', label: 'MISSION SELECT', detail: 'NEXT MISSION  ·  THE RESIN GALLERIES', state: 'default' },
+    { id: 'replay', label: 'REPLAY', state: 'default' },
+    { id: 'hero-select', label: 'HERO SELECT', state: 'default' }
+  ]);
+
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(resultsNavigation, { timeout: 5_000 }).toMatchObject({
+    selectedRow: 2,
+    selectedCol: 0,
+    navigationActions: [{ id: 'mission-select', state: 'focused' }, { state: 'default' }, { state: 'default' }]
+  });
+  await page.screenshot({ path: 'test-results/issue143-results-navigation-native.png' });
+
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await expect
+    .poll(async () => (await page.locator('canvas').boundingBox())?.height ?? 0, { timeout: 10_000 })
+    .toBeCloseTo(600, 0);
+  const scaledCanvas = await page.locator('canvas').boundingBox();
+  expect(scaledCanvas).not.toBeNull();
+  expect(scaledCanvas!.x).toBeGreaterThanOrEqual(0);
+  expect(scaledCanvas!.x + scaledCanvas!.width).toBeLessThanOrEqual(1281);
+  await page.screenshot({ path: 'test-results/issue143-results-navigation-scaled.png' });
+  await page.setViewportSize({ width: 960, height: 720 });
+  await expect
+    .poll(async () => (await page.locator('canvas').boundingBox())?.width ?? 0, { timeout: 10_000 })
+    .toBeCloseTo(960, 0);
+
+  await page.mouse.move(800, 675);
+  await expect.poll(resultsNavigation, { timeout: 5_000 }).toMatchObject({
+    selectedRow: 2,
+    selectedCol: 2,
+    navigationActions: [{ state: 'default' }, { state: 'default' }, { id: 'hero-select', state: 'focused' }]
+  });
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(resultsNavigation, { timeout: 5_000 }).toMatchObject({
+    selectedRow: 2,
+    selectedCol: 1,
+    navigationActions: [{ state: 'default' }, { id: 'replay', state: 'focused' }, { state: 'default' }]
+  });
+  // Restore the initial shop selection expected by the purchase assertions.
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowLeft');
+
   const profile = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('hive-legends-profile-v1') ?? 'null')
   );
@@ -280,6 +340,7 @@ test('a player can complete The Brood Warrens and bank progression', async ({ pa
   // Replay: the hero must keep the purchased power (+20 max HP per vitality
   // rank) *and* the level earned from the run's XP (+maxHpPerLevel each).
   await page.keyboard.press('R');
+  expect((await resultsNavigation())?.navigationActions[1]).toMatchObject({ id: 'replay', state: 'activated' });
   // The pre-replay handle still reports phase 'complete'; wait for the fresh sim.
   await expect
     .poll(async () => (await getState(page))?.phase, { timeout: 10_000 })

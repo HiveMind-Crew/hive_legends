@@ -194,12 +194,49 @@ test('a gamepad can navigate the shell and clear The Brood Warrens', async ({ pa
     .toMatchObject({ modalOpen: false, bank: bankBeforeModal - specializationCost, chosenSpecialization: 'vanguard-faultline' });
   await page.screenshot({ path: 'test-results/08b-gamepad-specialization.png' });
 
-  // And the shell answers the pad on the way back out: (B) leaves results for
-  // the wheel, and (A) there deploys the node the clear just unlocked. The
-  // mission handle is deleted when a run ends, so a fresh one appearing is
-  // proof both screens acted.
+  // The pad can focus every action in the ragged bottom row, then confirm the
+  // clearly named Mission Select destination. Its supporting copy promises
+  // the newly unlocked mission, and the hub cursor must land there.
   await expect.poll(async () => getState(page), { timeout: 10_000 }).toBeNull();
-  await driver.tap(BUTTON.b);
+  const resultsNavigation = async () =>
+    page.evaluate(() =>
+      ((globalThis as {
+        __hiveResults?: {
+          getState: () => {
+            selectedRow: number;
+            selectedCol: number;
+            navigationActions: { id: string; label: string; detail: string; state: string }[];
+          };
+        };
+      }).__hiveResults?.getState() ?? null)
+    );
+  await driver.tap(BUTTON.dpadDown);
+  await expect.poll(resultsNavigation, { timeout: 5_000 }).toMatchObject({
+    selectedRow: 2,
+    selectedCol: 0,
+    navigationActions: [
+      { id: 'mission-select', label: 'MISSION SELECT', detail: 'NEXT MISSION  ·  THE RESIN GALLERIES', state: 'focused' },
+      { id: 'replay', state: 'default' },
+      { id: 'hero-select', state: 'default' }
+    ]
+  });
+  await driver.tap(BUTTON.dpadRight);
+  await expect.poll(resultsNavigation, { timeout: 5_000 }).toMatchObject({ selectedRow: 2, selectedCol: 1 });
+  await driver.tap(BUTTON.dpadRight);
+  await expect.poll(resultsNavigation, { timeout: 5_000 }).toMatchObject({ selectedRow: 2, selectedCol: 2 });
+  await driver.tap(BUTTON.dpadLeft);
+  await driver.tap(BUTTON.dpadLeft);
+  await page.screenshot({ path: 'test-results/issue143-gamepad-mission-select.png' });
+  await driver.tap(BUTTON.a);
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() =>
+          ((globalThis as { __hiveHub?: { getState: () => { selectedLevelId: string } } }).__hiveHub?.getState() ?? null)?.selectedLevelId ?? null
+        ),
+      { timeout: 10_000 }
+    )
+    .toBe('resin-galleries');
   await page.waitForTimeout(400);
   await page.screenshot({ path: 'test-results/09-gamepad-wheel.png' });
   await expect

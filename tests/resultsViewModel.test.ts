@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ABILITY_SPECIALIZATIONS } from '../src/content';
 import { buyAbilitySpecialization, defaultProfile } from '../src/meta/save';
-import { resultsShopCards, specializationCards, xpProgressViewModel } from '../src/game/resultsViewModel';
+import { resultsNavigationActions, resultsShopCards, specializationCards, xpProgressViewModel } from '../src/game/resultsViewModel';
 
 describe('results view models', () => {
   it('encodes affordability, rank, and max states without prose parsing', () => {
@@ -35,5 +35,39 @@ describe('results view models', () => {
     expect(xpProgressViewModel(profile)).toMatchObject({ level: 3, percent: 0, atCap: false });
     profile.xp = 99999;
     expect(xpProgressViewModel(profile)).toMatchObject({ atCap: true, percent: 100 });
+  });
+
+  it('names every results destination and keeps next-mission context subordinate', () => {
+    expect(resultsNavigationActions('The Resin Galleries')).toEqual([
+      {
+        id: 'mission-select',
+        label: 'MISSION SELECT',
+        detail: 'NEXT MISSION  ·  THE RESIN GALLERIES',
+        shortcut: 'N',
+        glyph: '◆'
+      },
+      {
+        id: 'replay',
+        label: 'REPLAY',
+        detail: 'RUN THIS MISSION AGAIN',
+        shortcut: 'R',
+        glyph: '↻'
+      },
+      {
+        id: 'hero-select',
+        label: 'HERO SELECT',
+        detail: 'CHANGE YOUR HERO',
+        shortcut: 'H',
+        glyph: '◇'
+      }
+    ]);
+  });
+
+  it('still identifies Mission Select when there is no next mission', () => {
+    expect(resultsNavigationActions()[0]).toMatchObject({
+      id: 'mission-select',
+      label: 'MISSION SELECT',
+      detail: 'REVIEW THE MISSION MAP'
+    });
   });
 });
