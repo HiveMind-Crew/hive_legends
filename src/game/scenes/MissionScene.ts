@@ -971,6 +971,7 @@ export class MissionScene extends Phaser.Scene {
       this.clearDebugHandle();
       this.scene.stop('hud');
       this.scene.start('results', {
+        mode: 'run',
         victory,
         players,
         ticks: this.sim.state.tick,
