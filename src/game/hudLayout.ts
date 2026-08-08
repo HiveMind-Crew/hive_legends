@@ -1,84 +1,110 @@
 /**
- * Top-bar geometry for the dynamic per-player HUD panels (issues #96/#106).
+ * Compact screen-space HUD geometry (issues #96/#106/#144).
  *
- * The HUD used to draw four fixed panels and fill the three empty ones with
- * dimmed JOIN placeholders. In a game that is solo-only until M3 that spent
- * three quarters of a 960px bar advertising a mode that does not exist, and
- * squeezed the objective ribbon underneath it.
- *
- * Panels derive from the live joined count: the bar reflows on explicit join
- * and drop-out, and whoever is playing gets the whole of it. Kept out of `HudScene` so
- * the arithmetic is testable without Phaser (the `hubCopy` precedent) — the
- * scene asks where the panels go and draws them.
+ * The gameplay canvas is always authored at 960x720 and Phaser FIT-scales that
+ * complete canvas for the browser viewport.  Keeping these coordinates pure
+ * makes the important contract testable: even with four players, the HUD must
+ * leave a broad, uninterrupted view through the middle of the battlefield.
  */
 
 /** Local co-op ceiling, matching the four authored level spawn slots. */
 export const MAX_PLAYERS = 4;
 
-/**
- * The width the panel's contents were authored against. Layout scales by
- * redistributing that design across the real width rather than restretching
- * it, so a four-player bar reproduces the original geometry exactly.
- */
-export const BASE_PANEL_W = 225;
+/** Fixed logical canvas dimensions declared in `src/main.ts`. */
+export const HUD_DESIGN_WIDTH = 960;
+export const HUD_DESIGN_HEIGHT = 720;
 
-const PANEL_GAP = 8;
-/** Clear space either side of the bar, matching the old four-panel inset. */
-const BAR_MARGIN = 18;
+/** Compact panel dimensions. Content in HudScene is authored to this box. */
+export const HUD_PANEL_WIDTH = 212;
+export const HUD_PANEL_HEIGHT = 42;
 
-/**
- * Ceiling on how far a panel grows for a small party.
- *
- * Letting one player take the whole 924px bar was tried and looks worse than
- * the problem: the panel's three clusters end up marooned at either end with a
- * field of empty frame between them, which reads as broken rather than roomy.
- * Roughly double the authored width keeps the readout dense and unmistakably
- * the player's, and leaves clean background either side instead of dead
- * furniture. This is a presentation judgement, not a constraint — it is the one
- * number to turn if the bar should feel wider.
- */
-const MAX_PANEL_W = 440;
+/** The conditional objective plate in the clear centre lane. */
+export const HUD_STATUS_WIDTH = 300;
+export const HUD_STATUS_HEIGHT = 20;
+/** Finale bar width; it must fit in the same unobstructed centre lane. */
+export const HUD_BOSS_STATUS_WIDTH = 460;
+
+const EDGE_MARGIN = 10;
+const PANEL_TOP = 6;
+const ROW_GAP = 6;
+
+export interface PanelPlacement {
+  x: number;
+  y: number;
+}
 
 export interface PanelLayout {
-  /** Width of every panel; they are equal so no player's readout is favoured. */
   width: number;
-  /** Left edge of each panel in screen px, in slot order. */
-  xs: number[];
-  gap: number;
+  height: number;
+  placements: PanelPlacement[];
+  /** Horizontal gameplay lane between the two HUD columns. */
+  centerClearWidth: number;
+  /** Conservative geometric area covered by player panels. */
+  panelArea: number;
 }
 
 /**
- * Where the panels sit for a given player count.
+ * Place joined slots into shallow stacks at the upper-left and upper-right.
  *
- * Every panel is the same width and the row is centred, so one player fills the
- * bar and four split it. At four on a 960px screen this returns exactly the
- * geometry the fixed layout used to hardcode, which is what makes the change
- * invisible to a co-op build.
+ * Alternating sides keeps P1/P2 on the first row and P3/P4 on the second. In
+ * contrast to a full-width bar, the objective and the action directly beneath
+ * it remain readable at every party size. Slot identity is carried by the
+ * panel itself, so a reflow never changes who owns a readout.
  */
 export function panelLayout(playerCount: number, screenWidth: number): PanelLayout {
   const count = Math.max(1, Math.min(MAX_PLAYERS, Math.floor(playerCount) || 1));
-  const bar = Math.max(BASE_PANEL_W, screenWidth - BAR_MARGIN * 2);
-  const width = Math.min(MAX_PANEL_W, Math.floor((bar - (count - 1) * PANEL_GAP) / count));
-  const used = count * width + (count - 1) * PANEL_GAP;
-  const left = Math.round((screenWidth - used) / 2);
+  // The game always supplies 960 here. The clamp prevents accidental overlap
+  // if the helper is exercised with a narrower logical canvas in isolation.
+  const width = Math.min(HUD_PANEL_WIDTH, Math.max(1, Math.floor((screenWidth - EDGE_MARGIN * 2) / 2)));
+  const left = EDGE_MARGIN;
+  const right = screenWidth - EDGE_MARGIN - width;
+  const placements = Array.from({ length: count }, (_, index) => ({
+    x: index % 2 === 0 ? left : right,
+    y: PANEL_TOP + Math.floor(index / 2) * (HUD_PANEL_HEIGHT + ROW_GAP)
+  }));
+
   return {
     width,
-    gap: PANEL_GAP,
-    xs: Array.from({ length: count }, (_, i) => left + i * (width + PANEL_GAP))
+    height: HUD_PANEL_HEIGHT,
+    placements,
+    centerClearWidth: Math.max(0, right - (left + width)),
+    panelArea: count * width * HUD_PANEL_HEIGHT
   };
 }
 
+export interface HudObstruction {
+  /** Panels plus the normal objective plate, treating translucent pixels as opaque. */
+  area: number;
+  fraction: number;
+  centerClearWidth: number;
+  deepestPanelEdge: number;
+}
+
 /**
- * How far an element authored at `BASE_PANEL_W` moves when the panel is wider.
+ * Worst-case normal-mission obstruction contract.
  *
- * The panel has three clusters — identity on the left, tallies in the middle,
- * meters on the right — and widening it should spread them apart rather than
- * leave everything huddled at the left edge with dead space beside it. At the
- * authored width every offset is zero, so the original design is preserved
- * exactly.
+ * The objective plate is included even though it is conditional, and panel
+ * translucency is ignored, so this intentionally overstates actual coverage.
+ * The boss presentation occupies less solid area than that plate.
  */
-export function anchorOffset(anchor: 'left' | 'center' | 'right', panelWidth: number): number {
-  const slack = panelWidth - BASE_PANEL_W;
-  if (anchor === 'left') return 0;
-  return anchor === 'center' ? slack / 2 : slack;
+export function hudObstruction(
+  playerCount: number,
+  screenWidth = HUD_DESIGN_WIDTH,
+  screenHeight = HUD_DESIGN_HEIGHT
+): HudObstruction {
+  const layout = panelLayout(playerCount, screenWidth);
+  const area = layout.panelArea + HUD_STATUS_WIDTH * HUD_STATUS_HEIGHT;
+  const deepestPanelEdge = Math.max(...layout.placements.map(({ y }) => y + layout.height));
+  return {
+    area,
+    fraction: area / (screenWidth * screenHeight),
+    centerClearWidth: layout.centerClearWidth,
+    deepestPanelEdge
+  };
+}
+
+/** CSS size of the fixed canvas under Phaser's aspect-preserving FIT mode. */
+export function fittedCanvasSize(viewportWidth: number, viewportHeight: number): { width: number; height: number } {
+  const scale = Math.min(viewportWidth / HUD_DESIGN_WIDTH, viewportHeight / HUD_DESIGN_HEIGHT);
+  return { width: HUD_DESIGN_WIDTH * scale, height: HUD_DESIGN_HEIGHT * scale };
 }
