@@ -10,6 +10,7 @@ import { MenuSelection } from '../menuSelection';
 import { bindPadMenu } from '../padMenu';
 import { missionHubItems, spokeProgressCopy, type MissionHubItem } from '../hubViewModel';
 import { generatorFrame, bossFrame, TEX } from '../textures';
+import { upgradeShopEntry, UPGRADE_ROUTE_LABEL } from '../upgradeRoute';
 
 /**
  * The mission map is a route rail plus one selected destination card. The
@@ -94,6 +95,8 @@ export class MissionHubScene extends Phaser.Scene {
           selectedLabel: item?.name ?? '',
           selectedStatus: item?.rowCopy ?? '',
           selectedAction: item?.state === 'locked' ? item.rowCopy : item?.state === 'cleared' ? 'REPLAY' : 'DEPLOY',
+          heroId: this.heroId,
+          upgradeRouteLabel: UPGRADE_ROUTE_LABEL,
           selectedLabelCount: counts?.labelCount ?? 0,
           selectedNameCount: counts?.nameCount ?? 0,
           selectedStateCount: counts?.stateCount ?? 0
@@ -347,7 +350,8 @@ export class MissionHubScene extends Phaser.Scene {
 
     const deploy = this.makeButton(436, 650, 158, 40, item.state === 'locked' ? 'LOCKED' : item.state === 'cleared' ? 'REPLAY' : 'DEPLOY', item.state === 'locked' ? COLOR.red : COLOR.amber, () => this.confirmSelected());
     const heroSelect = this.makeButton(604, 650, 133, 40, 'HERO SELECT', COLOR.lilac, () => this.toHeroSelect());
-    this.dynamicObjects.push(deploy, heroSelect);
+    const upgrades = this.makeButton(747, 650, 165, 40, UPGRADE_ROUTE_LABEL, COLOR.cyan, () => this.openUpgrades());
+    this.dynamicObjects.push(deploy, heroSelect, upgrades);
 
     this.realmTitle.setText(item.spokeName.toUpperCase());
     const spokeIndex = CONTENT.spokes.findIndex((spoke) => spoke.id === item.spokeId);
@@ -425,6 +429,14 @@ export class MissionHubScene extends Phaser.Scene {
     this.scene.start('hero-select', { heroId: this.heroId });
   }
 
+  private openUpgrades(): void {
+    const item = this.items[this.selection.selectedIndex];
+    if (!item) return;
+    audio.unlock();
+    audio.uiConfirm();
+    this.scene.start('results', upgradeShopEntry(this.heroId, item.levelId));
+  }
+
   private openSettings(): void {
     audio.unlock();
     audio.uiConfirm();
@@ -450,6 +462,7 @@ export class MissionHubScene extends Phaser.Scene {
     kb?.on('keydown-ENTER', () => this.confirmSelected());
     kb?.on('keydown-SPACE', () => this.confirmSelected());
     kb?.on('keydown-H', () => this.toHeroSelect());
+    kb?.on('keydown-U', () => this.openUpgrades());
     kb?.on('keydown-O', () => this.openSettings());
     bindFullscreenToggle(this);
     bindPadMenu(this, {
@@ -459,6 +472,7 @@ export class MissionHubScene extends Phaser.Scene {
       left: () => this.jumpSpoke(-1),
       confirm: () => this.confirmSelected(),
       cancel: () => this.toHeroSelect(),
+      alt2: () => this.openUpgrades(),
       menu: () => this.openSettings()
     });
   }

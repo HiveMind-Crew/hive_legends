@@ -36,22 +36,16 @@ import {
   type SpecializationShopCard
 } from '../resultsViewModel';
 import { TEX } from '../textures';
-
-interface ResultsData {
-  victory: boolean;
-  players: PartyResultPlayer[];
-  ticks: number;
-  continuesUsed?: number;
-  continueGold?: number;
-  heroId: string;
-  levelId: string;
-}
+import { resultsReturnTarget, type MissionHubReturnTarget, type ResultsSceneData, type RunResultsData } from '../upgradeRoute';
 
 /** Results, upgrades, and exits share one visible cursor and one confirm path. */
 export class ResultsScene extends Phaser.Scene {
   private profile!: Profile;
   private heroId = 'vanguard';
   private levelId = '';
+  private shopOnly = false;
+  private shopPadArmed = true;
+  private returnTarget!: MissionHubReturnTarget;
   private nextId: string | null = null;
   private nextName: string | undefined;
   private victory = false;
@@ -75,48 +69,60 @@ export class ResultsScene extends Phaser.Scene {
     super('results');
   }
 
-  create(data: ResultsData): void {
+  create(data: ResultsSceneData): void {
     const { width, height } = this.scale;
     this.activatedNavigationCol = null;
     this.navigationActivating = false;
-    this.victory = data.victory;
-    this.players = [...(data.players ?? [])].sort((a, b) => a.slot - b.slot);
-    const totals = partyResultTotals(this.players);
+    this.shopOnly = data.mode === 'shop';
+    this.shopPadArmed = !this.shopOnly;
+    if (this.shopOnly) this.time.delayedCall(200, () => { this.shopPadArmed = true; });
+    this.returnTarget = resultsReturnTarget(data);
+    this.victory = data.mode === 'run' && data.victory;
+    this.players = data.mode === 'run' ? [...data.players].sort((a, b) => a.slot - b.slot) : [];
     this.heroId = CONTENT.heroes[this.players[0]?.heroId ?? data.heroId] ? this.players[0]?.heroId ?? data.heroId : 'vanguard';
     this.levelId = LEVELS[data.levelId] ? data.levelId : MISSION_ORDER[0]!;
     const level = LEVELS[this.levelId]!;
 
     this.profile = loadProfile();
-    const wasCleared = this.profile.clearedLevels.includes(this.levelId);
-    const clearBonus = data.victory && !wasCleared ? firstClearBonus(level) : 0;
-    const bankedGold = totals.gold + clearBonus;
-    this.profile.bank += bankedGold;
-    const xpResult = bankXp(this.profile, totals.xp);
-    const continuesUsed = Math.max(0, data.continuesUsed ?? 0);
-    let newMastery = false;
-    let clearTime: ClearTimeResult | null = null;
-    if (data.victory) {
-      this.profile.missionsCompleted += 1;
-      clearTime = continuesUsed > 0 ? null : recordClearTicks(this.profile, this.levelId, data.ticks);
-      for (const heroId of new Set(this.players.map((player) => player.heroId))) {
-        newMastery = markHeroMastery(this.profile, this.levelId, heroId) || newMastery;
-      }
-      markLevelCleared(this.profile, this.levelId);
-    }
-    saveProfile(this.profile);
+    this.nextId = null;
+    this.nextName = undefined;
 
-    this.nextId = data.victory ? nextLevelId(this.levelId, MISSION_ORDER) : null;
-    this.nextName = this.nextId ? LEVELS[this.nextId]?.name : undefined;
+    this.drawBackground(width, height);
+    if (data.mode === 'run') {
+      const totals = partyResultTotals(this.players);
+      const wasCleared = this.profile.clearedLevels.includes(this.levelId);
+      const clearBonus = data.victory && !wasCleared ? firstClearBonus(level) : 0;
+      const bankedGold = totals.gold + clearBonus;
+      this.profile.bank += bankedGold;
+      const xpResult = bankXp(this.profile, totals.xp);
+      const continuesUsed = Math.max(0, data.continuesUsed ?? 0);
+      let newMastery = false;
+      let clearTime: ClearTimeResult | null = null;
+      if (data.victory) {
+        this.profile.missionsCompleted += 1;
+        clearTime = continuesUsed > 0 ? null : recordClearTicks(this.profile, this.levelId, data.ticks);
+        for (const heroId of new Set(this.players.map((player) => player.heroId))) {
+          newMastery = markHeroMastery(this.profile, this.levelId, heroId) || newMastery;
+        }
+        markLevelCleared(this.profile, this.levelId);
+      }
+      saveProfile(this.profile);
+
+      this.nextId = data.victory ? nextLevelId(this.levelId, MISSION_ORDER) : null;
+      this.nextName = this.nextId ? LEVELS[this.nextId]?.name : undefined;
+      const teaser = data.victory && !this.nextId ? nextTeaser(this.profile) : undefined;
+
+      this.drawBanner(width, level.name, data.victory, newMastery);
+      this.drawStatTiles(totals, bankedGold, clearBonus, xpResult, data.ticks, clearTime, data.victory);
+      this.drawRunNotes(width, data, clearTime, teaser);
+    } else {
+      this.drawShopBanner(width, level.name);
+    }
     this.navigationActions = resultsNavigationActions(this.nextName);
-    const teaser = data.victory && !this.nextId ? nextTeaser(this.profile) : undefined;
 
     this.mainRows = [3, Math.max(1, abilitySpecializationsForHero(this.heroId).length), 3];
     this.selection = new MenuSelection(this.mainRows, { row: 0, col: 0 });
 
-    this.drawBackground(width, height);
-    this.drawBanner(width, level.name, data.victory, newMastery);
-    this.drawStatTiles(totals, bankedGold, clearBonus, xpResult, data.ticks, clearTime, data.victory);
-    this.drawRunNotes(width, data, clearTime, teaser);
     this.toastText = this.add
       .text(width / 2, height - 11, '', { fontFamily: 'monospace', fontSize: '11px', color: '#64e6ff', align: 'center' })
       .setOrigin(0.5)
@@ -131,6 +137,9 @@ export class ResultsScene extends Phaser.Scene {
         selectedCol: this.selection.position.col,
         selectedIndex: this.selection.selectedIndex,
         modalOpen: this.modalOpen,
+        mode: this.shopOnly ? 'shop' : 'run',
+        heroId: this.heroId,
+        levelId: this.levelId,
         bank: this.profile.bank,
         dynamicObjectCount: this.dynamicObjects.length,
         scenePaused: this.scene.isPaused(),
@@ -183,6 +192,34 @@ export class ResultsScene extends Phaser.Scene {
     }
   }
 
+  private drawShopBanner(width: number, levelName: string): void {
+    this.add.rectangle(width / 2, 45, width - 60, 2, 0x64e6ff, 0.45);
+    this.add
+      .text(width / 2, 45, 'HIVE ARMORY', {
+        fontFamily: 'sans-serif',
+        fontSize: '34px',
+        color: '#64e6ff',
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5);
+    this.add
+      .text(width / 2, 80, `${CONTENT.heroes[this.heroId]?.name.toUpperCase() ?? this.heroId.toUpperCase()}  ·  UPGRADES & LOADOUT`, {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        color: '#a194b3'
+      })
+      .setOrigin(0.5);
+    this.add
+      .text(width / 2, 160, `PREPARING FOR ${levelName.toUpperCase()}  ·  NO RUN REWARDS CLAIMED`, {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        color: '#9fe06a',
+        backgroundColor: '#151d18',
+        padding: { left: 14, right: 14, top: 9, bottom: 9 }
+      })
+      .setOrigin(0.5);
+  }
+
   private drawStatTiles(
     totals: ReturnType<typeof partyResultTotals>,
     bankedGold: number,
@@ -211,7 +248,7 @@ export class ResultsScene extends Phaser.Scene {
     });
   }
 
-  private drawRunNotes(width: number, data: ResultsData, clearTime: ClearTimeResult | null, teaser: ReturnType<typeof nextTeaser>): void {
+  private drawRunNotes(width: number, data: RunResultsData, clearTime: ClearTimeResult | null, teaser: ReturnType<typeof nextTeaser>): void {
     const notes: string[] = [];
     const continues = continuesSpentCopy(Math.max(0, data.continuesUsed ?? 0), Math.max(0, data.continueGold ?? 0));
     if (continues) notes.push(continues);
@@ -551,8 +588,15 @@ export class ResultsScene extends Phaser.Scene {
     this.renderDynamic();
     this.time.delayedCall(140, () => {
       if (action.id === 'mission-select') {
-        const focus = intent === 'wheel' || !this.nextId ? this.levelId : this.nextId;
-        this.scene.start('mission-hub', { heroId: this.heroId, levelId: focus });
+        if (this.shopOnly) {
+          this.scene.start(this.returnTarget.scene, {
+            heroId: this.returnTarget.heroId,
+            levelId: this.returnTarget.levelId
+          });
+        } else {
+          const focus = intent === 'wheel' || !this.nextId ? this.levelId : this.nextId;
+          this.scene.start('mission-hub', { heroId: this.heroId, levelId: focus });
+        }
       } else if (action.id === 'replay') {
         this.scene.start('mission', { heroId: this.heroId, levelId: this.levelId });
       } else {
@@ -583,7 +627,8 @@ export class ResultsScene extends Phaser.Scene {
   private toWheel(focus: string): void {
     if (this.modalOpen || this.navigationActivating) return;
     audio.uiConfirm();
-    this.scene.start('mission-hub', { heroId: this.heroId, levelId: focus });
+    const target = this.shopOnly ? this.returnTarget : { scene: 'mission-hub' as const, heroId: this.heroId, levelId: focus };
+    this.scene.start(target.scene, { heroId: target.heroId, levelId: target.levelId });
   }
 
   private replay(): void {
@@ -639,7 +684,13 @@ export class ResultsScene extends Phaser.Scene {
       confirm: () => this.activateSelected(),
       cancel: () => (this.modalOpen ? this.cancelSpecialization() : this.toWheel(this.levelId)),
       alt: () => this.replay(),
-      alt2: () => this.selectAndActivate(0, 2),
+      // (Y) opened a shop-only Results entry from the hub. Ignore that same
+      // physical press if it is still crossing the scene handoff; otherwise it
+      // would immediately buy the weapon card that (Y) activates here.
+      alt2: () => {
+        if (this.shopOnly && !this.shopPadArmed) return;
+        this.selectAndActivate(0, 2);
+      },
       shoulderLeft: () => this.selectAndActivate(0, 0),
       shoulderRight: () => this.selectAndActivate(0, 1),
       back: () => this.toHeroSelect(),
