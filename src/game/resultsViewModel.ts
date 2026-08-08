@@ -41,6 +41,43 @@ export interface WeaponShopCard {
 
 export type ShopCard = UpgradeShopCard | WeaponShopCard;
 
+export type ResultsNavigationActionId = 'mission-select' | 'replay' | 'hero-select';
+
+export interface ResultsNavigationAction {
+  id: ResultsNavigationActionId;
+  label: string;
+  detail: string;
+  shortcut: string;
+  glyph: string;
+}
+
+/** Player-facing results exits, kept separate from scene routing and rendering. */
+export function resultsNavigationActions(nextMissionName?: string): ResultsNavigationAction[] {
+  return [
+    {
+      id: 'mission-select',
+      label: 'MISSION SELECT',
+      detail: nextMissionName ? `NEXT MISSION  ·  ${nextMissionName.toUpperCase()}` : 'REVIEW THE MISSION MAP',
+      shortcut: 'N',
+      glyph: '◆'
+    },
+    {
+      id: 'replay',
+      label: 'REPLAY',
+      detail: 'RUN THIS MISSION AGAIN',
+      shortcut: 'R',
+      glyph: '↻'
+    },
+    {
+      id: 'hero-select',
+      label: 'HERO SELECT',
+      detail: 'CHANGE YOUR HERO',
+      shortcut: 'H',
+      glyph: '◇'
+    }
+  ];
+}
+
 export function resultsShopCards(profile: Profile, heroId: string): ShopCard[] {
   const upgradeCards: ShopCard[] = Object.values(UPGRADES).map((def) => {
     const rank = upgradeLevel(profile, def.id);
