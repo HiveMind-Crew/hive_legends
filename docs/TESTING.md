@@ -94,8 +94,10 @@ from inside the game loop, and the loop is suspended while a tab is hidden.
   `07-gamepad-mission-start` → `08-gamepad-results` → `09-gamepad-wheel` →
   `10-gamepad-hotplug`, plus the continue run's `11-continue-prompt` →
   `12-continued-run` → `13-continue-declined-results`, and co-op's
-  `14-two-player-joined` → `15-two-player-results`. CI uploads these as
-  artifacts on every run.
+  `14-four-player-joined` → `15-four-player-results`. CI uploads these as
+  artifacts on every run. The Resin Galleries expedition also records
+  `issue150-crown-finale`, `issue150-solo-results`,
+  `issue150-four-player-joined`, and `issue150-four-player-results`.
 - The bot reads game state through a read-only debug handle the game exposes
   on `globalThis`:
 

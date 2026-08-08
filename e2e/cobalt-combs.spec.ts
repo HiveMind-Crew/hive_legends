@@ -84,7 +84,11 @@ test('a player can clear the braided Cobalt Combs in either arm order', async ({
   const activationOrder: string[] = [];
   let maxConcurrentEnemies = 0;
 
-  for (let poll = 0; poll < 1600; poll++) {
+  // Bound by wall clock, like the Warrens and Galleries playthroughs. A fixed
+  // poll count starves under full-suite load: the sim advances in real time, so
+  // fewer game ticks fit into the same number of polls.
+  const deadline = Date.now() + 200_000;
+  while (Date.now() < deadline) {
     state = await getState(page);
     if (state.phase !== 'combat') break;
     maxConcurrentEnemies = Math.max(maxConcurrentEnemies, state.enemies.length);
@@ -92,12 +96,13 @@ test('a player can clear the braided Cobalt Combs in either arm order', async ({
       if (encounter.active && !activationOrder.includes(encounter.id)) activationOrder.push(encounter.id);
     }
     await driver.set(actionToKeys(bot.decide(state)));
-    await page.waitForTimeout(60);
+    await page.waitForTimeout(90);
   }
   await driver.releaseAll();
 
   if (state.phase !== 'exit-open') {
-    console.log(bot.trace.slice(-40).join('\n'));
+    console.log(`--- Cobalt bot trace (last 80 of ${bot.trace.length} polls) ---`);
+    for (const line of bot.trace.slice(-80)) console.log(line);
     console.log('activation order:', activationOrder.join(' -> '));
   }
   expect(state.phase, 'every spawner should be down').toBe('exit-open');
@@ -109,12 +114,13 @@ test('a player can clear the braided Cobalt Combs in either arm order', async ({
   expect(activationOrder[3]).toBe('breach');
 
   // Walk to the portal and finish.
-  for (let poll = 0; poll < 400; poll++) {
+  const exitDeadline = Date.now() + 60_000;
+  while (Date.now() < exitDeadline) {
     state = await getState(page);
     if (state.phase === 'complete') break;
     maxConcurrentEnemies = Math.max(maxConcurrentEnemies, state.enemies.length);
     await driver.set(actionToKeys(bot.decide(state)));
-    await page.waitForTimeout(60);
+    await page.waitForTimeout(90);
   }
   await driver.releaseAll();
   expect(state.phase, 'the portal should have been reached').toBe('complete');
