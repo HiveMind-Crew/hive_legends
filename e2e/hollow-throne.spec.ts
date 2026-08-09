@@ -56,15 +56,16 @@ test('a player can clear both sanctums in either order and fell a dormant-until-
   // The Hollow Throne is the realm boss node, so seed the three mission
   // clears that unlock it. Everything about unlocking derives from
   // `clearedLevels` (docs/PROGRESSION.md). A real party reaching the realm
-  // finale has banked gold from three missions' worth of loot and bounties;
-  // seed enough `bank` to afford a few arcade continues (issue #99) if this
-  // bot's blunt "always swing" combat brain — not a boss-optimized dueler —
-  // falls to her, exactly like a human's mistimed attempt would.
+  // finale has banked gold from three missions' worth of loot and bounties.
+  // This spec proves geometry, encounter order and boss dormancy rather than
+  // the economy, so give its deliberately blunt "always swing" bot a synthetic
+  // bank large enough that machine-speed variance cannot exhaust the rising
+  // continue ladder before the assertion it exists to make (issue #99).
   await page.addInitScript(
     ({ key, value }) => localStorage.setItem(key, JSON.stringify(value)),
     {
       key: PROFILE_KEY,
-      value: { clearedLevels: ['brood-warrens', 'resin-galleries', 'cobalt-combs'], bank: 2000 }
+      value: { clearedLevels: ['brood-warrens', 'resin-galleries', 'cobalt-combs'], bank: 10_000 }
     }
   );
   await page.goto('/');

@@ -59,7 +59,8 @@ the code on 2026-07-24 and corrected; everything below is now landed):
       multi-stage death spectacle. The exit stays sealed while she lives.
 - [x] Hub polish (hero select → mission-wheel flow) — attract-mode title and
       hero cards (#9), plus the spoke-and-wheel hub, unlock gating, teaser
-      realms, and a persistent end-of-authored-content state (#59/#63).
+      realms, and a persistent end-of-authored-content state (tracking #59,
+      complete; #63).
 - [x] Audio (original SFX/music) — synthesized SFX, a procedural combat loop,
       and the Herald announcer (#8).
 - [x] XP/level progression in addition to gold upgrades — XP from kills and
@@ -87,8 +88,11 @@ independent pads clearing The Brood Warrens with one shared-profile payout,
 and viewport fitting; screenshots land in `test-results/`. Run the whole gate
 with the one-liner in `CLAUDE.md`; layer-by-layer detail is in `docs/TESTING.md`.
 
-One transient e2e failure was observed once early in development and has not
-reproduced since — watch CI for recurrence.
+The real-time mission bots remain timing-sensitive under load. During the #59
+closeout audit, the Resin Galleries solo bot carried 17 enemies across staged
+rooms once (above the 15-hostile ceiling), then passed an immediate isolated
+rerun at 13. Treat that ceiling excursion as a transient risk and keep watching
+CI; the deterministic encounter-budget tests remain green.
 
 ## Look & feel track (complete)
 
@@ -467,13 +471,13 @@ charging, so it is a pessimistic bound. Re-check against real play before
 widening the arc; the Sentinel's crowd lead is only ~6% at T3, so his reach
 would have to grow with it or the two heroes converge again.
 
-The mission wheel landed (#59). Mission selection moved off the hero-select
-list panel onto a spoke-and-wheel hub: a spoke is three sequential missions
-capped by a boss, the boss opens when all three are cleared, and the next spoke
-opens when that boss falls. The first spoke — **The Azure Reach** — is The
-Brood Warrens, The Resin Galleries, the new **Cobalt Combs** (#55), and
-Mireveil at The Hollow Throne, with two announced-but-unauthored realms drawn
-as teaser arms.
+The mission-hub roadmap is complete (#53–#59 and #63). Mission selection moved
+off the hero-select list panel onto a spoke-and-wheel hub: a spoke is three
+sequential missions capped by a boss, the boss opens when all three are
+cleared, and the next spoke opens when that boss falls. The first spoke — **The
+Azure Reach** — is The Brood Warrens, The Resin Galleries, the new **Cobalt
+Combs** (#55), and Mireveil at The Hollow Throne, with two
+announced-but-unauthored realms drawn as teaser arms.
 
 The shape of the wheel is data (`SpokeDef`/`TeaserSpokeDef` in
 `src/content/spokes.ts`), the rules live in `src/meta/save.ts`
@@ -501,8 +505,8 @@ geometry change alone.
 
 ## Next recommended task
 
-Tracking issue #29 can close: every child issue #15–#28 is complete and its
-delivered systems are recorded above. The next content work should turn the
+The completed tracking boards #29 and #59 cover the content-expansion and
+mission-hub foundations recorded above. The next content work should turn the
 two remaining v1 spokes in `docs/PROGRESSION.md` into dependency-ordered
 implementation issues rather than extending the finished Azure Reach ad hoc.
 The Mireveil balance note from #25 is resolved by #104. A deterministic
