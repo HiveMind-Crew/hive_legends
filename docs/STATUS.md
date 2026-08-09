@@ -1,9 +1,10 @@
 # Project status
 
-Updated: 2026-08-08 — **local co-op is playable** (issue #106) and the M1
-vertical slice remains content-complete (boss #25, XP levelling #46,
-combat-feel pass #38/#39/#40, screen-clear potion #41, and the first real art
-pack #44 all landed).
+Updated: 2026-08-08 — the **M1 product review is closed out** (tracking #112):
+all original findings (#92–#111) and its live-play follow-ups (#115–#117) are
+complete. The M1 vertical slice remains content-complete (boss #25, XP
+levelling #46, combat-feel pass #38/#39/#40, screen-clear potion #41, and the
+first real art pack #44 all landed).
 
 ## Milestones
 
@@ -81,12 +82,13 @@ level in the renderer.
 
 ## Verification state
 
-`lint`, `typecheck`, **443 unit tests across 42 files**, the production build,
-and all 13 Playwright checks pass. Browser coverage includes solo keyboard and
+`lint`, `typecheck`, **523 unit tests across 50 files**, the production build,
+and all 21 Playwright checks pass. Browser coverage includes solo keyboard and
 gamepad clears, hot-plug, continue, specialization purchase/replay, two
 independent pads clearing The Brood Warrens with one shared-profile payout,
-and viewport fitting; screenshots land in `test-results/`. Run the whole gate
-with the one-liner in `CLAUDE.md`; layer-by-layer detail is in `docs/TESTING.md`.
+four-pad and staged multi-room pressure checks, hub pointer navigation, and
+viewport fitting; screenshots land in `test-results/`. Run the whole gate with
+the one-liner in `CLAUDE.md`; layer-by-layer detail is in `docs/TESTING.md`.
 
 The real-time mission bots remain timing-sensitive under load. During the #59
 closeout audit, the Resin Galleries solo bot carried 17 enemies across staged
@@ -503,15 +505,43 @@ authoring. The preserved arena is byte-identical to the pre-#151 room so
 `scripts/mireveilBenchmark.ts`'s pinned per-hero TTKs do not move for a
 geometry change alone.
 
+## M1 product-review roadmap (issues #92–#112, complete)
+
+Issue #112 recorded an accurate snapshot of the build on 2026-07-29, but its
+defect list is not a description of the current game. Every original finding
+#92–#111 is closed as completed through a merged PR:
+
+- **Shell (#92–#100):** pause/abandon, persistent settings, fitted canvas and
+  fullscreen, reduced-motion controls, party-sized HUD, contextual onboarding,
+  gamepad control, arcade continues, and per-realm clear records all shipped.
+- **Economy and progression (#102/#103/#108):** completion-forward rewards,
+  an explicit XP cap with overflow conversion, and permanent ability
+  specializations replaced the review's dead-end economy.
+- **Content and balance (#104/#105):** Mireveil's hero matchup is measured and
+  held to a generated regression ceiling; the content-volume finding produced
+  the plan for v1's two remaining spokes in `docs/PROGRESSION.md`. Those
+  future spokes are deliberately planned, not claimed as authored content.
+- **Systems (#106/#107):** deterministic local couch co-op and stalled-chase
+  path routing shipped while preserving the sim boundary.
+- **Art (#101/#109–#111):** spawners are visually distinct, each authored realm
+  has a dedicated tileset, the Hollow Throne has finale dressing, and the
+  generated-forever FX policy is explicit.
+
+The review's three live-play follow-ups are complete too: locked hero art is
+readable (#116), generator spawns respect a player safety arc (#115), and the
+mission selector was redesigned as a labelled hive-comb map (#117). Remaining
+future work is the explicitly out-of-scope online layer and the unauthored
+spokes already recorded below, not unfinished findings hidden on this board.
+
 ## Next recommended task
 
-The completed tracking boards #29 and #59 cover the content-expansion and
-mission-hub foundations recorded above. The next content work should turn the
-two remaining v1 spokes in `docs/PROGRESSION.md` into dependency-ordered
-implementation issues rather than extending the finished Azure Reach ad hoc.
-The Mireveil balance note from #25 is resolved by #104. A deterministic
-level-1, base-kit benchmark now measures every hero and generates its table in
-`docs/COMBAT.md`; the checked regression ceiling is 1.8× fastest-to-slowest.
-The old anecdotal ranged advantage did not reproduce, but the baseline still
-showed a 2.13× outlier, closed by Mireveil's truer-to-silhouette hit radius and
-a modest Sentinel recovery improvement.
+The completed tracking boards #29, #59 and #112 cover the content-expansion,
+mission-hub and M1 product-review foundations recorded above. The next content
+work should turn the two remaining v1 spokes in `docs/PROGRESSION.md` into
+dependency-ordered implementation issues rather than extending the finished
+Azure Reach ad hoc. The Mireveil balance note from #25 is resolved by #104. A
+deterministic level-1, base-kit benchmark now measures every hero and generates
+its table in `docs/COMBAT.md`; the checked regression ceiling is 1.8×
+fastest-to-slowest. The old anecdotal ranged advantage did not reproduce, but
+the baseline still showed a 2.13× outlier, closed by Mireveil's
+truer-to-silhouette hit radius and a modest Sentinel recovery improvement.
