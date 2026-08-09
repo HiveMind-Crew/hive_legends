@@ -12,9 +12,9 @@ pack #44 all landed).
 - **M1 — Vertical slice: CONTENT-COMPLETE.** Every checklist item below is
   landed, including the original-art track (#27 characters and #28
   environment/UI).
-- M2 — Systems depth (progression trees, deeper economy): not started; board
-  in #29. Note the full four-hero roster and realms 2–3, once slated here and
-  for M4, landed early during M1.
+- M2 — Systems depth and content breadth: underway. The first progression and
+  economy passes (#102/#108) are complete; the two remaining v1 spokes are
+  scoped in `docs/PROGRESSION.md` but do not yet have implementation issues.
 - M3 — Co-op: local couch co-op is playable for P1–P4 (#106), with explicit
   deterministic pad join/drop-out, shared camera/HUD/results, unique party
   banking, authored player-count generator caps, and held teammate revive.
@@ -67,8 +67,10 @@ the code on 2026-07-24 and corrected; everything below is now landed):
       gain) and damage, announced by the Herald. Banked to the profile, so the
       next mission starts at that level. Stacks with the bought gold upgrades.
 
-**With this, the M1 vertical slice and its original-art track are complete.**
-The next planning board is M2 (#29).
+**With this, the M1 vertical slice, its original-art track, and the content
+expansion roadmap in #29 are complete.** The next content plan is recorded in
+`docs/PROGRESSION.md` and should be split into implementation issues before
+work begins.
 
 #28 now covers the full environment/UI contract: the Realm 1 floor and wall
 pack; Brood Node states, props and decor; interaction objects; HUD glyphs and
@@ -227,21 +229,21 @@ on any future failure.
 - Phaser bundle is ~1.5 MB (348 kB gzip); fine for now, consider code-splitting
   at content growth.
 
-## Content expansion roadmap (issues #15–#29)
+## Content expansion roadmap (issues #15–#29, complete)
 
-The look & feel track (#1–#9, tracking #10) is complete. The next board is
-the content expansion, orchestrated for parallel contributors and tracked in
-issue #29:
+The look & feel track (#1–#9, tracking #10) and the follow-on content expansion
+tracked in #29 are complete. Every implementation issue #15–#28 is closed:
 
 - **Phase 1 — sim foundations**: projectiles/typed kits (#15 — DONE),
   temporary power-ups (#16 — DONE), keys/gates/secret walls (#17 — DONE).
   **Phase 1 is complete.**
 - **Phase 2 — classes & combat**: Arcanist (#18 — DONE), Ranger (#19 — DONE),
-  Sentinel (#20 — DONE), multi-hero roster (#21), weapon tiers (#22),
-  Husk/Spitter/elite enemies (#23 — DONE). All four core classes are now
-  playable and the enemy roster spans three families.
-- **Phase 3 — levels & finale**: Realm 2 "The Resin Galleries" (#24), the
-  Broodmother boss (#25).
+  Sentinel (#20 — DONE), multi-hero roster (#21 — DONE), weapon tiers
+  (#22 — DONE), Husk/Spitter/elite enemies (#23 — DONE). All four core classes
+  are playable and the enemy roster spans three families. **Phase 2 is
+  complete.**
+- **Phase 3 — levels & finale**: Realm 2 "The Resin Galleries" (#24 — DONE)
+  and the Broodmother boss (#25 — DONE). **Phase 3 is complete.**
 - **Art track (complete)**: drop-in asset pipeline + docs/ART.md (#26),
   character art pack (#27), environment/props/UI art pack (#28).
 
@@ -499,9 +501,10 @@ geometry change alone.
 
 ## Next recommended task
 
-M1 and its original-art track are complete. The next work should start by
-turning the M2 candidates in tracking issue #29 into scoped implementation
-issues rather than extending the finished vertical slice ad hoc.
+Tracking issue #29 can close: every child issue #15–#28 is complete and its
+delivered systems are recorded above. The next content work should turn the
+two remaining v1 spokes in `docs/PROGRESSION.md` into dependency-ordered
+implementation issues rather than extending the finished Azure Reach ad hoc.
 The Mireveil balance note from #25 is resolved by #104. A deterministic
 level-1, base-kit benchmark now measures every hero and generates its table in
 `docs/COMBAT.md`; the checked regression ceiling is 1.8× fastest-to-slowest.
